@@ -12,6 +12,7 @@ import plateDataRoutes from './routes/plateData.js';
 import geneDetailsRoutes from './routes/geneDetails.js';
 import pdbRoutes from './routes/pdb.js';
 import enzymesRoutes from './routes/enzymes.js';
+import searchRoutes from './routes/search.js';
 import { pool } from './db.js';
 
 const app = express();
@@ -20,6 +21,9 @@ app.use(cors({
   origin: [
     'https://petadex.net',
     'https://www.petadex.net',
+    'https://petadex.org',
+    'https://www.petadex.org',
+    'https://api.petadex.org',
     'http://localhost:8000',
     'http://localhost:9000',
     'http://ec2-44-222-238-66.compute-1.amazonaws.com:3001'
@@ -37,6 +41,7 @@ app.use('/api/plate-data', plateDataRoutes);
 app.use('/api/gene-details', geneDetailsRoutes);
 app.use('/api/pdb', pdbRoutes);
 app.use('/api/enzymes', enzymesRoutes);
+app.use('/api/search', searchRoutes);
 
 // (Optional) health check route
 app.get('/health', async (req, res) => {

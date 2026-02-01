@@ -327,4 +327,84 @@ router.get('/stats/overview', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/enzymes/families/summary
+ * Get family centroids with variant counts and stats
+ * Query params:
+ *   - sort: field to sort by (variant_count, component_count, avg_identity, family)
+ *   - order: sort order (asc, desc)
+ *   - limit: number of results (default 100, max 1000)
+ *   - offset: pagination offset (default 0)
+ */
+router.get('/families/summary', async (req, res, next) => {
+  try {
+    const {
+      sort = 'variant_count',
+      order = 'desc',
+      limit = 100,
+      offset = 0
+    } = req.query;
+
+    // Map sort fields to qualified column names to prevent SQL injection and ambiguity
+    const sortFieldMap = {
+      'variant_count': 'fs.variant_count',
+      'component_count': 'fs.component_count',
+      'avg_identity': 'fs.avg_identity',
+      'family': 'fs.family'
+    };
+    const sortField = sortFieldMap[sort] || 'fs.variant_count';
+    const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
+
+    const query = `
+      WITH family_stats AS (
+        SELECT
+          t.family,
+          COUNT(DISTINCT e.enzyme_id) as variant_count,
+          COUNT(DISTINCT t.component) FILTER (WHERE t.component IS NOT NULL) as component_count,
+          ROUND(AVG(t.family_pid) FILTER (WHERE t.family_pid IS NOT NULL AND t.family_pid < 100), 1) as avg_identity
+        FROM enzyme_taxonomy t
+        INNER JOIN enzyme_fastaa e ON t.enzyme_id = e.enzyme_id
+        WHERE t.family IS NOT NULL
+        GROUP BY t.family
+      )
+      SELECT
+        fs.family as family_id,
+        e.genbank_accession_id as centroid_accession,
+        fs.variant_count,
+        fs.component_count,
+        fs.avg_identity
+      FROM family_stats fs
+      INNER JOIN enzyme_taxonomy t ON fs.family = t.family AND (t.family_pid = 100 OR t.family_pid IS NULL)
+      INNER JOIN enzyme_fastaa e ON t.enzyme_id = e.enzyme_id
+      ORDER BY ${sortField} ${sortOrder}
+      LIMIT $1 OFFSET $2
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT family) as total
+      FROM enzyme_taxonomy
+      WHERE family IS NOT NULL
+    `;
+
+    const [dataResult, countResult] = await Promise.all([
+      pool.query(query, [parseInt(limit), parseInt(offset)]),
+      pool.query(countQuery)
+    ]);
+
+    const total = parseInt(countResult.rows[0]?.total || 0);
+
+    res.json({
+      data: dataResult.rows,
+      pagination: {
+        limit: parseInt(limit),
+        offset: parseInt(offset),
+        total,
+        hasMore: parseInt(offset) + dataResult.rows.length < total
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
