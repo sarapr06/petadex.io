@@ -13,8 +13,8 @@
     "generate-screenshots:featured": "node scripts/generate-protein-screenshots.js --featured"
   },
   "dependencies": {
-    "@aws-sdk/client-lambda": "^3.500.0",
-    "@aws-sdk/client-s3": "^3.500.0",
+    "@aws-sdk/client-lambda": "^3.750.0",
+    "@aws-sdk/client-s3": "^3.750.0",
     "cors": "^2.8.5",
     "dotenv": "^10.0.0",
     "express": "^4.18.2",
@@ -26,7 +26,10 @@
   },
   "devDependencies": {
     "nodemon": "^3.1.10",
-    "puppeteer": "^21.0.0",
+    "puppeteer": "^24.36.1",
     "serverless": "^4.17.1"
+  },
+  "overrides": {
+    "fast-xml-parser": "^5.3.4"
   }
 }
