@@ -396,7 +396,7 @@ const EnzymesPage = () => {
         maxWidth: "1200px",
         margin: "0 auto",
         padding: "2rem",
-        paddingTop: "10rem"
+        paddingTop: "2rem"
       }}>
         {/* Header Section */}
         <div style={{ marginBottom: "2rem" }}>
