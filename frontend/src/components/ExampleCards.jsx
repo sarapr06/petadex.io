@@ -60,6 +60,9 @@ const ExampleCards = ({ onSelectExample, disabled }) => {
           cursor: pointer;
           transition: all 0.15s ease;
           text-align: left;
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-start;
         }
         .example-card:hover:not(:disabled) {
           border-color: #007bff;

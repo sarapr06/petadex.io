@@ -170,12 +170,10 @@ const SequenceSearch = () => {
     <div className="sequence-search">
       <style>{`
         .sequence-search {
-          max-width: 900px;
-          margin: 0 auto;
-          padding: 1.5rem;
+          width: 100%;
         }
         .search-header {
-          margin-bottom: 1.5rem;
+          margin-bottom: 0.75rem;
         }
         .search-header h2 {
           margin: 0 0 0.5rem 0;
@@ -354,11 +352,6 @@ const SequenceSearch = () => {
           color: #666;
         }
       `}</style>
-
-      <div className="search-header">
-        <h2>Sequence Similarity Search</h2>
-        <p>Search for similar plastic-degrading enzymes using your protein sequence</p>
-      </div>
 
       <ExampleCards
         onSelectExample={loadPastSearch}

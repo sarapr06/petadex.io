@@ -16,7 +16,7 @@ const SearchPage = () => {
         maxWidth: "1200px",
         margin: "0 auto",
         padding: "2rem",
-        paddingTop: "10rem"
+        paddingTop: "2rem"
       }}>
         <div style={{ marginBottom: "2rem" }}>
           <h1 style={{
