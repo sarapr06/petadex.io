@@ -105,7 +105,7 @@ function transformResults(results, queryLength) {
     identity: hit.percent_identity,
     evalue: hit.evalue,
     score: hit.bitscore,
-    query_coverage: queryLength ? Math.round((hit.alignment_length / queryLength) * 100) : null,
+    query_coverage: queryLength ? Math.round(((hit.query_end - hit.query_start + 1) / queryLength) * 100) : null,
     alignment_length: hit.alignment_length,
     query_start: hit.query_start,
     query_end: hit.query_end,
@@ -302,6 +302,8 @@ router.get('/results/:job_id', async (req, res, next) => {
         metadata: {
           query_length: data.query_length,
           num_results: data.num_results,
+          database_size: data.database_size,
+          search_time_ms: data.search_time_ms,
           timestamp: data.timestamp
         }
       });

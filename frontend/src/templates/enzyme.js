@@ -7,6 +7,34 @@ import Seo from "../components/seo";
 import config from "../config";
 import { useScrollHeader } from "../hooks/useScrollHeader";
 
+const getNCBILink = (accession) => {
+  if (!accession) return null;
+
+  // GenBank protein accessions (letters + 5-6 digits)
+  if (/^[A-Z]{3}\d{5}\.\d+$/.test(accession)) {
+    return `https://www.ncbi.nlm.nih.gov/protein/${accession}`;
+  }
+
+  // RefSeq protein (WP_)
+  if (accession.startsWith('WP_')) {
+    return `https://www.ncbi.nlm.nih.gov/protein/${accession}`;
+  }
+
+  // SRA accessions (SRR, DRR, ERR)
+  if (/^[SDE]RR\d+_\d+/.test(accession)) {
+    const sraId = accession.split('_')[0];
+    return `https://www.ncbi.nlm.nih.gov/sra/${sraId}`;
+  }
+
+  // MGY (metagenomic) - use protein search
+  if (accession.startsWith('MGYP')) {
+    return `https://www.ncbi.nlm.nih.gov/protein?term=${accession}`;
+  }
+
+  // Default protein search for others (removes suffix)
+  return `https://www.ncbi.nlm.nih.gov/protein?term=${accession.split('_')[0]}`;
+};
+
 export default function EnzymeTemplate({ pageContext }) {
   useScrollHeader();
   const [enzyme, setEnzyme] = useState(pageContext.enzyme || null);
@@ -103,7 +131,7 @@ export default function EnzymeTemplate({ pageContext }) {
           }}>
             {enzyme.genbank_accession_id ? (
               <a
-                href={`https://www.ncbi.nlm.nih.gov/protein/${enzyme.genbank_accession_id}`}
+                href={getNCBILink(enzyme.genbank_accession_id)}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{

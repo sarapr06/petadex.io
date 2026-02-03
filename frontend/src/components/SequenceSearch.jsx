@@ -432,9 +432,11 @@ const SequenceSearch = () => {
             <h3>Search Results</h3>
             {metadata && (
               <div className="results-meta">
-                Query length: {metadata.query_length} aa |
-                Database size: {metadata.database_size?.toLocaleString()} sequences |
-                Search time: {metadata.search_time_ms}ms
+                {[
+                  metadata.query_length && `Query length: ${metadata.query_length} aa`,
+                  metadata.database_size && `Database size: ${metadata.database_size.toLocaleString()} sequences`,
+                  metadata.search_time_ms && `Search time: ${metadata.search_time_ms}ms`
+                ].filter(Boolean).join(' | ')}
               </div>
             )}
           </div>
