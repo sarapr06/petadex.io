@@ -8,7 +8,7 @@ import { useScrollHeader } from "../hooks/useScrollHeader";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine,
-  ScatterChart, Scatter, Cell, ZAxis
+  ScatterChart, Scatter, ZAxis
 } from "recharts";
 
 const mediaColors = {
@@ -24,6 +24,14 @@ const mediaLabels = {
 };
 
 const allSubstrates = ["BHET12.5", "BHET25", "BHET50"];
+
+const benchmarkEnzymes = {
+  "WP_054022242.1": "IsPETase",
+  "WP_054022242.1_M1": "Fast-PETase",
+};
+
+const diamondPoints = (cx, cy, r) =>
+  `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`;
 
 // Transform per-gene media data into Recharts line chart format
 const transformForChart = (mediaData) => {
@@ -282,7 +290,7 @@ const SubstrateScatter = ({
   scatterData, activeSubstrates,
   scatterXAxis, scatterYAxis,
   onXAxisChange, onYAxisChange,
-  onDotClick,
+  onDotClick, highlightedGene,
 }) => {
   const substrates = [...activeSubstrates];
 
@@ -300,13 +308,16 @@ const SubstrateScatter = ({
   }, [scatterData]);
 
   return (
-    <div style={{
+    <div
+      id="substrate-scatter"
+      style={{
       backgroundColor: "#fff",
       border: "1px solid #e5e7eb",
       borderRadius: "12px",
       padding: "1.5rem",
       marginBottom: "2rem",
       boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
+      position: "relative",
     }}>
       <div style={{
         display: "flex",
@@ -417,24 +428,103 @@ const SubstrateScatter = ({
               if (data?.gene) onDotClick(data.gene);
             }}
             cursor="pointer"
-          >
-            {scatterData.map((entry, i) => {
-              const prefersX = entry.x > entry.y;
+            shape={(props) => {
+              const { cx, cy, payload } = props;
+              const prefersX = payload.x > payload.y;
               const color = prefersX ? mediaColors[scatterXAxis] : mediaColors[scatterYAxis];
-              return (
-                <Cell
-                  key={i}
-                  fill={color}
-                  fillOpacity={0.65}
-                  stroke={color}
-                  strokeWidth={1.5}
-                  strokeOpacity={0.9}
-                />
+              const isHighlighted = highlightedGene && payload.gene === highlightedGene;
+              const benchmarkLabel = benchmarkEnzymes[payload.accession];
+
+              const pulseRing = (
+                <>
+                  <circle cx={cx} cy={cy} r={14} fill="none" stroke={color} strokeWidth={2}>
+                    <animate attributeName="r" from="8" to="18" dur="1.5s" repeatCount="indefinite" />
+                    <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
+                  </circle>
+                </>
               );
-            })}
-          </Scatter>
+
+              const label = benchmarkLabel ? (
+                <text x={cx + 14} y={cy + 4} fontSize="11" fontWeight="700" fill="#1f2937">
+                  {benchmarkLabel}
+                </text>
+              ) : null;
+
+              if (benchmarkLabel && isHighlighted) {
+                return (
+                  <g>
+                    {pulseRing}
+                    <polygon points={diamondPoints(cx, cy, 9)} fill={color} stroke="#fff" strokeWidth={2.5} />
+                    {label}
+                  </g>
+                );
+              }
+
+              if (benchmarkLabel) {
+                return (
+                  <g>
+                    <polygon points={diamondPoints(cx, cy, 8)} fill={color} stroke="#1f2937" strokeWidth={2} />
+                    {label}
+                  </g>
+                );
+              }
+
+              if (isHighlighted) {
+                return (
+                  <g>
+                    {pulseRing}
+                    <circle cx={cx} cy={cy} r={7} fill={color} stroke="#fff" strokeWidth={2.5} />
+                  </g>
+                );
+              }
+
+              return (
+                <circle cx={cx} cy={cy} r={5} fill={color} fillOpacity={0.65}
+                  stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
+              );
+            }}
+          />
         </ScatterChart>
       </ResponsiveContainer>
+
+      {/* Highlighted gene info card */}
+      {highlightedGene && (() => {
+        const gene = scatterData.find(d => d.gene === highlightedGene);
+        if (!gene) return null;
+        return (
+          <div style={{
+            position: "absolute",
+            top: "4.5rem",
+            right: "2rem",
+            backgroundColor: "#fff",
+            border: "1px solid #e5e7eb",
+            borderRadius: "8px",
+            padding: "0.75rem 1rem",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
+            fontSize: "0.825rem",
+            maxWidth: "260px",
+            zIndex: 10,
+            opacity: 0,
+            animation: "highlightFadeIn 0.3s ease forwards",
+          }}>
+            <style>{`@keyframes highlightFadeIn { to { opacity: 1; } }`}</style>
+            <div style={{ fontWeight: "700", color: "#1f2937", marginBottom: "0.3rem", fontFamily: "monospace" }}>
+              {gene.gene}
+            </div>
+            {gene.nickname && (
+              <div style={{ color: "#6b7280", marginBottom: "0.3rem", fontSize: "0.75rem" }}>
+                {gene.nickname}
+              </div>
+            )}
+            <div style={{ color: mediaColors[scatterXAxis], marginBottom: "0.15rem" }}>
+              {mediaLabels[scatterXAxis]}: <strong>{gene.x?.toFixed(4)}</strong>
+            </div>
+            <div style={{ color: mediaColors[scatterYAxis] }}>
+              {mediaLabels[scatterYAxis]}: <strong>{gene.y?.toFixed(4)}</strong>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Legend */}
       <div style={{
@@ -470,13 +560,20 @@ const SubstrateScatter = ({
           }} />
           Equal preference
         </span>
+        <span style={{ color: "#e5e7eb" }}>|</span>
+        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+          <svg width="12" height="12" viewBox="0 0 12 12" style={{ display: "inline-block" }}>
+            <polygon points="6,1 11,6 6,11 1,6" fill="#1f2937" stroke="#1f2937" strokeWidth="1" />
+          </svg>
+          Benchmark
+        </span>
       </div>
     </div>
   );
 };
 
 // --- Gene Substrate Card ---
-const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle }) => {
+const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToScatter }) => {
   const { nickname, accession, mediaData } = geneData;
   const mediaTypes = Object.keys(mediaData);
   const chartData = transformForChart(mediaData);
@@ -547,7 +644,17 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle }) => {
             </div>
           )}
 
-          <div style={{ display: "flex", gap: "0.4rem" }}>
+          <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+            {benchmarkEnzymes[accession] && (
+              <span style={{
+                padding: "0.2rem 0.55rem",
+                backgroundColor: "#1f2937",
+                color: "white",
+                borderRadius: "4px",
+                fontSize: "0.7rem",
+                fontWeight: "700",
+              }}>Benchmark</span>
+            )}
             {mediaTypes.map(media => (
               <span key={media} style={{
                 padding: "0.2rem 0.55rem",
@@ -579,8 +686,8 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle }) => {
         <div style={{ padding: "0 1.25rem 1.25rem 1.25rem" }}>
           <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "1rem" }}>
 
-            {accession && (
-              <div style={{ marginBottom: "1rem" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+              {accession && (
                 <Link
                   to={`/sequence/${accession}`}
                   style={{
@@ -594,8 +701,21 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle }) => {
                 >
                   View sequence details for {accession} &rarr;
                 </Link>
-              </div>
-            )}
+              )}
+              <button
+                onClick={onScrollToScatter}
+                style={{
+                  color: "#6b7280", background: "none", border: "none",
+                  cursor: "pointer", fontSize: "0.9rem", fontWeight: "500",
+                  padding: 0, borderBottom: "2px solid transparent",
+                  transition: "border-color 0.2s, color 0.2s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = "#6b7280"; e.currentTarget.style.color = "#1f2937"; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.color = "#6b7280"; }}
+              >
+                &larr; Back to scatter plot
+              </button>
+            </div>
 
             {/* Chart */}
             {chartData.length > 0 && (
@@ -709,6 +829,7 @@ const SubstratePage = () => {
   const [activeSubstrates, setActiveSubstrates] = useState(new Set(["BHET12.5", "BHET25"]));
   const [scatterXAxis, setScatterXAxis] = useState("BHET12.5");
   const [scatterYAxis, setScatterYAxis] = useState("BHET25");
+  const [highlightedGene, setHighlightedGene] = useState(null);
 
   const activeMediaString = useMemo(
     () => [...activeSubstrates].sort().join(","),
@@ -867,6 +988,13 @@ const SubstratePage = () => {
     }, 100);
   };
 
+  const handleScrollToScatter = (gene) => {
+    setHighlightedGene(gene);
+    const el = document.getElementById("substrate-scatter");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => setHighlightedGene(null), 3000);
+  };
+
   const geneEntries = Object.entries(geneGroups);
 
   return (
@@ -932,6 +1060,7 @@ const SubstratePage = () => {
                 onXAxisChange={setScatterXAxis}
                 onYAxisChange={setScatterYAxis}
                 onDotClick={handleScatterDotClick}
+                highlightedGene={highlightedGene}
               />
             )}
 
@@ -957,6 +1086,7 @@ const SubstratePage = () => {
                 geneData={geneData}
                 isExpanded={expandedGenes.has(gene)}
                 onToggle={() => toggleGene(gene)}
+                onScrollToScatter={() => handleScrollToScatter(gene)}
               />
             ))}
           </>
