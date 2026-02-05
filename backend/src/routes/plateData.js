@@ -6,6 +6,52 @@ import { pool } from '../db.js';
 const router = Router();
 const schema = Joi.string().max(64).required();
 
+// GET substrate comparison data across all genes for given media types
+router.get('/substrate-comparison', async (req, res, next) => {
+  const mediaString = req.query.media || 'BHET12.5,BHET25';
+  const mediaSchema = Joi.string().max(128);
+  const { error } = mediaSchema.validate(mediaString);
+  if (error) {
+    return res.status(400).json({ error: error.message });
+  }
+
+  const mediaTypes = mediaString.split(',').map(m => m.trim());
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+        aav.gene,
+        gm.nickname,
+        aav.accession,
+        aav.source,
+        aav.media,
+        aav.timepoint_hours,
+        AVG(aav.readout_value) AS average_readout,
+        COUNT(*) AS sample_count
+      FROM accession_activity_view aav
+      LEFT JOIN gene_metadata gm ON aav.gene = gm.gene
+      WHERE aav.media = ANY($1::text[])
+        AND aav.readout_value IS NOT NULL
+      GROUP BY
+        aav.gene,
+        gm.nickname,
+        aav.accession,
+        aav.source,
+        aav.media,
+        aav.timepoint_hours
+      ORDER BY aav.gene, aav.media, aav.timepoint_hours`,
+      [mediaTypes]
+    );
+
+    console.log('Substrate comparison:', rows.length, 'rows found');
+    if (!rows.length) return res.status(404).json({ error: 'No substrate data found' });
+    res.json(rows);
+  } catch (err) {
+    console.error('Database error:', err);
+    next(err);
+  }
+});
+
 // GET average readout for a specific gene, grouped by plate with metadata
 router.get('/gene/:gene/average', async (req, res, next) => {
   console.log('API request received for gene plate data:', req.params.gene);

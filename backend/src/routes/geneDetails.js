@@ -6,6 +6,54 @@ import { pool } from '../db.js';
 const router = Router();
 const schema = Joi.string().max(64).required();
 
+// GET all locations with coordinates (for map display)
+router.get('/locations', async (req, res, next) => {
+  try {
+    const [locationsResult, statsResult] = await Promise.all([
+      pool.query(
+        `SELECT
+          w.accession,
+          COALESCE(
+            NULLIF(NULLIF(w.geo_loc_name_country_calc, ''), 'uncalculated'),
+            CASE WHEN w.geo_loc_name_sam ILIKE 'Antarctica%' THEN 'Antarctica' END
+          ) AS country,
+          COALESCE(
+            NULLIF(NULLIF(w.geo_loc_name_country_continent_calc, ''), 'uncalculated'),
+            CASE WHEN w.geo_loc_name_sam ILIKE 'Antarctica%' THEN 'Antarctica' END
+          ) AS continent,
+          w.biome,
+          w.organism,
+          w.elevation,
+          ST_Y(w.lat_lon) AS latitude,
+          ST_X(w.lat_lon) AS longitude,
+          w.geo_loc_name_sam AS location_name
+        FROM with_sra_and_biosample_loc_metadata w
+        WHERE w.lat_lon IS NOT NULL`
+      ),
+      pool.query(
+        `SELECT
+          COUNT(*) AS total_samples,
+          COUNT(DISTINCT COALESCE(
+            NULLIF(NULLIF(geo_loc_name_country_calc, ''), 'uncalculated'),
+            CASE WHEN geo_loc_name_sam ILIKE 'Antarctica%' THEN 'Antarctica' END
+          )) AS total_countries,
+          COUNT(DISTINCT COALESCE(
+            NULLIF(NULLIF(geo_loc_name_country_continent_calc, ''), 'uncalculated'),
+            CASE WHEN geo_loc_name_sam ILIKE 'Antarctica%' THEN 'Antarctica' END
+          )) AS total_continents,
+          COUNT(DISTINCT biome) AS total_biomes
+        FROM with_sra_and_biosample_loc_metadata`
+      ),
+    ]);
+    res.json({
+      locations: locationsResult.rows,
+      stats: statsResult.rows[0],
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET header data
 router.get('/:accession/header', async (req, res, next) => {
   console.log('API request received for header:', req.params.accession);

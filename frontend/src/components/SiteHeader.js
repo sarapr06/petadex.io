@@ -13,7 +13,7 @@ const SiteHeader = () => {
     { label: 'Sequence', path: '/fastaa', key: 'sequence' },
     { label: 'Enzymes', path: '/enzymes', key: 'enzymes' },
     { label: 'Search', path: '/search', key: 'search' },
-    { label: 'Substrate', path: '/structure', key: 'structure' },
+    { label: 'Substrate', path: '/substrate', key: 'substrate' },
     { label: 'Metadata', path: '/metadata', key: 'metadata' }
   ];
 
