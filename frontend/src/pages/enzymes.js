@@ -218,49 +218,122 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
   );
 };
 
-// SearchResults Component
-const SearchResults = ({ results, query }) => (
-  <div>
-    <div style={{
-      padding: "1rem",
-      marginBottom: "1rem",
-      backgroundColor: "#f0f9ff",
-      border: "1px solid #bae6fd",
-      borderRadius: "8px",
-      color: "#0369a1"
-    }}>
-      Found {results.length} result{results.length !== 1 ? 's' : ''} for "{query}"
-    </div>
+// Match type badge colors
+const matchTypeBadge = {
+  accession: { bg: '#dbeafe', color: '#1e40af', label: 'Accession match' },
+  variant: { bg: '#fce7f3', color: '#9d174d', label: 'Variant match' },
+  family: { bg: '#fef3c7', color: '#92400e', label: 'Family match' },
+  enzyme_id: { bg: '#d1fae5', color: '#065f46', label: 'Enzyme ID match' },
+};
 
-    {results.length === 0 ? (
+// SearchResults Component
+const SearchResults = ({ familyResults, enzymeResults, query, loading, expandedFamilies, onToggleFamily }) => {
+  const totalCount = familyResults.length + enzymeResults.length;
+
+  return (
+    <div>
       <div style={{
-        padding: "2rem",
-        textAlign: "center",
-        color: "#666",
-        backgroundColor: "#f8fafc",
-        borderRadius: "8px"
-      }}>
-        No enzymes found matching your search
-      </div>
-    ) : (
-      <div style={{
-        border: "1px solid #e2e8f0",
+        padding: "1rem",
+        marginBottom: "1rem",
+        backgroundColor: "#f0f9ff",
+        border: "1px solid #bae6fd",
         borderRadius: "8px",
-        backgroundColor: "white",
-        boxShadow: "0 1px 3px 0 rgba(0,0,0,0.1)",
-        padding: "1rem"
+        color: "#0369a1"
       }}>
-        {results.map(enzyme => (
-          <EnzymeRow
-            key={enzyme.enzyme_id}
-            enzyme={enzyme}
-            isCentroid={enzyme.family_pid === null}
-          />
-        ))}
+        {loading ? 'Searching...' : (
+          <>
+            Found {totalCount} result{totalCount !== 1 ? 's' : ''} for "{query}"
+            {familyResults.length > 0 && enzymeResults.length > 0 && (
+              <span style={{ marginLeft: '0.5rem', fontSize: '0.85rem' }}>
+                ({familyResults.length} {familyResults.length === 1 ? 'family' : 'families'}, {enzymeResults.length} {enzymeResults.length === 1 ? 'enzyme' : 'enzymes'})
+              </span>
+            )}
+          </>
+        )}
       </div>
-    )}
-  </div>
-);
+
+      {!loading && totalCount === 0 ? (
+        <div style={{
+          padding: "2rem",
+          textAlign: "center",
+          color: "#666",
+          backgroundColor: "#f8fafc",
+          borderRadius: "8px"
+        }}>
+          No results found. Try a partial accession, enzyme ID, family number, or variant accession.
+        </div>
+      ) : !loading && (
+        <>
+          {/* Family results as FamilyCards */}
+          {familyResults.length > 0 && (
+            <div style={{ marginBottom: '1.5rem' }}>
+              <h3 style={{ fontSize: '1rem', color: '#64748b', marginBottom: '0.75rem' }}>
+                Families ({familyResults.length})
+              </h3>
+              {familyResults.map(family => (
+                <FamilyCard
+                  key={family.family_id}
+                  family={family}
+                  isExpanded={expandedFamilies.has(family.family_id)}
+                  onToggle={() => onToggleFamily(family.family_id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Enzyme results as rows */}
+          {enzymeResults.length > 0 && (
+            <div>
+              {familyResults.length > 0 && (
+                <h3 style={{ fontSize: '1rem', color: '#64748b', marginBottom: '0.75rem' }}>
+                  Enzymes ({enzymeResults.length})
+                </h3>
+              )}
+              <div style={{
+                border: "1px solid #e2e8f0",
+                borderRadius: "8px",
+                backgroundColor: "white",
+                boxShadow: "0 1px 3px 0 rgba(0,0,0,0.1)",
+                padding: "1rem"
+              }}>
+                {enzymeResults.map(enzyme => (
+                  <div key={enzyme.enzyme_id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <EnzymeRow
+                        enzyme={enzyme}
+                        isCentroid={enzyme.family_pid === null}
+                      />
+                    </div>
+                    {enzyme.match_type && matchTypeBadge[enzyme.match_type] && (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem', minWidth: '120px' }}>
+                        <span style={{
+                          padding: '0.15rem 0.5rem',
+                          backgroundColor: matchTypeBadge[enzyme.match_type].bg,
+                          color: matchTypeBadge[enzyme.match_type].color,
+                          borderRadius: '4px',
+                          fontSize: '0.7rem',
+                          fontWeight: '600',
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {matchTypeBadge[enzyme.match_type].label}
+                        </span>
+                        {enzyme.matched_variant_accession && (
+                          <span style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>
+                            via {enzyme.matched_variant_accession}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
 
 // Main EnzymesPage Component
 const EnzymesPage = () => {
@@ -270,12 +343,17 @@ const EnzymesPage = () => {
   const [view, setView] = useState('families'); // 'families' | 'search'
   const [families, setFamilies] = useState([]);
   const [expandedFamilies, setExpandedFamilies] = useState(new Set());
-  const [searchResults, setSearchResults] = useState([]);
+  const [searchFamilyResults, setSearchFamilyResults] = useState([]);
+  const [searchEnzymeResults, setSearchEnzymeResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState('variant_count');
+  const [hasMore, setHasMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const FAMILIES_PER_PAGE = 100;
 
   // Load initial data (families and stats)
   useEffect(() => {
@@ -291,10 +369,12 @@ const EnzymesPage = () => {
         }
 
         // Load families summary
-        const familiesRes = await fetch(`${config.apiUrl}/enzymes/families/summary?limit=100&sort=${sortBy}`);
+        const familiesRes = await fetch(`${config.apiUrl}/enzymes/families/summary?limit=${FAMILIES_PER_PAGE}&offset=0&sort=${sortBy}`);
         if (familiesRes.ok) {
           const familiesData = await familiesRes.json();
           setFamilies(familiesData.data || []);
+          setHasMore(familiesData.pagination?.hasMore || false);
+          setOffset(familiesData.data?.length || 0);
         }
       } catch (err) {
         console.error('Error loading data:', err);
@@ -306,70 +386,62 @@ const EnzymesPage = () => {
     loadData();
   }, [sortBy]);
 
-  // Smart search handler
-  const handleSearch = async (query) => {
-    const trimmedQuery = query.trim();
+  // Load more families
+  const loadMoreFamilies = async () => {
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`${config.apiUrl}/enzymes/families/summary?limit=${FAMILIES_PER_PAGE}&offset=${offset}&sort=${sortBy}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFamilies(prev => [...prev, ...(data.data || [])]);
+        setHasMore(data.pagination?.hasMore || false);
+        setOffset(prev => prev + (data.data?.length || 0));
+      }
+    } catch (err) {
+      console.error('Error loading more families:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
-    if (!trimmedQuery) {
+  // Debounced search using the unified search endpoint
+  const searchTimerRef = React.useRef(null);
+
+  const handleSearchInput = (query) => {
+    setSearchQuery(query);
+
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+
+    if (!query.trim()) {
       setView('families');
-      setSearchResults([]);
-      setSearchQuery('');
+      setSearchFamilyResults([]);
+      setSearchEnzymeResults([]);
       return;
     }
 
-    setSearchQuery(trimmedQuery);
+    searchTimerRef.current = setTimeout(() => {
+      performSearch(query.trim());
+    }, 300);
+  };
+
+  const performSearch = async (query) => {
     setView('search');
     setLoading(true);
 
     try {
-      // Detect search type
-      const isNumeric = /^\d+$/.test(trimmedQuery);
-      const isFamilySearch = trimmedQuery.toLowerCase().includes('family');
-
-      let endpoint;
-      let fetchedData = [];
-
-      if (isFamilySearch) {
-        // "family 42" → extract number
-        const familyId = trimmedQuery.match(/\d+/)?.[0];
-        if (familyId) {
-          endpoint = `/enzymes/family/${familyId}?limit=100`;
-          const res = await fetch(`${config.apiUrl}${endpoint}`);
-          if (res.ok) {
-            const data = await res.json();
-            fetchedData = Array.isArray(data) ? data : data.data || [];
-          }
-        }
-      } else if (isNumeric) {
-        // Could be enzyme ID or family ID - try enzyme ID first
-        endpoint = `/enzymes/${trimmedQuery}`;
-        const res = await fetch(`${config.apiUrl}${endpoint}`);
-
-        if (res.ok) {
-          const data = await res.json();
-          fetchedData = [data];
-        } else if (res.status === 404) {
-          // Try as family ID if enzyme ID not found
-          const familyRes = await fetch(`${config.apiUrl}/enzymes/family/${trimmedQuery}?limit=100`);
-          if (familyRes.ok) {
-            const familyData = await familyRes.json();
-            fetchedData = Array.isArray(familyData) ? familyData : familyData.data || [];
-          }
-        }
+      const res = await fetch(`${config.apiUrl}/enzymes/search?q=${encodeURIComponent(query)}&limit=100`);
+      if (res.ok) {
+        const data = await res.json();
+        setSearchFamilyResults(data.families || []);
+        setSearchEnzymeResults(data.enzymes || []);
       } else {
-        // Accession search
-        endpoint = `/enzymes/accession/${encodeURIComponent(trimmedQuery)}`;
-        const res = await fetch(`${config.apiUrl}${endpoint}`);
-        if (res.ok) {
-          const data = await res.json();
-          fetchedData = [data];
-        }
+        setSearchFamilyResults([]);
+        setSearchEnzymeResults([]);
       }
-
-      setSearchResults(fetchedData);
     } catch (err) {
       console.error('Search error:', err);
-      setSearchResults([]);
+      setSearchFamilyResults([]);
+      setSearchEnzymeResults([]);
     } finally {
       setLoading(false);
     }
@@ -467,8 +539,8 @@ const EnzymesPage = () => {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => handleSearch(e.target.value)}
-              placeholder="Search: accession, family, or enzyme ID..."
+              onChange={(e) => handleSearchInput(e.target.value)}
+              placeholder="Search by accession, enzyme ID, family, or variant..."
               style={{
                 width: "100%",
                 padding: "0.75rem",
@@ -545,9 +617,49 @@ const EnzymesPage = () => {
                 onToggle={() => toggleFamily(family.family_id)}
               />
             ))}
+            {hasMore && (
+              <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
+                <button
+                  onClick={loadMoreFamilies}
+                  disabled={loadingMore}
+                  style={{
+                    padding: '0.75rem 2rem',
+                    fontSize: '1rem',
+                    color: loadingMore ? '#94a3b8' : '#2563eb',
+                    backgroundColor: 'white',
+                    border: `1px solid ${loadingMore ? '#e2e8f0' : '#2563eb'}`,
+                    borderRadius: '6px',
+                    cursor: loadingMore ? 'default' : 'pointer',
+                    fontWeight: '500',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!loadingMore) {
+                      e.currentTarget.style.backgroundColor = '#2563eb';
+                      e.currentTarget.style.color = 'white';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!loadingMore) {
+                      e.currentTarget.style.backgroundColor = 'white';
+                      e.currentTarget.style.color = '#2563eb';
+                    }
+                  }}
+                >
+                  {loadingMore ? 'Loading...' : 'Load More Families'}
+                </button>
+              </div>
+            )}
           </>
         ) : (
-          <SearchResults results={searchResults} query={searchQuery} />
+          <SearchResults
+            familyResults={searchFamilyResults}
+            enzymeResults={searchEnzymeResults}
+            query={searchQuery}
+            loading={loading}
+            expandedFamilies={expandedFamilies}
+            onToggleFamily={toggleFamily}
+          />
         )}
       </main>
     </>

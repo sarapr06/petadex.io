@@ -122,6 +122,141 @@ router.get('/', async (req, res, next) => {
 });
 
 /**
+ * GET /api/enzymes/search?q=<query>&limit=100
+ * Unified search across families, enzymes, and variants
+ * Returns { families: [...], enzymes: [...] }
+ */
+router.get('/search', async (req, res, next) => {
+  try {
+    const q = (req.query.q || '').trim();
+    if (!q) return res.json({ families: [], enzymes: [] });
+
+    const limit = Math.min(parseInt(req.query.limit) || 100, 500);
+
+    // Extract numeric value — handles plain numbers and "family 42" patterns
+    const numericMatch = q.match(/^(?:family\s+)?(\d+)$/i);
+    const numVal = numericMatch ? parseInt(numericMatch[1]) : null;
+
+    const families = [];
+    const enzymes = [];
+
+    // --- Family search ---
+    if (numVal !== null) {
+      // Search families by ID
+      const familyResult = await pool.query(
+        `WITH family_stats AS (
+           SELECT
+             t.family,
+             COUNT(DISTINCT e.enzyme_id) as variant_count,
+             COUNT(DISTINCT t.component) FILTER (WHERE t.component IS NOT NULL) as component_count,
+             ROUND(AVG(t.family_pid) FILTER (WHERE t.family_pid IS NOT NULL AND t.family_pid < 100), 1) as avg_identity
+           FROM enzyme_taxonomy t
+           INNER JOIN enzyme_fastaa e ON t.enzyme_id = e.enzyme_id
+           WHERE t.family = $1
+           GROUP BY t.family
+         )
+         SELECT
+           fs.family as family_id,
+           e.genbank_accession_id as centroid_accession,
+           fs.variant_count,
+           fs.component_count,
+           fs.avg_identity
+         FROM family_stats fs
+         INNER JOIN enzyme_taxonomy t ON fs.family = t.family AND (t.family_pid = 100 OR t.family_pid IS NULL)
+         INNER JOIN enzyme_fastaa e ON t.enzyme_id = e.enzyme_id`,
+        [numVal]
+      );
+      families.push(...familyResult.rows);
+    }
+
+    // Search families by centroid accession (text queries)
+    if (numVal === null) {
+      const pattern = `%${q}%`;
+      const familyByAccession = await pool.query(
+        `WITH family_stats AS (
+           SELECT
+             t.family,
+             COUNT(DISTINCT e.enzyme_id) as variant_count,
+             COUNT(DISTINCT t.component) FILTER (WHERE t.component IS NOT NULL) as component_count,
+             ROUND(AVG(t.family_pid) FILTER (WHERE t.family_pid IS NOT NULL AND t.family_pid < 100), 1) as avg_identity
+           FROM enzyme_taxonomy t
+           INNER JOIN enzyme_fastaa e ON t.enzyme_id = e.enzyme_id
+           WHERE t.family IS NOT NULL
+           GROUP BY t.family
+         )
+         SELECT
+           fs.family as family_id,
+           e.genbank_accession_id as centroid_accession,
+           fs.variant_count,
+           fs.component_count,
+           fs.avg_identity
+         FROM family_stats fs
+         INNER JOIN enzyme_taxonomy t ON fs.family = t.family AND (t.family_pid = 100 OR t.family_pid IS NULL)
+         INNER JOIN enzyme_fastaa e ON t.enzyme_id = e.enzyme_id
+         WHERE e.genbank_accession_id ILIKE $1
+         LIMIT $2`,
+        [pattern, limit]
+      );
+      families.push(...familyByAccession.rows);
+    }
+
+    // --- Enzyme search ---
+    if (numVal !== null) {
+      // Search by exact enzyme_id
+      const enzymeById = await pool.query(
+        `SELECT e.enzyme_id, e.genbank_accession_id, e.contig_id, e.library_id,
+                t.family, t.family_pid, t.component,
+                'enzyme_id' as match_type
+         FROM enzyme_fastaa e
+         LEFT JOIN enzyme_taxonomy t ON e.enzyme_id = t.enzyme_id
+         WHERE e.enzyme_id = $1`,
+        [numVal]
+      );
+      enzymes.push(...enzymeById.rows);
+    }
+
+    if (numVal === null) {
+      const pattern = `%${q}%`;
+
+      // Search enzyme accessions (ILIKE for partial match)
+      const byAccession = await pool.query(
+        `SELECT e.enzyme_id, e.genbank_accession_id, e.contig_id, e.library_id,
+                t.family, t.family_pid, t.component,
+                'accession' as match_type
+         FROM enzyme_fastaa e
+         LEFT JOIN enzyme_taxonomy t ON e.enzyme_id = t.enzyme_id
+         WHERE e.genbank_accession_id ILIKE $1
+         ORDER BY e.enzyme_id
+         LIMIT $2`,
+        [pattern, limit]
+      );
+      enzymes.push(...byAccession.rows);
+
+      // Search variant accessions, return parent enzyme info
+      const byVariant = await pool.query(
+        `SELECT DISTINCT e.enzyme_id, e.genbank_accession_id, e.contig_id, e.library_id,
+                t.family, t.family_pid, t.component,
+                'variant' as match_type,
+                v.genbank_accession_id as matched_variant_accession
+         FROM variant_dictionary v
+         INNER JOIN enzyme_fastaa e ON v.enzyme_id = e.enzyme_id
+         LEFT JOIN enzyme_taxonomy t ON e.enzyme_id = t.enzyme_id
+         WHERE v.genbank_accession_id ILIKE $1
+         ORDER BY e.enzyme_id
+         LIMIT $2`,
+        [pattern, limit]
+      );
+      const existingIds = new Set(enzymes.map(r => r.enzyme_id));
+      enzymes.push(...byVariant.rows.filter(r => !existingIds.has(r.enzyme_id)));
+    }
+
+    res.json({ families, enzymes });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * GET /api/enzymes/:enzyme_id
  * Get a specific enzyme by enzyme_id
  */
