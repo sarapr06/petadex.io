@@ -8,7 +8,7 @@ import { useScrollHeader } from "../hooks/useScrollHeader";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine,
-  ScatterChart, Scatter, ZAxis
+  ScatterChart, Scatter, ZAxis, ErrorBar
 } from "recharts";
 
 const mediaColors = {
@@ -25,6 +25,15 @@ const mediaLabels = {
 
 const allSubstrates = ["BHET12.5", "BHET25", "BHET50"];
 
+const timepointColors = {
+  "all": "#6b7280",
+  24: "#10b981",
+  48: "#3b82f6",
+  72: "#8b5cf6",
+  96: "#f59e0b",
+  120: "#ef4444",
+};
+
 const benchmarkEnzymes = {
   "WP_054022242.1": "IsPETase",
   "WP_054022242.1_M1": "Fast-PETase",
@@ -37,19 +46,37 @@ const diamondPoints = (cx, cy, r) =>
 const transformForChart = (mediaData) => {
   const grouped = {};
   Object.entries(mediaData).forEach(([media, points]) => {
+    const stddevKey = `${media}_stddev`;
     points.forEach(point => {
       const tp = point.timepoint;
       if (!grouped[tp]) {
         grouped[tp] = { timepoint: tp };
       }
       if (grouped[tp][media] !== undefined) {
-        grouped[tp][media] = (grouped[tp][media] + point.average_readout) / 2;
+        // Running average for multiple points at same timepoint
+        if (!grouped[tp]._counts) grouped[tp]._counts = {};
+        if (!grouped[tp]._counts[media]) grouped[tp]._counts[media] = 1;
+
+        const prevCount = grouped[tp]._counts[media];
+        const newCount = prevCount + 1;
+
+        grouped[tp][media] = (grouped[tp][media] * prevCount + point.average_readout) / newCount;
+
+        // Pooled stddev approximation
+        const prevStddev = grouped[tp][stddevKey] || 0;
+        const newStddev = point.stddev_readout || 0;
+        grouped[tp][stddevKey] = Math.sqrt((prevStddev * prevStddev + newStddev * newStddev) / 2);
+
+        grouped[tp]._counts[media] = newCount;
       } else {
         grouped[tp][media] = point.average_readout;
+        grouped[tp][stddevKey] = point.stddev_readout || 0;
       }
     });
   });
-  return Object.values(grouped).sort((a, b) => a.timepoint - b.timepoint);
+  return Object.values(grouped)
+    .map(({ _counts, ...rest }) => rest)
+    .sort((a, b) => a.timepoint - b.timepoint);
 };
 
 // --- Custom Scatter Tooltip ---
@@ -227,6 +254,85 @@ const SubstrateHero = ({ heroStats, activeSubstrates }) => {
   );
 };
 
+// --- Timepoint Toggle Chips ---
+const TimepointToggle = ({ availableTimepoints, activeTimepoint, onSelect }) => {
+  if (availableTimepoints.length === 0) return null;
+
+  return (
+    <div style={{
+      display: "flex",
+      gap: "0.5rem",
+      marginBottom: "2rem",
+      flexWrap: "wrap",
+      alignItems: "center",
+    }}>
+      <span style={{ fontSize: "0.85rem", fontWeight: "600", color: "#6b7280" }}>
+        Timepoint:
+      </span>
+      {/* "All" option for averaged data */}
+      <button
+        onClick={() => onSelect(null)}
+        style={{
+          padding: "0.4rem 0.9rem",
+          borderRadius: "16px",
+          border: `2px solid ${timepointColors["all"]}`,
+          backgroundColor: activeTimepoint === null ? timepointColors["all"] : "transparent",
+          color: activeTimepoint === null ? "#fff" : timepointColors["all"],
+          fontWeight: "600",
+          fontSize: "0.75rem",
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+        }}
+        onMouseEnter={e => {
+          if (activeTimepoint !== null) {
+            e.currentTarget.style.backgroundColor = `${timepointColors["all"]}15`;
+          }
+        }}
+        onMouseLeave={e => {
+          if (activeTimepoint !== null) {
+            e.currentTarget.style.backgroundColor = "transparent";
+          }
+        }}
+      >
+        All (avg)
+      </button>
+      {availableTimepoints.map(tp => {
+        const isActive = activeTimepoint === tp;
+        const color = timepointColors[tp] || "#6b7280";
+        return (
+          <button
+            key={tp}
+            onClick={() => onSelect(tp)}
+            style={{
+              padding: "0.4rem 0.9rem",
+              borderRadius: "16px",
+              border: `2px solid ${color}`,
+              backgroundColor: isActive ? color : "transparent",
+              color: isActive ? "#fff" : color,
+              fontWeight: "600",
+              fontSize: "0.75rem",
+              cursor: "pointer",
+              transition: "all 0.2s ease",
+            }}
+            onMouseEnter={e => {
+              if (!isActive) {
+                e.currentTarget.style.backgroundColor = `${color}15`;
+              }
+            }}
+            onMouseLeave={e => {
+              if (!isActive) {
+                e.currentTarget.style.backgroundColor = "transparent";
+              }
+            }}
+          >
+            {tp}h
+          </button>
+        );
+      })}
+    </div>
+  );
+};
+
 // --- Substrate Toggle Chips ---
 const SubstrateToggle = ({ activeSubstrates, onToggle }) => (
   <div style={{
@@ -291,6 +397,7 @@ const SubstrateScatter = ({
   scatterXAxis, scatterYAxis,
   onXAxisChange, onYAxisChange,
   onDotClick, highlightedGene,
+  activeTimepoint,
 }) => {
   const substrates = [...activeSubstrates];
 
@@ -330,9 +437,23 @@ const SubstrateScatter = ({
         <div>
           <h2 style={{ fontSize: "1.25rem", fontWeight: "700", color: "#1f2937", margin: 0 }}>
             Substrate Preference
+            {activeTimepoint !== null && (
+              <span style={{
+                marginLeft: "0.75rem",
+                fontSize: "0.85rem",
+                fontWeight: "600",
+                color: timepointColors[activeTimepoint] || "#6b7280",
+                backgroundColor: `${timepointColors[activeTimepoint] || "#6b7280"}15`,
+                padding: "0.2rem 0.6rem",
+                borderRadius: "12px",
+              }}>
+                @ {activeTimepoint}h
+              </span>
+            )}
           </h2>
           <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: "0.25rem 0 0" }}>
             Each dot is one gene — dots above the diagonal prefer the Y-axis substrate
+            {activeTimepoint === null ? " (averaged across all timepoints)" : ""}
           </p>
         </div>
 
@@ -753,7 +874,14 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
                           backgroundColor: "#fff", border: "1px solid #86efac",
                           borderRadius: "4px", fontSize: "0.875rem",
                         }}
-                        formatter={value => value?.toFixed(4)}
+                        formatter={(value, name, props) => {
+                          const stddevKey = `${name}_stddev`;
+                          const stddev = props.payload?.[stddevKey];
+                          if (stddev && stddev > 0) {
+                            return [`${value?.toFixed(4)} ± ${stddev.toFixed(4)}`, name];
+                          }
+                          return [value?.toFixed(4), name];
+                        }}
                       />
                       <Legend align="right" wrapperStyle={{ fontSize: "0.875rem", paddingTop: "10px" }} />
                       <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" strokeWidth={1} />
@@ -767,7 +895,15 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
                           dot={{ fill: mediaColors[media] || "#059669", r: 5 }}
                           activeDot={{ r: 7 }}
                           name={media}
-                        />
+                        >
+                          <ErrorBar
+                            dataKey={`${media}_stddev`}
+                            width={4}
+                            strokeWidth={1.5}
+                            stroke={mediaColors[media] || "#059669"}
+                            opacity={0.7}
+                          />
+                        </Line>
                       ))}
                     </LineChart>
                   </ResponsiveContainer>
@@ -786,6 +922,11 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
                     const avg = values.reduce((s, v) => s + v, 0) / values.length;
                     const max = Math.max(...values);
                     const min = Math.min(...values);
+                    // Calculate pooled standard deviation
+                    const stddevs = points.map(p => p.stddev_readout || 0).filter(s => s > 0);
+                    const avgStddev = stddevs.length > 0
+                      ? Math.sqrt(stddevs.reduce((sum, s) => sum + s * s, 0) / stddevs.length)
+                      : 0;
 
                     return (
                       <div key={media} style={{
@@ -798,7 +939,7 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
                           color: "#065f46", marginBottom: "0.5rem",
                         }}>{media}</div>
                         <div style={{ fontSize: "0.75rem", color: "#059669", marginBottom: "0.25rem" }}>
-                          Avg: <strong>{avg.toFixed(4)}</strong>
+                          Avg: <strong>{avg.toFixed(4)}</strong> {avgStddev > 0 && <span style={{ color: "#6b7280" }}>± {avgStddev.toFixed(4)}</span>}
                         </div>
                         <div style={{ fontSize: "0.75rem", color: "#059669", marginBottom: "0.25rem" }}>
                           Max: <strong>{max.toFixed(4)}</strong>
@@ -830,6 +971,7 @@ const SubstratePage = () => {
   const [scatterXAxis, setScatterXAxis] = useState("BHET12.5");
   const [scatterYAxis, setScatterYAxis] = useState("BHET25");
   const [highlightedGene, setHighlightedGene] = useState(null);
+  const [activeTimepoint, setActiveTimepoint] = useState(null); // null = "All (avg)"
 
   const activeMediaString = useMemo(
     () => [...activeSubstrates].sort().join(","),
@@ -870,6 +1012,12 @@ const SubstratePage = () => {
     }
   }, [activeSubstrates, scatterXAxis, scatterYAxis]);
 
+  // Extract available timepoints from raw data
+  const availableTimepoints = useMemo(() => {
+    const tps = new Set(rawData.map(r => r.timepoint_hours));
+    return [...tps].sort((a, b) => a - b);
+  }, [rawData]);
+
   // Group raw data by gene
   const geneGroups = useMemo(() => {
     const groups = {};
@@ -887,6 +1035,7 @@ const SubstratePage = () => {
       groups[row.gene].mediaData[row.media].push({
         timepoint: row.timepoint_hours,
         average_readout: parseFloat(row.average_readout),
+        stddev_readout: row.stddev_readout ? parseFloat(row.stddev_readout) : 0,
         sample_count: parseInt(row.sample_count),
       });
     });
@@ -940,7 +1089,8 @@ const SubstratePage = () => {
     return stats;
   }, [rawData, activeSubstrates]);
 
-  // Compute scatter data: per-gene average across all timepoints for each axis substrate
+  // Compute scatter data: per-gene value for each axis substrate
+  // If activeTimepoint is null, average across all timepoints; otherwise use specific timepoint
   const scatterData = useMemo(() => {
     return Object.entries(geneGroups)
       .map(([gene, data]) => {
@@ -948,15 +1098,27 @@ const SubstratePage = () => {
         const yMedia = data.mediaData[scatterYAxis];
         if (!xMedia || !yMedia) return null;
 
-        const xAvg = xMedia.reduce((s, p) => s + p.average_readout, 0) / xMedia.length;
-        const yAvg = yMedia.reduce((s, p) => s + p.average_readout, 0) / yMedia.length;
+        let xVal, yVal;
 
-        if (isNaN(xAvg) || isNaN(yAvg)) return null;
+        if (activeTimepoint === null) {
+          // Average across all timepoints
+          xVal = xMedia.reduce((s, p) => s + p.average_readout, 0) / xMedia.length;
+          yVal = yMedia.reduce((s, p) => s + p.average_readout, 0) / yMedia.length;
+        } else {
+          // Use specific timepoint
+          const xPoint = xMedia.find(p => p.timepoint === activeTimepoint);
+          const yPoint = yMedia.find(p => p.timepoint === activeTimepoint);
+          if (!xPoint || !yPoint) return null;
+          xVal = xPoint.average_readout;
+          yVal = yPoint.average_readout;
+        }
 
-        return { gene, nickname: data.nickname, accession: data.accession, x: xAvg, y: yAvg };
+        if (isNaN(xVal) || isNaN(yVal)) return null;
+
+        return { gene, nickname: data.nickname, accession: data.accession, x: xVal, y: yVal };
       })
       .filter(Boolean);
-  }, [geneGroups, scatterXAxis, scatterYAxis]);
+  }, [geneGroups, scatterXAxis, scatterYAxis, activeTimepoint]);
 
   const toggleSubstrate = (substrate) => {
     setActiveSubstrates(prev => {
@@ -1030,6 +1192,13 @@ const SubstratePage = () => {
           onToggle={toggleSubstrate}
         />
 
+        {/* Timepoint Toggle Chips */}
+        <TimepointToggle
+          availableTimepoints={availableTimepoints}
+          activeTimepoint={activeTimepoint}
+          onSelect={setActiveTimepoint}
+        />
+
         {loading ? (
           <div style={{ padding: "3rem", textAlign: "center", color: "#666", fontStyle: "italic" }}>
             Loading substrate data...
@@ -1061,6 +1230,7 @@ const SubstratePage = () => {
                 onYAxisChange={setScatterYAxis}
                 onDotClick={handleScatterDotClick}
                 highlightedGene={highlightedGene}
+                activeTimepoint={activeTimepoint}
               />
             )}
 
@@ -1075,6 +1245,7 @@ const SubstratePage = () => {
               {scatterData.length > 0 && (
                 <div style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
                   {scatterData.length} genes have data for both selected substrates
+                  {activeTimepoint !== null && ` at ${activeTimepoint}h`}
                 </div>
               )}
             </div>

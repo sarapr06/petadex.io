@@ -1,6 +1,6 @@
 // src/components/SynthesizedGenePanel.js
 import React, { useState } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ErrorBar } from 'recharts';
 
 export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
   const [expandedGenes, setExpandedGenes] = useState({});
@@ -20,27 +20,46 @@ export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
   const transformPlateDataForChart = (plateDataArray) => {
     if (!Array.isArray(plateDataArray) || plateDataArray.length === 0) return [];
 
-    // Group by timepoint and media
+    // Group by timepoint and media, collecting values and stddevs
     const grouped = {};
 
     plateDataArray.forEach(plate => {
       const timepoint = plate.timepoint_hours;
       const media = plate.media || 'Unknown';
+      const stddevKey = `${media}_stddev`;
 
       if (!grouped[timepoint]) {
         grouped[timepoint] = { timepoint };
       }
 
-      // Average if there are multiple plates with same timepoint and media
-      if (grouped[timepoint][media]) {
-        grouped[timepoint][media] = (grouped[timepoint][media] + plate.average_readout) / 2;
+      // If multiple plates at same timepoint/media, compute weighted average
+      if (grouped[timepoint][media] !== undefined) {
+        // Store running values for proper averaging
+        if (!grouped[timepoint]._counts) grouped[timepoint]._counts = {};
+        if (!grouped[timepoint]._counts[media]) grouped[timepoint]._counts[media] = 1;
+
+        const prevCount = grouped[timepoint]._counts[media];
+        const newCount = prevCount + 1;
+
+        // Running average of readout values
+        grouped[timepoint][media] = (grouped[timepoint][media] * prevCount + plate.average_readout) / newCount;
+
+        // For stddev, use pooled standard deviation approximation
+        const prevStddev = grouped[timepoint][stddevKey] || 0;
+        const newStddev = plate.stddev_readout || 0;
+        grouped[timepoint][stddevKey] = Math.sqrt((prevStddev * prevStddev + newStddev * newStddev) / 2);
+
+        grouped[timepoint]._counts[media] = newCount;
       } else {
         grouped[timepoint][media] = plate.average_readout;
+        grouped[timepoint][stddevKey] = plate.stddev_readout || 0;
       }
     });
 
-    // Convert to array and sort by timepoint
-    return Object.values(grouped).sort((a, b) => a.timepoint - b.timepoint);
+    // Convert to array, remove internal count tracking, and sort by timepoint
+    return Object.values(grouped)
+      .map(({ _counts, ...rest }) => rest)
+      .sort((a, b) => a.timepoint - b.timepoint);
   };
 
   // Get unique media types for line colors
@@ -311,7 +330,14 @@ export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
                                 borderRadius: '4px',
                                 fontSize: '0.875rem'
                               }}
-                              formatter={(value) => value?.toFixed(4)}
+                              formatter={(value, name, props) => {
+                                const stddevKey = `${name}_stddev`;
+                                const stddev = props.payload?.[stddevKey];
+                                if (stddev && stddev > 0) {
+                                  return [`${value?.toFixed(4)} ± ${stddev.toFixed(4)}`, name];
+                                }
+                                return [value?.toFixed(4), name];
+                              }}
                             />
                             <Legend
                               align="right"
@@ -329,7 +355,15 @@ export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
                                 dot={{ fill: mediaColors[media] || mediaColors.default, r: 5 }}
                                 activeDot={{ r: 7 }}
                                 name={media}
-                              />
+                              >
+                                <ErrorBar
+                                  dataKey={`${media}_stddev`}
+                                  width={4}
+                                  strokeWidth={1.5}
+                                  stroke={mediaColors[media] || mediaColors.default}
+                                  opacity={0.7}
+                                />
+                              </Line>
                             ))}
                           </LineChart>
                         </ResponsiveContainer>
@@ -349,6 +383,11 @@ export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
                           const avgReadout = mediaPlates.reduce((sum, p) => sum + (p.average_readout || 0), 0) / mediaPlates.length;
                           const maxReadout = Math.max(...mediaPlates.map(p => p.average_readout || 0));
                           const minReadout = Math.min(...mediaPlates.map(p => p.average_readout || 0));
+                          // Calculate pooled standard deviation across all plates for this media
+                          const stddevs = mediaPlates.map(p => p.stddev_readout || 0).filter(s => s > 0);
+                          const avgStddev = stddevs.length > 0
+                            ? Math.sqrt(stddevs.reduce((sum, s) => sum + s * s, 0) / stddevs.length)
+                            : 0;
 
                           return (
                             <div key={media} style={{
@@ -366,7 +405,7 @@ export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
                                 {media}
                               </div>
                               <div style={{ fontSize: "0.75rem", color: "#059669", marginBottom: "0.25rem" }}>
-                                Avg: <strong>{avgReadout.toFixed(4)}</strong>
+                                Avg: <strong>{avgReadout.toFixed(4)}</strong> {avgStddev > 0 && <span style={{ color: "#6b7280" }}>± {avgStddev.toFixed(4)}</span>}
                               </div>
                               <div style={{ fontSize: "0.75rem", color: "#059669", marginBottom: "0.25rem" }}>
                                 Max: <strong>{maxReadout.toFixed(4)}</strong>
@@ -429,6 +468,12 @@ export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
                                   textAlign: "right",
                                   fontWeight: "600",
                                   color: "#065f46"
+                                }}>Std Dev</th>
+                                <th style={{
+                                  padding: "0.5rem",
+                                  textAlign: "right",
+                                  fontWeight: "600",
+                                  color: "#065f46"
                                 }}>Samples</th>
                                 <th style={{
                                   padding: "0.5rem",
@@ -466,6 +511,14 @@ export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
                                     color: "#065f46"
                                   }}>
                                     {plate.average_readout?.toFixed(4) || 'N/A'}
+                                  </td>
+                                  <td style={{
+                                    padding: "0.5rem",
+                                    textAlign: "right",
+                                    fontFamily: "monospace",
+                                    color: "#6b7280"
+                                  }}>
+                                    {plate.stddev_readout ? `± ${plate.stddev_readout.toFixed(4)}` : '-'}
                                   </td>
                                   <td style={{
                                     padding: "0.5rem",
