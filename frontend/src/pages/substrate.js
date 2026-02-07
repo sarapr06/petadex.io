@@ -34,6 +34,11 @@ const timepointColors = {
   120: "#ef4444",
 };
 
+const plotModes = {
+  intensity: { label: "Raw Intensity", description: "Average pixel intensity at each timepoint" },
+  activity: { label: "Activity", description: "Peak intensity minus subsequent minimum (degradation signal)" },
+};
+
 const benchmarkEnzymes = {
   "WP_054022242.1": "IsPETase",
   "WP_054022242.1_M1": "Fast-PETase",
@@ -80,9 +85,12 @@ const transformForChart = (mediaData) => {
 };
 
 // --- Custom Scatter Tooltip ---
-const ScatterTooltipContent = ({ active, payload, xKey, yKey }) => {
+const ScatterTooltipContent = ({ active, payload, xKey, yKey, plotMode }) => {
   if (!active || !payload?.length) return null;
   const data = payload[0].payload;
+  const isActivityMode = plotMode === "activity";
+  const valueLabel = isActivityMode ? "Activity" : "Intensity";
+
   return (
     <div style={{
       backgroundColor: "#fff",
@@ -91,7 +99,7 @@ const ScatterTooltipContent = ({ active, payload, xKey, yKey }) => {
       padding: "0.75rem 1rem",
       boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
       fontSize: "0.825rem",
-      maxWidth: "260px",
+      maxWidth: "300px",
     }}>
       <div style={{ fontWeight: "700", color: "#1f2937", marginBottom: "0.3rem", fontFamily: "monospace" }}>
         {data.gene}
@@ -102,11 +110,17 @@ const ScatterTooltipContent = ({ active, payload, xKey, yKey }) => {
         </div>
       )}
       <div style={{ color: mediaColors[xKey], marginBottom: "0.15rem" }}>
-        {mediaLabels[xKey]}: <strong>{data.x?.toFixed(4)}</strong>
+        {mediaLabels[xKey]} {valueLabel}: <strong>{data.x?.toFixed(2)}</strong>
       </div>
-      <div style={{ color: mediaColors[yKey] }}>
-        {mediaLabels[yKey]}: <strong>{data.y?.toFixed(4)}</strong>
+      <div style={{ color: mediaColors[yKey], marginBottom: isActivityMode ? "0.3rem" : "0" }}>
+        {mediaLabels[yKey]} {valueLabel}: <strong>{data.y?.toFixed(2)}</strong>
       </div>
+      {isActivityMode && data.xActivity && (
+        <div style={{ fontSize: "0.7rem", color: "#6b7280", borderTop: "1px solid #e5e7eb", paddingTop: "0.3rem", marginTop: "0.3rem" }}>
+          <div>{mediaLabels[xKey]}: peak@{data.xActivity.peak_timepoint}h → min@{data.xActivity.min_timepoint}h</div>
+          <div>{mediaLabels[yKey]}: peak@{data.yActivity.peak_timepoint}h → min@{data.yActivity.min_timepoint}h</div>
+        </div>
+      )}
       <div style={{ color: "#9ca3af", marginTop: "0.3rem", fontSize: "0.7rem", fontStyle: "italic" }}>
         Click to jump to gene card
       </div>
@@ -254,6 +268,58 @@ const SubstrateHero = ({ heroStats, activeSubstrates }) => {
   );
 };
 
+// --- Plot Mode Toggle ---
+const PlotModeToggle = ({ plotMode, onModeChange }) => (
+  <div style={{
+    display: "flex",
+    gap: "0.5rem",
+    marginBottom: "1.5rem",
+    alignItems: "center",
+  }}>
+    <span style={{ fontSize: "0.85rem", fontWeight: "600", color: "#6b7280" }}>
+      Plot Mode:
+    </span>
+    {Object.entries(plotModes).map(([mode, { label, description }]) => {
+      const isActive = plotMode === mode;
+      return (
+        <button
+          key={mode}
+          onClick={() => onModeChange(mode)}
+          title={description}
+          style={{
+            padding: "0.5rem 1rem",
+            borderRadius: "8px",
+            border: isActive ? "2px solid #1f2937" : "2px solid #d1d5db",
+            backgroundColor: isActive ? "#1f2937" : "transparent",
+            color: isActive ? "#fff" : "#4b5563",
+            fontWeight: "600",
+            fontSize: "0.8rem",
+            cursor: "pointer",
+            transition: "all 0.2s ease",
+          }}
+          onMouseEnter={e => {
+            if (!isActive) {
+              e.currentTarget.style.backgroundColor = "#f3f4f6";
+              e.currentTarget.style.borderColor = "#9ca3af";
+            }
+          }}
+          onMouseLeave={e => {
+            if (!isActive) {
+              e.currentTarget.style.backgroundColor = "transparent";
+              e.currentTarget.style.borderColor = "#d1d5db";
+            }
+          }}
+        >
+          {label}
+        </button>
+      );
+    })}
+    <span style={{ fontSize: "0.75rem", color: "#9ca3af", marginLeft: "0.5rem", fontStyle: "italic" }}>
+      {plotModes[plotMode].description}
+    </span>
+  </div>
+);
+
 // --- Timepoint Toggle Chips ---
 const TimepointToggle = ({ availableTimepoints, activeTimepoint, onSelect }) => {
   if (availableTimepoints.length === 0) return null;
@@ -397,8 +463,10 @@ const SubstrateScatter = ({
   scatterXAxis, scatterYAxis,
   onXAxisChange, onYAxisChange,
   onDotClick, highlightedGene,
-  activeTimepoint,
+  activeTimepoint, plotMode,
 }) => {
+  const isActivityMode = plotMode === "activity";
+  const axisLabel = isActivityMode ? "Activity" : "Avg Intensity";
   const substrates = [...activeSubstrates];
 
   const diagonalData = useMemo(() => {
@@ -437,7 +505,20 @@ const SubstrateScatter = ({
         <div>
           <h2 style={{ fontSize: "1.25rem", fontWeight: "700", color: "#1f2937", margin: 0 }}>
             Substrate Preference
-            {activeTimepoint !== null && (
+            {isActivityMode && (
+              <span style={{
+                marginLeft: "0.75rem",
+                fontSize: "0.85rem",
+                fontWeight: "600",
+                color: "#059669",
+                backgroundColor: "#d1fae5",
+                padding: "0.2rem 0.6rem",
+                borderRadius: "12px",
+              }}>
+                Activity Mode
+              </span>
+            )}
+            {!isActivityMode && activeTimepoint !== null && (
               <span style={{
                 marginLeft: "0.75rem",
                 fontSize: "0.85rem",
@@ -452,8 +533,10 @@ const SubstrateScatter = ({
             )}
           </h2>
           <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: "0.25rem 0 0" }}>
-            Each dot is one gene — dots above the diagonal prefer the Y-axis substrate
-            {activeTimepoint === null ? " (averaged across all timepoints)" : ""}
+            {isActivityMode
+              ? "Each dot is one gene. Activity = peak intensity minus subsequent minimum"
+              : `Each dot is one gene. Dots above the diagonal prefer the Y-axis substrate${activeTimepoint === null ? " (averaged across all timepoints)" : ""}`
+            }
           </p>
         </div>
 
@@ -505,7 +588,7 @@ const SubstrateScatter = ({
             dataKey="x"
             name={mediaLabels[scatterXAxis]}
             label={{
-              value: `Avg Activity — ${mediaLabels[scatterXAxis]}`,
+              value: `${axisLabel} — ${mediaLabels[scatterXAxis]}`,
               position: "insideBottom",
               offset: -5,
               style: { fontWeight: "700", fontSize: "0.8rem", fill: mediaColors[scatterXAxis] },
@@ -518,7 +601,7 @@ const SubstrateScatter = ({
             dataKey="y"
             name={mediaLabels[scatterYAxis]}
             label={{
-              value: `Avg Activity — ${mediaLabels[scatterYAxis]}`,
+              value: `${axisLabel} — ${mediaLabels[scatterYAxis]}`,
               angle: -90,
               position: "center",
               dx: -30,
@@ -528,7 +611,7 @@ const SubstrateScatter = ({
             stroke="#d1d5db"
           />
           <ZAxis range={[50, 50]} />
-          <Tooltip content={<ScatterTooltipContent xKey={scatterXAxis} yKey={scatterYAxis} />} />
+          <Tooltip content={<ScatterTooltipContent xKey={scatterXAxis} yKey={scatterYAxis} plotMode={plotMode} />} />
 
           {/* Diagonal "equal preference" line */}
           <Scatter
@@ -612,6 +695,7 @@ const SubstrateScatter = ({
       {highlightedGene && (() => {
         const gene = scatterData.find(d => d.gene === highlightedGene);
         if (!gene) return null;
+        const valueLabel = isActivityMode ? "Activity" : "Intensity";
         return (
           <div style={{
             position: "absolute",
@@ -623,7 +707,7 @@ const SubstrateScatter = ({
             padding: "0.75rem 1rem",
             boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
             fontSize: "0.825rem",
-            maxWidth: "260px",
+            maxWidth: "280px",
             zIndex: 10,
             opacity: 0,
             animation: "highlightFadeIn 0.3s ease forwards",
@@ -638,11 +722,17 @@ const SubstrateScatter = ({
               </div>
             )}
             <div style={{ color: mediaColors[scatterXAxis], marginBottom: "0.15rem" }}>
-              {mediaLabels[scatterXAxis]}: <strong>{gene.x?.toFixed(4)}</strong>
+              {mediaLabels[scatterXAxis]} {valueLabel}: <strong>{gene.x?.toFixed(2)}</strong>
             </div>
             <div style={{ color: mediaColors[scatterYAxis] }}>
-              {mediaLabels[scatterYAxis]}: <strong>{gene.y?.toFixed(4)}</strong>
+              {mediaLabels[scatterYAxis]} {valueLabel}: <strong>{gene.y?.toFixed(2)}</strong>
             </div>
+            {isActivityMode && gene.xActivity && (
+              <div style={{ fontSize: "0.7rem", color: "#6b7280", borderTop: "1px solid #e5e7eb", paddingTop: "0.3rem", marginTop: "0.3rem" }}>
+                <div>{mediaLabels[scatterXAxis]}: peak@{gene.xActivity.peak_timepoint}h → min@{gene.xActivity.min_timepoint}h</div>
+                <div>{mediaLabels[scatterYAxis]}: peak@{gene.yActivity.peak_timepoint}h → min@{gene.yActivity.min_timepoint}h</div>
+              </div>
+            )}
           </div>
         );
       })()}
@@ -694,7 +784,7 @@ const SubstrateScatter = ({
 };
 
 // --- Gene Substrate Card ---
-const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToScatter }) => {
+const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToScatter, activityData }) => {
   const { nickname, accession, mediaData } = geneData;
   const mediaTypes = Object.keys(mediaData);
   const chartData = transformForChart(mediaData);
@@ -912,7 +1002,7 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
                 {/* Per-media stats */}
                 <div style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
                   gap: "1rem", backgroundColor: "#dcfce7",
                   borderRadius: "4px", padding: "0.75rem",
                 }}>
@@ -927,6 +1017,8 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
                     const avgStddev = stddevs.length > 0
                       ? Math.sqrt(stddevs.reduce((sum, s) => sum + s * s, 0) / stddevs.length)
                       : 0;
+                    // Get activity data for this media
+                    const activity = activityData?.[media];
 
                     return (
                       <div key={media} style={{
@@ -938,14 +1030,61 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
                           fontSize: "0.75rem", fontWeight: "600",
                           color: "#065f46", marginBottom: "0.5rem",
                         }}>{media}</div>
-                        <div style={{ fontSize: "0.75rem", color: "#059669", marginBottom: "0.25rem" }}>
-                          Avg: <strong>{avg.toFixed(4)}</strong> {avgStddev > 0 && <span style={{ color: "#6b7280" }}>± {avgStddev.toFixed(4)}</span>}
+
+                        {/* Activity metric - prominent display */}
+                        {activity && activity.activity !== null && (
+                          <div style={{
+                            backgroundColor: "#f0fdf4",
+                            border: "1px solid #86efac",
+                            borderRadius: "4px",
+                            padding: "0.5rem",
+                            marginBottom: "0.5rem",
+                          }}>
+                            <div style={{ fontSize: "0.65rem", fontWeight: "700", color: "#166534", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                              Activity (Peak → Min)
+                            </div>
+                            <div style={{ fontSize: "1.1rem", fontWeight: "800", color: mediaColors[media] || "#059669" }}>
+                              {activity.activity.toFixed(2)}
+                            </div>
+                            <div style={{ fontSize: "0.65rem", color: "#6b7280", marginTop: "0.2rem" }}>
+                              {activity.peak_value.toFixed(2)} @ {activity.peak_timepoint}h → {activity.min_value.toFixed(2)} @ {activity.min_timepoint}h
+                            </div>
+                            {activity.flag && (
+                              <div style={{
+                                fontSize: "0.6rem",
+                                color: "#f59e0b",
+                                marginTop: "0.2rem",
+                                fontStyle: "italic",
+                              }}>
+                                {activity.flag.replace(/_/g, " ")}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {activity && activity.activity === null && (
+                          <div style={{
+                            backgroundColor: "#fef3c7",
+                            border: "1px solid #fcd34d",
+                            borderRadius: "4px",
+                            padding: "0.5rem",
+                            marginBottom: "0.5rem",
+                            fontSize: "0.7rem",
+                            color: "#92400e",
+                          }}>
+                            Activity: N/A ({activity.flag?.replace(/_/g, " ") || "insufficient data"})
+                          </div>
+                        )}
+
+                        {/* Intensity stats */}
+                        <div style={{ fontSize: "0.7rem", color: "#6b7280", marginBottom: "0.15rem" }}>
+                          Avg Intensity: <strong style={{ color: "#059669" }}>{avg.toFixed(2)}</strong>
+                          {avgStddev > 0 && <span> ± {avgStddev.toFixed(2)}</span>}
                         </div>
-                        <div style={{ fontSize: "0.75rem", color: "#059669", marginBottom: "0.25rem" }}>
-                          Max: <strong>{max.toFixed(4)}</strong>
+                        <div style={{ fontSize: "0.7rem", color: "#6b7280", marginBottom: "0.15rem" }}>
+                          Max: <strong style={{ color: "#059669" }}>{max.toFixed(2)}</strong>
                         </div>
-                        <div style={{ fontSize: "0.75rem", color: "#059669" }}>
-                          Min: <strong>{min.toFixed(4)}</strong>
+                        <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
+                          Min: <strong style={{ color: "#059669" }}>{min.toFixed(2)}</strong>
                         </div>
                       </div>
                     );
@@ -964,6 +1103,7 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
 const SubstratePage = () => {
   useScrollHeader();
   const [rawData, setRawData] = useState([]);
+  const [activityData, setActivityData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [expandedGenes, setExpandedGenes] = useState(new Set());
@@ -972,6 +1112,7 @@ const SubstratePage = () => {
   const [scatterYAxis, setScatterYAxis] = useState("BHET25");
   const [highlightedGene, setHighlightedGene] = useState(null);
   const [activeTimepoint, setActiveTimepoint] = useState(null); // null = "All (avg)"
+  const [plotMode, setPlotMode] = useState("intensity"); // "intensity" or "activity"
 
   const activeMediaString = useMemo(
     () => [...activeSubstrates].sort().join(","),
@@ -984,13 +1125,23 @@ const SubstratePage = () => {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(
-          `${config.apiUrl}/plate-data/substrate-comparison?media=${activeMediaString}`
-        );
-        if (!res.ok) throw new Error(`Status ${res.status}`);
-        const data = await res.json();
+        // Fetch both raw data and activity data in parallel
+        const [rawRes, activityRes] = await Promise.all([
+          fetch(`${config.apiUrl}/plate-data/substrate-comparison?media=${activeMediaString}`),
+          fetch(`${config.apiUrl}/plate-data/substrate-activity?media=${activeMediaString}`),
+        ]);
+
+        if (!rawRes.ok) throw new Error(`Raw data: Status ${rawRes.status}`);
+        if (!activityRes.ok) throw new Error(`Activity data: Status ${activityRes.status}`);
+
+        const [rawDataResult, activityDataResult] = await Promise.all([
+          rawRes.json(),
+          activityRes.json(),
+        ]);
+
         if (!cancelled) {
-          setRawData(data);
+          setRawData(rawDataResult);
+          setActivityData(activityDataResult);
           setError(null);
         }
       } catch (err) {
@@ -1042,6 +1193,24 @@ const SubstratePage = () => {
     return groups;
   }, [rawData]);
 
+  // Index activity data by gene -> media for quick lookup
+  const activityByGeneMedia = useMemo(() => {
+    const index = {};
+    activityData.forEach(row => {
+      if (!index[row.gene]) index[row.gene] = {};
+      index[row.gene][row.media] = {
+        activity: row.activity,
+        peak_value: row.peak_value,
+        peak_timepoint: row.peak_timepoint,
+        min_value: row.min_value,
+        min_timepoint: row.min_timepoint,
+        flag: row.flag,
+        timepoint_count: row.timepoint_count,
+      };
+    });
+    return index;
+  }, [activityData]);
+
   // Compute hero stats per substrate
   const heroStats = useMemo(() => {
     const stats = {};
@@ -1090,8 +1259,34 @@ const SubstratePage = () => {
   }, [rawData, activeSubstrates]);
 
   // Compute scatter data: per-gene value for each axis substrate
+  // If plotMode is "activity", use activity values; otherwise use intensity values
   // If activeTimepoint is null, average across all timepoints; otherwise use specific timepoint
   const scatterData = useMemo(() => {
+    if (plotMode === "activity") {
+      // Activity mode: use peak - min values
+      return Object.entries(geneGroups)
+        .map(([gene, data]) => {
+          const xActivity = activityByGeneMedia[gene]?.[scatterXAxis];
+          const yActivity = activityByGeneMedia[gene]?.[scatterYAxis];
+
+          // Skip if no activity data or activity is null (peak at end)
+          if (!xActivity || !yActivity) return null;
+          if (xActivity.activity === null || yActivity.activity === null) return null;
+
+          return {
+            gene,
+            nickname: data.nickname,
+            accession: data.accession,
+            x: xActivity.activity,
+            y: yActivity.activity,
+            xActivity,
+            yActivity,
+          };
+        })
+        .filter(Boolean);
+    }
+
+    // Intensity mode: use raw readout values
     return Object.entries(geneGroups)
       .map(([gene, data]) => {
         const xMedia = data.mediaData[scatterXAxis];
@@ -1118,7 +1313,7 @@ const SubstratePage = () => {
         return { gene, nickname: data.nickname, accession: data.accession, x: xVal, y: yVal };
       })
       .filter(Boolean);
-  }, [geneGroups, scatterXAxis, scatterYAxis, activeTimepoint]);
+  }, [geneGroups, activityByGeneMedia, scatterXAxis, scatterYAxis, activeTimepoint, plotMode]);
 
   const toggleSubstrate = (substrate) => {
     setActiveSubstrates(prev => {
@@ -1192,12 +1387,20 @@ const SubstratePage = () => {
           onToggle={toggleSubstrate}
         />
 
-        {/* Timepoint Toggle Chips */}
-        <TimepointToggle
-          availableTimepoints={availableTimepoints}
-          activeTimepoint={activeTimepoint}
-          onSelect={setActiveTimepoint}
+        {/* Plot Mode Toggle */}
+        <PlotModeToggle
+          plotMode={plotMode}
+          onModeChange={setPlotMode}
         />
+
+        {/* Timepoint Toggle Chips (only in intensity mode) */}
+        {plotMode === "intensity" && (
+          <TimepointToggle
+            availableTimepoints={availableTimepoints}
+            activeTimepoint={activeTimepoint}
+            onSelect={setActiveTimepoint}
+          />
+        )}
 
         {loading ? (
           <div style={{ padding: "3rem", textAlign: "center", color: "#666", fontStyle: "italic" }}>
@@ -1231,6 +1434,7 @@ const SubstratePage = () => {
                 onDotClick={handleScatterDotClick}
                 highlightedGene={highlightedGene}
                 activeTimepoint={activeTimepoint}
+                plotMode={plotMode}
               />
             )}
 
@@ -1244,8 +1448,8 @@ const SubstratePage = () => {
               </div>
               {scatterData.length > 0 && (
                 <div style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-                  {scatterData.length} genes have data for both selected substrates
-                  {activeTimepoint !== null && ` at ${activeTimepoint}h`}
+                  {scatterData.length} genes have {plotMode === "activity" ? "activity" : "data"} for both selected substrates
+                  {plotMode === "intensity" && activeTimepoint !== null && ` at ${activeTimepoint}h`}
                 </div>
               )}
             </div>
@@ -1258,6 +1462,7 @@ const SubstratePage = () => {
                 isExpanded={expandedGenes.has(gene)}
                 onToggle={() => toggleGene(gene)}
                 onScrollToScatter={() => handleScrollToScatter(gene)}
+                activityData={activityByGeneMedia[gene]}
               />
             ))}
           </>
