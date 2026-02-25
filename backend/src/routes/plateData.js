@@ -6,14 +6,14 @@ import { pool } from '../db.js';
 const router = Router();
 const schema = Joi.string().max(64).required();
 
-// GET substrate comparison data across all genes for given media types
-router.get('/substrate-comparison', async (req, res, next) => {
+// GET substrate comparison data: timeseries + activity metrics in a single response.
+// Replaces the former /substrate-comparison and /substrate-activity endpoints.
+// ?media=BHET12.5,BHET25[,BHET50]
+router.get('/comparison', async (req, res, next) => {
   const mediaString = req.query.media || 'BHET12.5,BHET25';
   const mediaSchema = Joi.string().max(128);
   const { error } = mediaSchema.validate(mediaString);
-  if (error) {
-    return res.status(400).json({ error: error.message });
-  }
+  if (error) return res.status(400).json({ error: error.message });
 
   const mediaTypes = mediaString.split(',').map(m => m.trim());
 
@@ -26,178 +26,85 @@ router.get('/substrate-comparison', async (req, res, next) => {
         aav.source,
         aav.media,
         aav.timepoint_hours,
-        AVG(aav.readout_value) AS average_readout,
+        AVG(aav.readout_value)      AS average_readout,
         STDDEV_SAMP(aav.readout_value) AS stddev_readout,
-        COUNT(*) AS sample_count
+        COUNT(*)                    AS sample_count
       FROM accession_activity_view aav
       LEFT JOIN gene_metadata gm ON aav.gene = gm.gene
       WHERE aav.media = ANY($1::text[])
         AND aav.readout_value IS NOT NULL
       GROUP BY
-        aav.gene,
-        gm.nickname,
-        aav.accession,
-        aav.source,
-        aav.media,
-        aav.timepoint_hours
+        aav.gene, gm.nickname, aav.accession, aav.source,
+        aav.media, aav.timepoint_hours
       ORDER BY aav.gene, aav.media, aav.timepoint_hours`,
       [mediaTypes]
     );
 
-    console.log('Substrate comparison:', rows.length, 'rows found');
     if (!rows.length) return res.status(404).json({ error: 'No substrate data found' });
-    res.json(rows);
-  } catch (err) {
-    console.error('Database error:', err);
-    next(err);
-  }
-});
 
-// GET activity metrics (peak - subsequent_min) per gene per substrate
-// Activity represents the degradation signal: max intensity minus the minimum after the peak
-router.get('/substrate-activity', async (req, res, next) => {
-  const mediaString = req.query.media || 'BHET12.5,BHET25';
-  const mediaSchema = Joi.string().max(128);
-  const { error } = mediaSchema.validate(mediaString);
-  if (error) {
-    return res.status(400).json({ error: error.message });
-  }
-
-  const mediaTypes = mediaString.split(',').map(m => m.trim());
-
-  try {
-    // Fetch averaged data per gene/media/timepoint
-    const { rows } = await pool.query(
-      `SELECT
-        aav.gene,
-        gm.nickname,
-        aav.accession,
-        aav.source,
-        aav.media,
-        aav.timepoint_hours,
-        AVG(aav.readout_value) AS average_readout,
-        COUNT(*) AS sample_count
-      FROM accession_activity_view aav
-      LEFT JOIN gene_metadata gm ON aav.gene = gm.gene
-      WHERE aav.media = ANY($1::text[])
-        AND aav.readout_value IS NOT NULL
-      GROUP BY
-        aav.gene,
-        gm.nickname,
-        aav.accession,
-        aav.source,
-        aav.media,
-        aav.timepoint_hours
-      ORDER BY aav.gene, aav.media, aav.timepoint_hours`,
-      [mediaTypes]
-    );
-
-    if (!rows.length) {
-      return res.status(404).json({ error: 'No substrate data found' });
-    }
-
-    // Group data by gene and media
+    // Compute activity (peak − subsequent min) per gene/media from the timeseries rows
     const geneMediaGroups = {};
     for (const row of rows) {
       const key = `${row.gene}|${row.media}`;
       if (!geneMediaGroups[key]) {
         geneMediaGroups[key] = {
-          gene: row.gene,
-          nickname: row.nickname,
-          accession: row.accession,
-          source: row.source,
-          media: row.media,
-          timepoints: []
+          gene: row.gene, nickname: row.nickname,
+          accession: row.accession, source: row.source,
+          media: row.media, timepoints: [],
         };
       }
       geneMediaGroups[key].timepoints.push({
         timepoint_hours: parseFloat(row.timepoint_hours),
         average_readout: parseFloat(row.average_readout),
-        sample_count: parseInt(row.sample_count)
+        sample_count: parseInt(row.sample_count),
       });
     }
 
-    // Calculate activity for each gene/media combination
-    const activityResults = [];
-    for (const key in geneMediaGroups) {
-      const group = geneMediaGroups[key];
-      const timepoints = group.timepoints.sort((a, b) => a.timepoint_hours - b.timepoint_hours);
-
-      // Find global peak (max intensity)
-      let peakIdx = 0;
-      let peakValue = timepoints[0].average_readout;
-      for (let i = 1; i < timepoints.length; i++) {
-        if (timepoints[i].average_readout > peakValue) {
-          peakValue = timepoints[i].average_readout;
-          peakIdx = i;
-        }
+    const activity = [];
+    for (const group of Object.values(geneMediaGroups)) {
+      const tps = group.timepoints.sort((a, b) => a.timepoint_hours - b.timepoint_hours);
+      let peakIdx = 0, peakValue = tps[0].average_readout;
+      for (let i = 1; i < tps.length; i++) {
+        if (tps[i].average_readout > peakValue) { peakValue = tps[i].average_readout; peakIdx = i; }
       }
 
-      // Check if peak is at last timepoint (no subsequent data for degradation)
-      if (peakIdx === timepoints.length - 1) {
-        activityResults.push({
-          gene: group.gene,
-          nickname: group.nickname,
-          accession: group.accession,
-          source: group.source,
-          media: group.media,
-          activity: null,
-          peak_value: peakValue,
-          peak_timepoint: timepoints[peakIdx].timepoint_hours,
-          min_value: null,
-          min_timepoint: null,
-          flag: 'peak_at_end',
-          timepoint_count: timepoints.length
+      if (peakIdx === tps.length - 1) {
+        activity.push({
+          gene: group.gene, nickname: group.nickname,
+          accession: group.accession, source: group.source,
+          media: group.media, activity: null,
+          peak_value: peakValue, peak_timepoint: tps[peakIdx].timepoint_hours,
+          min_value: null, min_timepoint: null,
+          flag: 'peak_at_end', timepoint_count: tps.length,
         });
         continue;
       }
 
-      // Find minimum in subsequent timepoints
-      let minIdx = peakIdx + 1;
-      let minValue = timepoints[peakIdx + 1].average_readout;
-      for (let i = peakIdx + 2; i < timepoints.length; i++) {
-        if (timepoints[i].average_readout < minValue) {
-          minValue = timepoints[i].average_readout;
-          minIdx = i;
-        }
+      let minIdx = peakIdx + 1, minValue = tps[peakIdx + 1].average_readout;
+      for (let i = peakIdx + 2; i < tps.length; i++) {
+        if (tps[i].average_readout < minValue) { minValue = tps[i].average_readout; minIdx = i; }
       }
 
-      const activity = peakValue - minValue;
-
-      // Flag potential issues
+      const delta = peakValue - minValue;
       let flag = null;
-      if (peakIdx === 0) {
-        flag = 'peak_at_start';
-      } else if (minIdx - peakIdx === 1) {
-        flag = 'single_degradation_point';
-      } else if (activity < 0) {
-        flag = 'negative_activity';
-      }
+      if (peakIdx === 0) flag = 'peak_at_start';
+      else if (minIdx - peakIdx === 1) flag = 'single_degradation_point';
+      else if (delta < 0) flag = 'negative_activity';
 
-      activityResults.push({
-        gene: group.gene,
-        nickname: group.nickname,
-        accession: group.accession,
-        source: group.source,
-        media: group.media,
-        activity: activity,
-        peak_value: peakValue,
-        peak_timepoint: timepoints[peakIdx].timepoint_hours,
-        min_value: minValue,
-        min_timepoint: timepoints[minIdx].timepoint_hours,
-        flag: flag,
-        timepoint_count: timepoints.length
+      activity.push({
+        gene: group.gene, nickname: group.nickname,
+        accession: group.accession, source: group.source,
+        media: group.media, activity: delta,
+        peak_value: peakValue, peak_timepoint: tps[peakIdx].timepoint_hours,
+        min_value: minValue, min_timepoint: tps[minIdx].timepoint_hours,
+        flag, timepoint_count: tps.length,
       });
     }
 
-    // Sort by gene then media for consistent output
-    activityResults.sort((a, b) => {
-      if (a.gene !== b.gene) return a.gene.localeCompare(b.gene);
-      return a.media.localeCompare(b.media);
-    });
+    activity.sort((a, b) => a.gene !== b.gene ? a.gene.localeCompare(b.gene) : a.media.localeCompare(b.media));
 
-    console.log('Substrate activity:', activityResults.length, 'gene/media combinations');
-    res.json(activityResults);
+    console.log('Substrate comparison:', rows.length, 'timeseries rows,', activity.length, 'activity records');
+    res.json({ timeseries: rows, activity });
   } catch (err) {
     console.error('Database error:', err);
     next(err);

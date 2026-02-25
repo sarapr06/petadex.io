@@ -1,27 +1,16 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "gatsby";
 import "../styles/home.css";
 import SiteHeader from "../components/SiteHeader";
 import Seo from "../components/seo";
 import config from "../config";
 import { useScrollHeader } from "../hooks/useScrollHeader";
+import { generateCSV, downloadCSV } from "../utils/csvDownload";
+import ActivityLineChart, { mediaColors, mediaLabels } from "../components/ActivityLineChart";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, ReferenceLine,
-  ScatterChart, Scatter, ZAxis, ErrorBar
+  ScatterChart, Scatter, ZAxis,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
 } from "recharts";
-
-const mediaColors = {
-  "BHET12.5": "#2E86AB",
-  "BHET25": "#A23B72",
-  "BHET50": "#F18F01",
-};
-
-const mediaLabels = {
-  "BHET12.5": "BHET 12.5 mM",
-  "BHET25": "BHET 25 mM",
-  "BHET50": "BHET 50 mM",
-};
 
 const allSubstrates = ["BHET12.5", "BHET25", "BHET50"];
 
@@ -46,43 +35,6 @@ const benchmarkEnzymes = {
 
 const diamondPoints = (cx, cy, r) =>
   `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`;
-
-// Transform per-gene media data into Recharts line chart format
-const transformForChart = (mediaData) => {
-  const grouped = {};
-  Object.entries(mediaData).forEach(([media, points]) => {
-    const stddevKey = `${media}_stddev`;
-    points.forEach(point => {
-      const tp = point.timepoint;
-      if (!grouped[tp]) {
-        grouped[tp] = { timepoint: tp };
-      }
-      if (grouped[tp][media] !== undefined) {
-        // Running average for multiple points at same timepoint
-        if (!grouped[tp]._counts) grouped[tp]._counts = {};
-        if (!grouped[tp]._counts[media]) grouped[tp]._counts[media] = 1;
-
-        const prevCount = grouped[tp]._counts[media];
-        const newCount = prevCount + 1;
-
-        grouped[tp][media] = (grouped[tp][media] * prevCount + point.average_readout) / newCount;
-
-        // Pooled stddev approximation
-        const prevStddev = grouped[tp][stddevKey] || 0;
-        const newStddev = point.stddev_readout || 0;
-        grouped[tp][stddevKey] = Math.sqrt((prevStddev * prevStddev + newStddev * newStddev) / 2);
-
-        grouped[tp]._counts[media] = newCount;
-      } else {
-        grouped[tp][media] = point.average_readout;
-        grouped[tp][stddevKey] = point.stddev_readout || 0;
-      }
-    });
-  });
-  return Object.values(grouped)
-    .map(({ _counts, ...rest }) => rest)
-    .sort((a, b) => a.timepoint - b.timepoint);
-};
 
 // --- Custom Scatter Tooltip ---
 const ScatterTooltipContent = ({ active, payload, xKey, yKey, plotMode }) => {
@@ -784,10 +736,13 @@ const SubstrateScatter = ({
 };
 
 // --- Gene Substrate Card ---
-const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToScatter, activityData }) => {
+const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToScatter, activityData, isSelected, onSelectionChange }) => {
   const { nickname, accession, mediaData } = geneData;
   const mediaTypes = Object.keys(mediaData);
-  const chartData = transformForChart(mediaData);
+  // Flatten mediaData to the flat-array format ActivityLineChart expects
+  const flatChartData = Object.entries(mediaData).flatMap(([media, points]) =>
+    points.map(p => ({ timepoint_hours: p.timepoint, media, average_readout: p.average_readout, stddev_readout: p.stddev_readout }))
+  );
 
   return (
     <div
@@ -825,6 +780,33 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
         }}
       >
         <div style={{ display: "flex", gap: "1.5rem", alignItems: "center", flexWrap: "wrap", flex: "1" }}>
+          {/* Selection checkbox */}
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectionChange(gene);
+            }}
+            style={{
+              width: "20px",
+              height: "20px",
+              borderRadius: "4px",
+              border: `2px solid ${isSelected ? "#059669" : "#d1d5db"}`,
+              backgroundColor: isSelected ? "#059669" : "#fff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              flexShrink: 0,
+            }}
+          >
+            {isSelected && (
+              <svg width="12" height="12" fill="none" stroke="#fff" strokeWidth="3" viewBox="0 0 24 24">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+
           <div>
             <span style={{
               fontSize: "0.7rem", fontWeight: "700", color: "#9ca3af",
@@ -929,7 +911,7 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
             </div>
 
             {/* Chart */}
-            {chartData.length > 0 && (
+            {flatChartData.length > 0 && (
               <div style={{
                 backgroundColor: "#f0fdf4",
                 border: "1px solid #86efac",
@@ -943,61 +925,7 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
                   Activity Over Time
                 </div>
 
-                <div style={{
-                  backgroundColor: "white", borderRadius: "4px",
-                  padding: "1rem", marginBottom: "-2rem",
-                }}>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <LineChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis
-                        dataKey="timepoint"
-                        label={{ value: "Time (hours)", position: "insideBottom", offset: 0, style: { fontWeight: "bold", textAnchor: "middle" } }}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <YAxis
-                        label={{ value: "Median Pixel Intensity", angle: -90, position: "center", dx: -25, style: { fontWeight: "bold" } }}
-                        tick={{ fontSize: 12 }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: "#fff", border: "1px solid #86efac",
-                          borderRadius: "4px", fontSize: "0.875rem",
-                        }}
-                        formatter={(value, name, props) => {
-                          const stddevKey = `${name}_stddev`;
-                          const stddev = props.payload?.[stddevKey];
-                          if (stddev && stddev > 0) {
-                            return [`${value?.toFixed(4)} ± ${stddev.toFixed(4)}`, name];
-                          }
-                          return [value?.toFixed(4), name];
-                        }}
-                      />
-                      <Legend align="right" wrapperStyle={{ fontSize: "0.875rem", paddingTop: "10px" }} />
-                      <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" strokeWidth={1} />
-                      {mediaTypes.map(media => (
-                        <Line
-                          key={media}
-                          type="monotone"
-                          dataKey={media}
-                          stroke={mediaColors[media] || "#059669"}
-                          strokeWidth={2.5}
-                          dot={{ fill: mediaColors[media] || "#059669", r: 5 }}
-                          activeDot={{ r: 7 }}
-                          name={media}
-                        >
-                          <ErrorBar
-                            dataKey={`${media}_stddev`}
-                            width={4}
-                            strokeWidth={1.5}
-                            stroke={mediaColors[media] || "#059669"}
-                            opacity={0.7}
-                          />
-                        </Line>
-                      ))}
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+                <ActivityLineChart data={flatChartData} />
 
                 {/* Per-media stats */}
                 <div style={{
@@ -1099,6 +1027,122 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
   );
 };
 
+// --- Download Controls ---
+const DownloadControls = ({
+  selectedCount,
+  totalCount,
+  onSelectAll,
+  onDeselectAll,
+  onDownloadIntensity,
+  onDownloadActivity,
+  disabled,
+}) => (
+  <div style={{
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "1rem 1.25rem",
+    backgroundColor: "#f9fafb",
+    border: "1px solid #e5e7eb",
+    borderRadius: "8px",
+    marginBottom: "1.5rem",
+    flexWrap: "wrap",
+    gap: "1rem",
+  }}>
+    {/* Selection controls */}
+    <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+      <span style={{ fontSize: "0.875rem", color: "#4b5563", fontWeight: "500" }}>
+        {selectedCount} of {totalCount} genes selected
+      </span>
+      <button
+        onClick={onSelectAll}
+        disabled={disabled || selectedCount === totalCount}
+        style={{
+          padding: "0.35rem 0.75rem",
+          borderRadius: "6px",
+          border: "1px solid #d1d5db",
+          backgroundColor: selectedCount === totalCount ? "#f3f4f6" : "#fff",
+          color: selectedCount === totalCount ? "#9ca3af" : "#374151",
+          fontSize: "0.8rem",
+          fontWeight: "500",
+          cursor: selectedCount === totalCount || disabled ? "default" : "pointer",
+          transition: "all 0.15s ease",
+        }}
+      >
+        Select All
+      </button>
+      <button
+        onClick={onDeselectAll}
+        disabled={disabled || selectedCount === 0}
+        style={{
+          padding: "0.35rem 0.75rem",
+          borderRadius: "6px",
+          border: "1px solid #d1d5db",
+          backgroundColor: selectedCount === 0 ? "#f3f4f6" : "#fff",
+          color: selectedCount === 0 ? "#9ca3af" : "#374151",
+          fontSize: "0.8rem",
+          fontWeight: "500",
+          cursor: selectedCount === 0 || disabled ? "default" : "pointer",
+          transition: "all 0.15s ease",
+        }}
+      >
+        Deselect All
+      </button>
+    </div>
+
+    {/* Download buttons */}
+    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+      <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>Download:</span>
+      <button
+        onClick={onDownloadIntensity}
+        disabled={disabled || selectedCount === 0}
+        style={{
+          padding: "0.5rem 1rem",
+          borderRadius: "8px",
+          border: "2px solid #059669",
+          backgroundColor: selectedCount === 0 || disabled ? "#f3f4f6" : "#059669",
+          color: selectedCount === 0 || disabled ? "#9ca3af" : "#fff",
+          fontSize: "0.8rem",
+          fontWeight: "600",
+          cursor: selectedCount === 0 || disabled ? "default" : "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.4rem",
+          transition: "all 0.15s ease",
+        }}
+      >
+        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+        </svg>
+        Intensity CSV
+      </button>
+      <button
+        onClick={onDownloadActivity}
+        disabled={disabled || selectedCount === 0}
+        style={{
+          padding: "0.5rem 1rem",
+          borderRadius: "8px",
+          border: "2px solid #7c3aed",
+          backgroundColor: selectedCount === 0 || disabled ? "#f3f4f6" : "#7c3aed",
+          color: selectedCount === 0 || disabled ? "#9ca3af" : "#fff",
+          fontSize: "0.8rem",
+          fontWeight: "600",
+          cursor: selectedCount === 0 || disabled ? "default" : "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: "0.4rem",
+          transition: "all 0.15s ease",
+        }}
+      >
+        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+        </svg>
+        Activity CSV
+      </button>
+    </div>
+  </div>
+);
+
 // --- Main Page ---
 const SubstratePage = () => {
   useScrollHeader();
@@ -1113,6 +1157,7 @@ const SubstratePage = () => {
   const [highlightedGene, setHighlightedGene] = useState(null);
   const [activeTimepoint, setActiveTimepoint] = useState(null); // null = "All (avg)"
   const [plotMode, setPlotMode] = useState("intensity"); // "intensity" or "activity"
+  const [selectedGenes, setSelectedGenes] = useState(new Set());
 
   const activeMediaString = useMemo(
     () => [...activeSubstrates].sort().join(","),
@@ -1125,23 +1170,13 @@ const SubstratePage = () => {
     async function load() {
       setLoading(true);
       try {
-        // Fetch both raw data and activity data in parallel
-        const [rawRes, activityRes] = await Promise.all([
-          fetch(`${config.apiUrl}/plate-data/substrate-comparison?media=${activeMediaString}`),
-          fetch(`${config.apiUrl}/plate-data/substrate-activity?media=${activeMediaString}`),
-        ]);
-
-        if (!rawRes.ok) throw new Error(`Raw data: Status ${rawRes.status}`);
-        if (!activityRes.ok) throw new Error(`Activity data: Status ${activityRes.status}`);
-
-        const [rawDataResult, activityDataResult] = await Promise.all([
-          rawRes.json(),
-          activityRes.json(),
-        ]);
+        const res = await fetch(`${config.apiUrl}/plate-data/comparison?media=${activeMediaString}`);
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        const { timeseries, activity } = await res.json();
 
         if (!cancelled) {
-          setRawData(rawDataResult);
-          setActivityData(activityDataResult);
+          setRawData(timeseries);
+          setActivityData(activity);
           setError(null);
         }
       } catch (err) {
@@ -1210,6 +1245,122 @@ const SubstratePage = () => {
     });
     return index;
   }, [activityData]);
+
+  // Initialize all genes as selected when geneGroups changes
+  useEffect(() => {
+    const allGenes = Object.keys(geneGroups);
+    setSelectedGenes(new Set(allGenes));
+  }, [geneGroups]);
+
+  // Selection handlers
+  const handleSelectAll = useCallback(() => {
+    setSelectedGenes(new Set(Object.keys(geneGroups)));
+  }, [geneGroups]);
+
+  const handleDeselectAll = useCallback(() => {
+    setSelectedGenes(new Set());
+  }, []);
+
+  const handleToggleGeneSelection = useCallback((gene) => {
+    setSelectedGenes(prev => {
+      const next = new Set(prev);
+      if (next.has(gene)) {
+        next.delete(gene);
+      } else {
+        next.add(gene);
+      }
+      return next;
+    });
+  }, []);
+
+  // CSV generation functions
+  const generateIntensityCSV = useCallback(() => {
+    const headers = [
+      'gene_id',
+      'nickname',
+      'accession',
+      'source',
+      'substrate',
+      'timepoint_hours',
+      'average_intensity',
+      'stddev_intensity',
+      'sample_count',
+    ];
+
+    const rows = rawData
+      .filter(row => selectedGenes.has(row.gene))
+      .map(row => [
+        row.gene,
+        row.nickname || '',
+        row.accession || '',
+        row.source || '',
+        row.media,
+        row.timepoint_hours,
+        row.average_readout,
+        row.stddev_readout || '',
+        row.sample_count,
+      ]);
+
+    return { headers, rows };
+  }, [rawData, selectedGenes]);
+
+  const generateActivityCSV = useCallback(() => {
+    const headers = [
+      'gene_id',
+      'nickname',
+      'accession',
+      'source',
+      'substrate',
+      'activity',
+      'peak_value',
+      'peak_timepoint_hours',
+      'min_value',
+      'min_timepoint_hours',
+      'flag',
+      'timepoint_count',
+    ];
+
+    const rows = activityData
+      .filter(row => selectedGenes.has(row.gene))
+      .map(row => [
+        row.gene,
+        row.nickname || '',
+        row.accession || '',
+        row.source || '',
+        row.media,
+        row.activity !== null ? row.activity : '',
+        row.peak_value !== null ? row.peak_value : '',
+        row.peak_timepoint !== null ? row.peak_timepoint : '',
+        row.min_value !== null ? row.min_value : '',
+        row.min_timepoint !== null ? row.min_timepoint : '',
+        row.flag || '',
+        row.timepoint_count,
+      ]);
+
+    return { headers, rows };
+  }, [activityData, selectedGenes]);
+
+  const handleDownloadIntensity = useCallback(() => {
+    const { headers, rows } = generateIntensityCSV();
+    if (rows.length === 0) {
+      alert('No genes selected for download.');
+      return;
+    }
+    const csv = generateCSV(headers, rows);
+    const timestamp = new Date().toISOString().slice(0, 10);
+    downloadCSV(csv, `petadex_intensity_${timestamp}`);
+  }, [generateIntensityCSV]);
+
+  const handleDownloadActivity = useCallback(() => {
+    const { headers, rows } = generateActivityCSV();
+    if (rows.length === 0) {
+      alert('No genes selected for download.');
+      return;
+    }
+    const csv = generateCSV(headers, rows);
+    const timestamp = new Date().toISOString().slice(0, 10);
+    downloadCSV(csv, `petadex_activity_${timestamp}`);
+  }, [generateActivityCSV]);
 
   // Compute hero stats per substrate
   const heroStats = useMemo(() => {
@@ -1419,6 +1570,17 @@ const SubstratePage = () => {
           </div>
         ) : (
           <>
+            {/* Download Controls */}
+            <DownloadControls
+              selectedCount={selectedGenes.size}
+              totalCount={geneEntries.length}
+              onSelectAll={handleSelectAll}
+              onDeselectAll={handleDeselectAll}
+              onDownloadIntensity={handleDownloadIntensity}
+              onDownloadActivity={handleDownloadActivity}
+              disabled={loading}
+            />
+
             {/* VS Hero Banner */}
             <SubstrateHero heroStats={heroStats} activeSubstrates={activeSubstrates} />
 
@@ -1463,6 +1625,8 @@ const SubstratePage = () => {
                 onToggle={() => toggleGene(gene)}
                 onScrollToScatter={() => handleScrollToScatter(gene)}
                 activityData={activityByGeneMedia[gene]}
+                isSelected={selectedGenes.has(gene)}
+                onSelectionChange={handleToggleGeneSelection}
               />
             ))}
           </>

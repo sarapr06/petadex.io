@@ -1,6 +1,6 @@
 // src/components/SynthesizedGenePanel.js
 import React, { useState } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine, ErrorBar } from 'recharts';
+import ActivityLineChart, { mediaColors } from "./ActivityLineChart";
 
 export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
   const [expandedGenes, setExpandedGenes] = useState({});
@@ -16,65 +16,10 @@ export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
     }));
   };
 
-  // Transform plate data for Recharts
-  const transformPlateDataForChart = (plateDataArray) => {
-    if (!Array.isArray(plateDataArray) || plateDataArray.length === 0) return [];
-
-    // Group by timepoint and media, collecting values and stddevs
-    const grouped = {};
-
-    plateDataArray.forEach(plate => {
-      const timepoint = plate.timepoint_hours;
-      const media = plate.media || 'Unknown';
-      const stddevKey = `${media}_stddev`;
-
-      if (!grouped[timepoint]) {
-        grouped[timepoint] = { timepoint };
-      }
-
-      // If multiple plates at same timepoint/media, compute weighted average
-      if (grouped[timepoint][media] !== undefined) {
-        // Store running values for proper averaging
-        if (!grouped[timepoint]._counts) grouped[timepoint]._counts = {};
-        if (!grouped[timepoint]._counts[media]) grouped[timepoint]._counts[media] = 1;
-
-        const prevCount = grouped[timepoint]._counts[media];
-        const newCount = prevCount + 1;
-
-        // Running average of readout values
-        grouped[timepoint][media] = (grouped[timepoint][media] * prevCount + plate.average_readout) / newCount;
-
-        // For stddev, use pooled standard deviation approximation
-        const prevStddev = grouped[timepoint][stddevKey] || 0;
-        const newStddev = plate.stddev_readout || 0;
-        grouped[timepoint][stddevKey] = Math.sqrt((prevStddev * prevStddev + newStddev * newStddev) / 2);
-
-        grouped[timepoint]._counts[media] = newCount;
-      } else {
-        grouped[timepoint][media] = plate.average_readout;
-        grouped[timepoint][stddevKey] = plate.stddev_readout || 0;
-      }
-    });
-
-    // Convert to array, remove internal count tracking, and sort by timepoint
-    return Object.values(grouped)
-      .map(({ _counts, ...rest }) => rest)
-      .sort((a, b) => a.timepoint - b.timepoint);
-  };
-
-  // Get unique media types for line colors
+  // Get unique media types for summary stats
   const getUniqueMediaTypes = (plateDataArray) => {
     if (!Array.isArray(plateDataArray)) return [];
-    const mediaSet = new Set(plateDataArray.map(p => p.media).filter(Boolean));
-    return Array.from(mediaSet);
-  };
-
-  // Color palette for different media types
-  const mediaColors = {
-    'BHET12.5': '#2E86AB',
-    'BHET25': '#A23B72',
-    'BHET50': '#F18F01',
-    'default': '#059669'
+    return [...new Set(plateDataArray.map(p => p.media).filter(Boolean))];
   };
 
   return (
@@ -284,7 +229,6 @@ export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
 
                 {/* Plate Data Visualization */}
                 {Array.isArray(genePlateData) && genePlateData.length > 0 && (() => {
-                  const chartData = transformPlateDataForChart(genePlateData);
                   const mediaTypes = getUniqueMediaTypes(genePlateData);
 
                   return (
@@ -304,70 +248,7 @@ export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
                         Activity Time Course ({genePlateData.length} {genePlateData.length === 1 ? 'plate' : 'plates'})
                       </div>
 
-                      {/* Line Chart */}
-                      <div style={{
-                        backgroundColor: "white",
-                        borderRadius: "4px",
-                        padding: "1rem",
-                        marginBottom: "-2rem"
-                      }}>
-                        <ResponsiveContainer width="100%" height={300}>
-                          <LineChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis
-                              dataKey="timepoint"
-                              label={{ value: 'Time (hours)', position: 'insideBottom', offset: 0, style: { fontWeight: 'bold', textAnchor: 'middle' } }}
-                              tick={{ fontSize: 12 }}
-                            />
-                            <YAxis
-                              label={{ value: 'Median Pixel Intensity', angle: -90, position: 'center', dx: -25, style: { fontWeight: 'bold' } }}
-                              tick={{ fontSize: 12 }}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: '#fff',
-                                border: '1px solid #86efac',
-                                borderRadius: '4px',
-                                fontSize: '0.875rem'
-                              }}
-                              formatter={(value, name, props) => {
-                                const stddevKey = `${name}_stddev`;
-                                const stddev = props.payload?.[stddevKey];
-                                if (stddev && stddev > 0) {
-                                  return [`${value?.toFixed(4)} ± ${stddev.toFixed(4)}`, name];
-                                }
-                                return [value?.toFixed(4), name];
-                              }}
-                            />
-                            <Legend
-                              align="right"
-                              wrapperStyle={{ fontSize: '0.875rem', paddingTop: '10px' }}
-                            />
-                            <ReferenceLine y={0} stroke="#666" strokeDasharray="3 3" strokeWidth={1} />
-
-                            {mediaTypes.map((media) => (
-                              <Line
-                                key={media}
-                                type="monotone"
-                                dataKey={media}
-                                stroke={mediaColors[media] || mediaColors.default}
-                                strokeWidth={2.5}
-                                dot={{ fill: mediaColors[media] || mediaColors.default, r: 5 }}
-                                activeDot={{ r: 7 }}
-                                name={media}
-                              >
-                                <ErrorBar
-                                  dataKey={`${media}_stddev`}
-                                  width={4}
-                                  strokeWidth={1.5}
-                                  stroke={mediaColors[media] || mediaColors.default}
-                                  opacity={0.7}
-                                />
-                              </Line>
-                            ))}
-                          </LineChart>
-                        </ResponsiveContainer>
-                      </div>
+                      <ActivityLineChart data={genePlateData} />
 
                       {/* Summary Statistics */}
                       <div style={{
