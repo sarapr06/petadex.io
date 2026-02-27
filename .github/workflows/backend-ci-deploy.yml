@@ -1,70 +1,46 @@
 name: Backend CI & Deploy
+
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci-deploy.yml'
   workflow_dispatch:
-    inputs:
-      ssh_host:
-        description: 'EC2 Host'
-        required: true
-        type: string
-        default: 'ec2-44-222-238-66.compute-1.amazonaws.com'
-      ssh_user:
-        description: 'SSH Username'
-        required: true
-        type: string
-        default: 'ubuntu'
-      ssh_key_gist_url:
-        description: 'Gist Raw URL for SSH key'
-        required: true
-        type: string
 
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
       - name: Install dependencies
-        run: |
-          cd backend
-          npm ci
+        run: cd backend && npm ci
       - name: Run tests
-        run: |
-          cd backend
-          npm test
+        run: cd backend && npm test
 
   deploy_to_ec2:
     needs: build_and_test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        
-      - name: Download SSH key
-        id: get_key
-        run: |
-          KEY_CONTENT=$(curl -s ${{ github.event.inputs.ssh_key_gist_url }})
-          echo "SSH_KEY<<EOF" >> $GITHUB_OUTPUT
-          echo "$KEY_CONTENT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          
       - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v0.1.6
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ github.event.inputs.ssh_host }}
-          username: ${{ github.event.inputs.ssh_user }}
-          key: ${{ steps.get_key.outputs.SSH_KEY }}
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
-          timeout: 60s
+          timeout: 120s
           script: |
-            cd /home/ubuntu/petadex.io/petadex.io/backend
-            pm2 stop petadex-backend || true
-            pm2 delete petadex-backend || true
-            sudo lsof -i TCP:3001 -t | xargs -r sudo kill -9
+            cd /home/ec2-user/petadex.io/backend
             git fetch --all
             git reset --hard origin/main
-            npm ci --only=production
-            pm2 start src/index.js --name petadex-backend
+            npm ci --omit=dev
+            pm2 restart petadex-backend || pm2 start src/index.js --name petadex-backend
             pm2 save
