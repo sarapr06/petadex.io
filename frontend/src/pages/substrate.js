@@ -168,9 +168,8 @@ const SubstrateHero = ({ heroStats, activeSubstrates }) => {
               </div>
 
               <div style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "1rem",
+                display: "flex",
+                gap: "2rem",
               }}>
                 <div>
                   <div style={{
@@ -188,27 +187,6 @@ const SubstrateHero = ({ heroStats, activeSubstrates }) => {
                   }}>Mean Activity</div>
                   <div style={{ fontSize: "1.75rem", fontWeight: "800", color }}>
                     {stats?.meanActivity?.toFixed(4) || "—"}
-                  </div>
-                </div>
-                <div>
-                  <div style={{
-                    fontSize: "0.65rem", fontWeight: "700", color: "#9ca3af",
-                    textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.2rem"
-                  }}>Top Performer</div>
-                  <div style={{
-                    fontSize: "1.05rem", fontWeight: "700", color: "#1f2937",
-                    fontFamily: "monospace",
-                  }}>
-                    {stats?.topGene || "—"}
-                  </div>
-                </div>
-                <div>
-                  <div style={{
-                    fontSize: "0.65rem", fontWeight: "700", color: "#9ca3af",
-                    textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.2rem"
-                  }}>Peak Timepoint</div>
-                  <div style={{ fontSize: "1.05rem", fontWeight: "700", color: "#1f2937" }}>
-                    {stats?.peakTimepoint != null ? `${stats.peakTimepoint}h` : "—"}
                   </div>
                 </div>
               </div>
@@ -1570,17 +1548,6 @@ const SubstratePage = () => {
           </div>
         ) : (
           <>
-            {/* Download Controls */}
-            <DownloadControls
-              selectedCount={selectedGenes.size}
-              totalCount={geneEntries.length}
-              onSelectAll={handleSelectAll}
-              onDeselectAll={handleDeselectAll}
-              onDownloadIntensity={handleDownloadIntensity}
-              onDownloadActivity={handleDownloadActivity}
-              disabled={loading}
-            />
-
             {/* VS Hero Banner */}
             <SubstrateHero heroStats={heroStats} activeSubstrates={activeSubstrates} />
 
@@ -1599,6 +1566,17 @@ const SubstratePage = () => {
                 plotMode={plotMode}
               />
             )}
+
+            {/* Download Controls */}
+            <DownloadControls
+              selectedCount={selectedGenes.size}
+              totalCount={geneEntries.length}
+              onSelectAll={handleSelectAll}
+              onDeselectAll={handleDeselectAll}
+              onDownloadIntensity={handleDownloadIntensity}
+              onDownloadActivity={handleDownloadActivity}
+              disabled={loading}
+            />
 
             {/* Gene Cards */}
             <div style={{
