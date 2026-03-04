@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import config from '../config';
+import { getStoredJobIds } from '../utils/session';
 
 const SearchHistory = ({ onSelectSearch, currentJobId }) => {
   const [searches, setSearches] = useState([]);
@@ -18,8 +19,15 @@ const SearchHistory = ({ onSelectSearch, currentJobId }) => {
 
   const fetchHistory = useCallback(async () => {
     try {
+      const jobIds = getStoredJobIds();
+      if (!jobIds.length) {
+        setSearches([]);
+        setError(null);
+        return;
+      }
+
       setLoading(true);
-      const response = await fetch(`${searchApiUrl}/search/history?limit=20`);
+      const response = await fetch(`${searchApiUrl}/search/history?job_ids=${jobIds.join(',')}&limit=20`);
       if (!response.ok) {
         throw new Error('Failed to fetch search history');
       }
@@ -194,7 +202,7 @@ const SearchHistory = ({ onSelectSearch, currentJobId }) => {
           <li
             key={search.job_id}
             className={`history-item ${currentJobId === search.job_id ? 'active' : ''}`}
-            onClick={() => onSelectSearch(search.job_id)}
+            onClick={() => onSelectSearch(search.session_id)}
           >
             <div className="history-item-info">
               <div className="history-item-main">
