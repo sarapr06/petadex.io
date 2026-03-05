@@ -11,6 +11,7 @@ import Joi from 'joi';
 import { randomUUID } from 'crypto';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { S3Client, GetObjectCommand, ListObjectsV2Command, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { pool } from '../db.js';
 
 const router = Router();
 
@@ -95,6 +96,71 @@ async function streamToString(stream) {
   return Buffer.concat(chunks).toString('utf-8');
 }
 
+// Check S3 in parallel for which family IDs have a phylogenetic tree file.
+// Returns a Set of family IDs (numbers) that have a corresponding .nwk file.
+async function checkFamilyTrees(familyIds) {
+  if (!familyIds.length) return new Set();
+  const client = getS3Client();
+  const results = await Promise.allSettled(
+    familyIds.map(id =>
+      client.send(new HeadObjectCommand({
+        Bucket: RESULTS_BUCKET,
+        Key: `search-phylo-trees/family_${id}.nwk`
+      })).then(() => id)
+    )
+  );
+  return new Set(
+    results.filter(r => r.status === 'fulfilled').map(r => r.value)
+  );
+}
+
+// Batch-query DB for family/component data for a list of accessions.
+// Checks enzyme_fastaa directly, then variant_dictionary as fallback.
+async function enrichWithFamilyData(accessions) {
+  if (!accessions.length) return {};
+
+  const { rows } = await pool.query(
+    `WITH direct AS (
+       SELECT e.genbank_accession_id AS accession,
+              e.enzyme_id,
+              t.family,
+              t.component,
+              t.family_pid
+       FROM enzyme_fastaa e
+       LEFT JOIN enzyme_taxonomy t ON t.enzyme_id = e.enzyme_id
+       WHERE e.genbank_accession_id = ANY($1)
+     ),
+     via_variant AS (
+       SELECT v.genbank_accession_id AS accession,
+              e.enzyme_id,
+              t.family,
+              t.component,
+              t.family_pid
+       FROM variant_dictionary v
+       JOIN enzyme_fastaa e ON e.enzyme_id = v.enzyme_id
+       LEFT JOIN enzyme_taxonomy t ON t.enzyme_id = v.enzyme_id
+       WHERE v.genbank_accession_id = ANY($1)
+         AND v.genbank_accession_id NOT IN (SELECT accession FROM direct)
+     )
+     SELECT * FROM direct
+     UNION ALL
+     SELECT * FROM via_variant`,
+    [accessions]
+  );
+
+  // Index by accession for O(1) lookup
+  const map = {};
+  for (const row of rows) {
+    map[row.accession] = {
+      enzyme_id: row.enzyme_id,
+      family: row.family,
+      component: row.component,
+      family_pid: row.family_pid
+    };
+  }
+  return map;
+}
+
 // Transform Lambda results to frontend format
 function transformResults(results, queryLength) {
   return results.map((hit, index) => ({
@@ -165,6 +231,37 @@ router.post('/', async (req, res, next) => {
     });
 
   } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/phylo-tree/:family_id
+ * Serve the Newick tree file for a given enzyme family from S3.
+ * Proxies the content so external viewers (e.g. icytree.org) can fetch it via CORS.
+ */
+router.get('/phylo-tree/:family_id', async (req, res, next) => {
+  const familyId = parseInt(req.params.family_id, 10);
+  if (!Number.isInteger(familyId) || familyId <= 0) {
+    return res.status(400).json({ error: 'Invalid family_id' });
+  }
+
+  const key = `search-phylo-trees/family_${familyId}.nwk`;
+  const client = getS3Client();
+
+  try {
+    const getCommand = new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: key });
+    const response = await client.send(getCommand);
+    const content = await streamToString(response.Body);
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Content-Disposition', `inline; filename="family_${familyId}.nwk"`);
+    res.send(content);
+  } catch (err) {
+    if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+      return res.status(404).json({ error: `No phylogenetic tree found for family ${familyId}` });
+    }
     next(err);
   }
 });
@@ -294,6 +391,29 @@ router.get('/results/:job_id', async (req, res, next) => {
 
       const rawResults = data.results || data;
       const transformedResults = transformResults(rawResults, data.query_length);
+
+      // Enrich with family/component data from DB, then check S3 for tree files
+      try {
+        const accessions = transformedResults.map(r => r.accession).filter(Boolean);
+        const familyMap = await enrichWithFamilyData(accessions);
+        for (const hit of transformedResults) {
+          const info = familyMap[hit.accession];
+          hit.enzyme_id = info?.enzyme_id ?? null;
+          hit.family = info?.family ?? null;
+          hit.component = info?.component ?? null;
+          hit.family_pid = info?.family_pid ?? null;
+        }
+
+        const uniqueFamilyIds = [...new Set(
+          transformedResults.map(r => r.family).filter(f => f != null)
+        )];
+        const familiesWithTrees = await checkFamilyTrees(uniqueFamilyIds);
+        for (const hit of transformedResults) {
+          hit.has_tree = hit.family != null && familiesWithTrees.has(hit.family);
+        }
+      } catch (dbErr) {
+        console.error('Family enrichment failed (non-fatal):', dbErr);
+      }
 
       return res.json({
         status: 'completed',
