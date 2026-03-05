@@ -42,6 +42,7 @@ const SequenceSearch = () => {
   const [results,    setResults]    = useState(null);
   const [error,      setError]      = useState(null); // { message, jobId, bugUrl } | null
   const [metadata,   setMetadata]   = useState(null);
+  const [newSearchCount, setNewSearchCount] = useState(0);
   const pollIntervalRef = useRef(null);
 
   const searchApiUrl = process.env.GATSBY_SEARCH_API_URL || config.apiUrl;
@@ -71,13 +72,7 @@ const SequenceSearch = () => {
     window.history.replaceState(null, '', newUrl);
   }, []);
 
-  const pollResults = useCallback(async (id) => {
-    const cleanSequence = sequence
-      .split('\n')
-      .filter(line => !line.trim().startsWith('>'))
-      .join('')
-      .replace(/[\s\r]/g, '')
-      .toUpperCase();
+  const pollResults = useCallback(async (id, cleanSequence) => {
     try {
       const response = await fetch(`${searchApiUrl}/search/results/${id}`);
       const data     = await response.json();
@@ -89,10 +84,12 @@ const SequenceSearch = () => {
 
       if (data.status === 'completed') {
         cleanupPolling();
+        addJobId(data.job_id);
         setStatus('completed');
         setResults(data.results);
         setMetadata(data.metadata);
-        updateUrl(cleanSequence, maxResults, id);
+        setNewSearchCount(n => n + 1);
+        updateUrl(cleanSequence, maxResults, data.job_id || id);
       } else if (data.status === 'failed') {
         failWithError(data.error || 'Search failed', id);
       }
@@ -100,7 +97,7 @@ const SequenceSearch = () => {
     } catch (err) {
       failWithError('Failed to fetch results. Please try again.', id);
     }
-  }, [searchApiUrl, cleanupPolling, failWithError]);
+  }, [searchApiUrl, cleanupPolling, failWithError, maxResults, updateUrl]);
 
   // ── Submit ────────────────────────────────────────────────────────────────
   const submitSearch = async () => {
@@ -143,6 +140,7 @@ const SequenceSearch = () => {
         setStatus('completed');
         setResults(data.results);
         setMetadata(data.metadata);
+        setNewSearchCount(n => n + 1);
         updateUrl(cleanSequence, maxResults, id);
         return;
       }
@@ -153,8 +151,8 @@ const SequenceSearch = () => {
       addJobId(data.job_id);
       setStatus('polling');
 
-      pollIntervalRef.current = setInterval(() => pollResults(pollId), 3000);
-      setTimeout(() => pollResults(pollId), 500);
+      pollIntervalRef.current = setInterval(() => pollResults(pollId, cleanSequence), 3000);
+      setTimeout(() => pollResults(pollId, cleanSequence), 500);
 
     } catch (err) {
       failWithError(err.message || 'Failed to submit search. Please try again.', null);
@@ -375,6 +373,7 @@ const SequenceSearch = () => {
       <SearchHistory
         onSelectSearch={loadPastSearch}
         currentJobId={status === 'completed' ? jobId : null}
+        newSearchCount={newSearchCount}
       />
     </div>
   );

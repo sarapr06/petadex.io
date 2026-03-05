@@ -18,6 +18,21 @@
  *     2. Return processing if no index yet
  */
 
+/**
+ *    User A searches "MNFP..."
+ *            ↓
+ *    session_id = MD5("MNFP...") = "a1b2c3..."
+ *    Lambda runs → writes results/a1b2c3....index
+ *                            results/a1b2c3.../550e8400-....json
+ *
+ *    User B searches "MNFP..." (same sequence)
+ *            ↓
+ *    session_id = MD5("MNFP...") = "a1b2c3..."  ← identical
+ *            ↓
+ *    resolveFromIndex finds results/a1b2c3....index ← cache hit
+ *    Returns immediately, Lambda never invoked
+ */
+
 import { Router } from 'express';
 import Joi from 'joi';
 import { createHash } from 'crypto';
