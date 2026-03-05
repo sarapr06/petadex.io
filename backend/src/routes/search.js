@@ -391,12 +391,37 @@ router.get('/results/:job_id', async (req, res, next) => {
         return res.json({ status: 'processing', session_id: jobId });
       }
 
+      const transformedResults = transformResults(result.data.results, result.data.query_length)
+
+      // Enrich with family/component data from DB, then check S3 for tree files
+      try {
+        const accessions = transformedResults.map(r => r.accession).filter(Boolean);
+        const familyMap = await enrichWithFamilyData(accessions);
+        for (const hit of transformedResults) {
+          const info = familyMap[hit.accession];
+          hit.enzyme_id = info?.enzyme_id ?? null;
+          hit.family = info?.family ?? null;
+          hit.component = info?.component ?? null;
+          hit.family_pid = info?.family_pid ?? null;
+        }
+
+        const uniqueFamilyIds = [...new Set(
+          transformedResults.map(r => r.family).filter(f => f != null)
+        )];
+        const familiesWithTrees = await checkFamilyTrees(uniqueFamilyIds);
+        for (const hit of transformedResults) {
+          hit.has_tree = hit.family != null && familiesWithTrees.has(hit.family);
+        }
+      } catch (dbErr) {
+        console.error('Family enrichment failed (non-fatal):', dbErr);
+      }
+
       return res.json({
         status: 'completed',
         job_id: result.jobId,
         session_id: jobId,
         cached: true,
-        results: transformResults(result.data.results, result.data.query_length),
+        results: transformedResults,
         metadata: {
           query_length: result.data.query_length,
           num_results: result.data.num_results,
