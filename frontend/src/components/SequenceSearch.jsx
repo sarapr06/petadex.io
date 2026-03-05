@@ -30,6 +30,7 @@ function buildBugReportUrl(message, searchId) {
 }
 
 const SequenceSearch = () => {
+
   // ── Read initial state from URL params (?seq=...&n=50) ───────────────────
   const urlParams     = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const seqFromUrl    = urlParams.get('seq') || '>';
@@ -43,9 +44,13 @@ const SequenceSearch = () => {
   const [error,      setError]      = useState(null); // { message, searchId, bugUrl } | null
   const [metadata,   setMetadata]   = useState(null);
   const [newSearchCount, setNewSearchCount] = useState(0);
+  const [familySummaryOpen, setFamilySummaryOpen] = useState(true);
+
   const pollIntervalRef = useRef(null);
 
   const searchApiUrl = process.env.GATSBY_SEARCH_API_URL || config.apiUrl;
+
+  const treeViewerUrl = familyId => `/tree/${familyId}`
 
   const cleanupPolling = useCallback(() => {
     if (pollIntervalRef.current) {
@@ -266,6 +271,89 @@ const SequenceSearch = () => {
         .accession-link:hover { text-decoration: underline; }
         .identity-bar { display: inline-block; height: 6px; background: #28a745; border-radius: 3px; margin-right: 4px; vertical-align: middle; }
         .no-results { padding: 2rem; text-align: center; color: #666; }
+        .family-summary {
+          margin-bottom: 1.25rem;
+          padding: 0.875rem 1rem;
+          background: #f8f9fa;
+          border: 1px solid #e9ecef;
+          border-radius: 6px;
+        }
+        .family-summary-title {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          font-size: 0.8rem;
+          font-weight: 600;
+          color: #495057;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          margin-bottom: 0;
+          cursor: pointer;
+          user-select: none;
+        }
+        .family-summary-title.open {
+          margin-bottom: 0.625rem;
+        }
+        .family-summary-chevron {
+          font-style: normal;
+          font-size: 0.7rem;
+          color: #868e96;
+          transition: transform 0.2s;
+          display: inline-block;
+        }
+        .family-summary-chevron.open {
+          transform: rotate(180deg);
+        }
+        .family-bars {
+          display: flex;
+          flex-direction: column;
+          gap: 0.3rem;
+        }
+        .family-bar-row {
+          display: flex;
+          align-items: center;
+          gap: 0.5rem;
+          font-size: 0.82rem;
+        }
+        .family-bar-label {
+          width: 96px;
+          flex-shrink: 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          color: #495057;
+          display: flex;
+          align-items: center;
+          gap: 0.3rem;
+        }
+        .tree-icon-link {
+          font-size: 0.75rem;
+          text-decoration: none;
+          opacity: 0.6;
+          flex-shrink: 0;
+        }
+        .tree-icon-link:hover {
+          opacity: 1;
+        }
+        .family-bar-track {
+          flex: 1;
+          height: 8px;
+          background: #dee2e6;
+          border-radius: 4px;
+          overflow: hidden;
+        }
+        .family-bar-fill {
+          height: 100%;
+          border-radius: 4px;
+          background: #007bff;
+          transition: width 0.3s ease;
+        }
+        .family-bar-count {
+          width: 60px;
+          flex-shrink: 0;
+          text-align: right;
+          color: #868e96;
+        }
       `}</style>
 
       <ExampleCards onSelectExample={loadPastSearch} disabled={status === 'submitting' || status === 'polling'} />
@@ -347,12 +435,80 @@ const SequenceSearch = () => {
             )}
           </div>
 
+          {results.length > 0 && (() => {
+            // Tally hits per family
+            const familyCounts = {};
+            let unknownCount = 0;
+            for (const hit of results) {
+              if (hit.family != null) {
+                const key = `Family ${hit.family}`;
+                if (!familyCounts[key]) familyCounts[key] = { count: 0, enzyme_id: hit.enzyme_id, family_num: hit.family, has_tree: hit.has_tree };
+                familyCounts[key].count++;
+                if (hit.has_tree) familyCounts[key].has_tree = true;
+              } else {
+                unknownCount++;
+              }
+            }
+            const sorted = Object.entries(familyCounts).sort((a, b) => b[1].count - a[1].count);
+            if (unknownCount > 0) sorted.push(['Unknown', { count: unknownCount, enzyme_id: null }]);
+            const uniqueFamilies = Object.keys(familyCounts).length;
+            const maxCount = sorted[0]?.[1].count || 1;
+
+            return (
+              <div className="family-summary">
+                <div
+                  className={`family-summary-title${familySummaryOpen ? ' open' : ''}`}
+                  onClick={() => setFamilySummaryOpen(o => !o)}
+                >
+                  <span>{uniqueFamilies} {uniqueFamilies === 1 ? 'family' : 'families'} represented across {results.length} hits</span>
+                  <span className={`family-summary-chevron${familySummaryOpen ? ' open' : ''}`}>▼</span>
+                </div>
+                {familySummaryOpen && <div className="family-bars">
+                  {sorted.map(([label, { count, enzyme_id, family_num, has_tree }]) => (
+                    <div className="family-bar-row" key={label}>
+                      <div className="family-bar-label">
+                        {label !== 'Unknown' && enzyme_id != null ? (
+                          <Link to={`/enzyme/${enzyme_id}`} className="accession-link">{label}</Link>
+                        ) : label}
+                        {label !== 'Unknown' && family_num != null && has_tree && (
+                          <Link
+                            to={treeViewerUrl(family_num)}
+                            className="tree-icon-link"
+                            title={`View phylogenetic tree for ${label}`}
+                          >🌿</Link>
+                        )}
+                      </div>
+                      <div className="family-bar-track">
+                        <div
+                          className="family-bar-fill"
+                          style={{
+                            width: `${(count / maxCount) * 100}%`,
+                            background: label === 'Unknown' ? '#adb5bd' : '#007bff'
+                          }}
+                        />
+                      </div>
+                      <div className="family-bar-count">
+                        {count} ({Math.round((count / results.length) * 100)}%)
+                      </div>
+                    </div>
+                  ))}
+                </div>}
+              </div>
+            );
+          })()}
+
           {results.length > 0 ? (
             <table className="results-table">
               <thead>
                 <tr>
                   <th>#</th><th>Accession</th><th>Name</th><th>Organism</th>
                   <th>Identity</th><th>E-value</th><th>Coverage</th>
+                  <th>#</th>
+                  <th>Accession</th>
+                  <th>Family</th>
+                  <th>Identity</th>
+                  <th>E-value</th>
+                  <th>Coverage</th>
                 </tr>
               </thead>
               <tbody>
@@ -362,6 +518,31 @@ const SequenceSearch = () => {
                     <td><Link to={`/sequence/${hit.accession}`} className="accession-link">{hit.accession}</Link></td>
                     <td>{hit.name || '-'}</td>
                     <td><em>{hit.organism || '-'}</em></td>
+                    <td>
+                      <Link to={`/sequence/${hit.accession}`} className="accession-link">
+                        {hit.accession}
+                      </Link>
+                    </td>
+                    <td>
+                      {hit.family != null ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                          {hit.enzyme_id != null ? (
+                            <Link to={`/enzyme/${hit.enzyme_id}`} className="accession-link">
+                              Family {hit.family}
+                            </Link>
+                          ) : (
+                            `Family ${hit.family}`
+                          )}
+                          {hit.has_tree && (
+                            <Link
+                              to={treeViewerUrl(hit.family)}
+                              className="tree-icon-link"
+                              title={`View phylogenetic tree for Family ${hit.family}`}
+                            >🌿</Link>
+                          )}
+                        </span>
+                      ) : '-'}
+                    </td>
                     <td>
                       <span className="identity-bar" style={{ width: `${Math.min(hit.identity ?? 0, 100)}px` }} />
                       {hit.identity?.toFixed(1) ?? '-'}%

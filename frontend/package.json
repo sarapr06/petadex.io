@@ -6,6 +6,7 @@
   "author": "Kyle Mathews <mathews.kyle@gmail.com>",
   "dependencies": {
     "3dmol": "^2.5.3",
+    "d3-hierarchy": "^3.1.2",
     "gatsby": "^5.14.6",
     "gatsby-link": "^5.14.1",
     "gatsby-plugin-image": "^3.14.0",
