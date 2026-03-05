@@ -16,11 +16,11 @@ MNFPRASRLMQAAVLGGLMAVSAAATAQTNPYARGPNPTAASLEASAGPFTVRSFTVSRPSGYGAGTVYYPTNAGGTVGA
 
 const GITHUB_REPO = 'ababaian/petadex.io';
 
-function buildBugReportUrl(message, jobId) {
+function buildBugReportUrl(message, searchId) {
   const title = encodeURIComponent(`[Bug] Search error: ${message}`);
   const body  = encodeURIComponent(
     `## Automatic error report\n\n` +
-    `**Job ID:** \`${jobId || 'N/A'}\`\n` +
+    `**Job ID:** \`${searchId || 'N/A'}\`\n` +
     `**URL:** ${typeof window !== 'undefined' ? window.location.href : 'N/A'}\n` +
     `**Timestamp:** ${new Date().toISOString()}\n` +
     `**Error:** ${message}\n\n` +
@@ -37,10 +37,10 @@ const SequenceSearch = () => {
 
   const [sequence,   setSequence]   = useState(seqFromUrl);
   const [maxResults, setMaxResults] = useState(nFromUrl);
-  const [jobId,      setJobId]      = useState(null);
+  const [searchId,       setSearchId]       = useState(null); // MD5 hash — used for polling + URL
   const [status,     setStatus]     = useState('idle');
   const [results,    setResults]    = useState(null);
-  const [error,      setError]      = useState(null); // { message, jobId, bugUrl } | null
+  const [error,      setError]      = useState(null); // { message, searchId, bugUrl } | null
   const [metadata,   setMetadata]   = useState(null);
   const [newSearchCount, setNewSearchCount] = useState(0);
   const pollIntervalRef = useRef(null);
@@ -54,48 +54,51 @@ const SequenceSearch = () => {
     }
   }, []);
 
-  const failWithError = useCallback((message, id) => {
+  const failWithError = useCallback((message, searchId) => {
     cleanupPolling();
     setStatus('error');
-    setError({ message, jobId: id, bugUrl: buildBugReportUrl(message, id) });
+    setError({ message, searchId, bugUrl: buildBugReportUrl(message, searchId) });
   }, [cleanupPolling]);
 
   // ── Sync search params to URL ─────────────────────────────────────────────
-  const updateUrl = useCallback((seq, n, jobId) => {
+  // ?seq=SEQUENCE&n=100&job=MD5_SEARCH_ID
+  const updateUrl = useCallback((cleanSequence, n, searchId) => {
     if (typeof window === 'undefined') return;
     const params = new URLSearchParams();
-    const clean  = seq.split('\n').filter(l => !l.trim().startsWith('>')).join('').replace(/[\s\r]/g, '').toUpperCase();
-    if (clean) params.set('seq', clean);
+    if (cleanSequence) params.set('seq', cleanSequence);
     if (n !== 50) params.set('n', n);
-    if (jobId) params.set('job', jobId);
+    if (searchId) params.set('job', searchId);
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     window.history.replaceState(null, '', newUrl);
   }, []);
 
-  const pollResults = useCallback(async (id, cleanSequence) => {
+  const pollResults = useCallback(async (searchId, cleanSequence) => {
     try {
-      const response = await fetch(`${searchApiUrl}/search/results/${id}`);
+      const response = await fetch(`${searchApiUrl}/search/results/${searchId}`);
       const data     = await response.json();
 
       if (!response.ok) {
-        failWithError(data.error || `Server error ${response.status}`, id);
+        failWithError(data.error || `Server error ${response.status}`, searchId);
         return;
       }
 
       if (data.status === 'completed') {
+        // data.job_id is the Lambda UUID — saved to localStorage for history
+        // searchId   is the MD5 hash    — saved to URL for sharing/bookmarking
+        const lambdaJobId = data.job_id;
         cleanupPolling();
-        addJobId(data.job_id);
+        addJobId(lambdaJobId);
         setStatus('completed');
         setResults(data.results);
         setMetadata(data.metadata);
         setNewSearchCount(n => n + 1);
-        updateUrl(cleanSequence, maxResults, data.job_id || id);
+        updateUrl(cleanSequence, maxResults, searchId);
       } else if (data.status === 'failed') {
-        failWithError(data.error || 'Search failed', id);
+        failWithError(data.error || 'Search failed', searchId);
       }
       // status === 'processing' -> keep polling
     } catch (err) {
-      failWithError('Failed to fetch results. Please try again.', id);
+      failWithError('Failed to fetch results. Please try again.', searchId);
     }
   }, [searchApiUrl, cleanupPolling, failWithError, maxResults, updateUrl]);
 
@@ -109,7 +112,7 @@ const SequenceSearch = () => {
       .toUpperCase();
 
     if (!cleanSequence || cleanSequence.length < 10) {
-      setError({ message: 'Please enter a valid protein sequence (at least 10 amino acids)', jobId: null, bugUrl: null });
+      setError({ message: 'Please enter a valid protein sequence (at least 10 amino acids)', searchId: null, bugUrl: null });
       return;
     }
 
@@ -133,26 +136,29 @@ const SequenceSearch = () => {
       }
 
       // Cache hit — results returned immediately
+      // data.session_id = MD5 hash
+      // data.job_id     = Lambda UUID
       if (data.status === 'completed') {
-        const id = data.session_id || data.job_id;
-        setJobId(id);
-        addJobId(data.job_id);
+        const lambdaJobId = data.job_id;
+        const searchId    = data.session_id;
+        setSearchId(searchId);
+        addJobId(lambdaJobId);
         setStatus('completed');
         setResults(data.results);
         setMetadata(data.metadata);
         setNewSearchCount(n => n + 1);
-        updateUrl(cleanSequence, maxResults, id);
+        updateUrl(cleanSequence, maxResults, searchId);
         return;
       }
 
-      // Backend returns session_id as the polling key
-      const pollId = data.session_id || data.job_id;
-      setJobId(pollId);
-      addJobId(data.job_id);
+      // ── Async — Lambda invoked, poll for results (202) ────────────────────
+      // data.session_id = MD5 hash (no job_id yet, Lambda hasn't run)
+      const searchId = data.session_id;
+      setSearchId(searchId);
       setStatus('polling');
 
-      pollIntervalRef.current = setInterval(() => pollResults(pollId, cleanSequence), 3000);
-      setTimeout(() => pollResults(pollId, cleanSequence), 500);
+      pollIntervalRef.current = setInterval(() => pollResults(searchId, cleanSequence), 3000);
+      setTimeout(() => pollResults(searchId, cleanSequence), 500);
 
     } catch (err) {
       failWithError(err.message || 'Failed to submit search. Please try again.', null);
@@ -164,7 +170,7 @@ const SequenceSearch = () => {
   const handleReset = () => {
     cleanupPolling();
     setSequence('>');
-    setJobId(null);
+    setSearchId(null);
     setStatus('idle');
     setResults(null);
     setError(null);
@@ -174,42 +180,47 @@ const SequenceSearch = () => {
     }
   };
 
-  const loadPastSearch = useCallback(async (pastJobId) => {
+  // ── Load a past search by its MD5 searchId ────────────────────────────────
+  // Used by SearchHistory panel and ?job= URL param on mount
+  const loadPastSearch = useCallback(async (pastSearchId) => {
     setError(null);
     setStatus('polling');
-    setJobId(pastJobId);
+    setSearchId(pastSearchId);
 
     try {
-      const response = await fetch(`${searchApiUrl}/search/results/${pastJobId}`);
+      const response = await fetch(`${searchApiUrl}/search/results/${pastSearchId}`);
       const data     = await response.json();
 
       if (!response.ok) {
-        failWithError(data.error || `Server error ${response.status}`, pastJobId);
+        failWithError(data.error || `Server error ${response.status}`, pastSearchId);
         return;
       }
 
       if (data.status === 'completed') {
+        const lambdaJobId = data.job_id || pastSearchId;
+        addJobId(lambdaJobId);           // save to localStorage history
+        setNewSearchCount(n => n + 1);   // refresh history panel
         setStatus('completed');
         setResults(data.results);
         setMetadata(data.metadata);
       } else if (data.status === 'failed') {
-        failWithError(data.error || 'Search failed', pastJobId);
+        failWithError(data.error || 'Search failed', pastSearchId);
       } else if (data.status === 'not_found') {
-        failWithError('Search results not found or expired.', pastJobId);
+        failWithError('Search results not found or expired.', pastSearchId);
       } else if (data.status === 'processing') {
-        pollIntervalRef.current = setInterval(() => pollResults(pastJobId), 3000);
+        pollIntervalRef.current = setInterval(() => pollResults(pastSearchId, ''), 3000);
       } else {
-        failWithError('Unable to load search results.', pastJobId);
+        failWithError('Unable to load search results.', pastSearchId);
       }
     } catch (err) {
-      failWithError('Failed to load past search results.', pastJobId);
+      failWithError('Failed to load past search results.', pastSearchId);
     }
   }, [searchApiUrl, pollResults, failWithError]);
 
   // ── Load cached results on mount if ?job= param is in URL ───────────────
   React.useEffect(() => {
-    const jobFromUrl = urlParams.get('job');
-    if (jobFromUrl) loadPastSearch(jobFromUrl);
+    const searchIdFromUrl = urlParams.get('job');
+    if (searchIdFromUrl) loadPastSearch(searchIdFromUrl);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => () => cleanupPolling(), [cleanupPolling]);
@@ -306,7 +317,7 @@ const SequenceSearch = () => {
         <div className="status-message processing">
           <span className="spinner" />
           Searching database... This may take a few seconds.
-          {jobId && <span style={{ marginLeft: '1rem', fontSize: '0.8rem', color: '#555' }}>Job ID: {jobId}</span>}
+          {searchId && <span style={{ marginLeft: '1rem', fontSize: '0.8rem', color: '#555' }}>Search ID: {searchId}</span>}
         </div>
       )}
 
@@ -372,7 +383,7 @@ const SequenceSearch = () => {
 
       <SearchHistory
         onSelectSearch={loadPastSearch}
-        currentJobId={status === 'completed' ? jobId : null}
+        currentJobId={status === 'completed' ? searchId : null}
         newSearchCount={newSearchCount}
       />
     </div>
