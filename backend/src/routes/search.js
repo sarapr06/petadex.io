@@ -1,7 +1,7 @@
 /**
  * Search Routes  –  backend/src/routes/search.js
  *
- * Lambda interface (petadex-mmseqs2-search-v2):
+ * Lambda interface (petadex-mmseqs2-search):
  *   Input:  { sessionId, sequence, max_results }
  *   Output: { job_id, s3_key }
  *   S3:     results/{sessionId}/{job_id}.json   (subfolder per session)
@@ -46,7 +46,7 @@ let lambdaClient = null;
 let s3Client = null;
 
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
-const MMSEQS2_LAMBDA_NAME = process.env.MMSEQS2_LAMBDA_NAME || 'petadex-mmseqs2-search-v2';
+const MMSEQS2_LAMBDA_NAME = process.env.MMSEQS2_LAMBDA_NAME || 'petadex-mmseqs2-search';
 const RESULTS_BUCKET = process.env.RESULTS_BUCKET || 'petadex';
 const RESULTS_PREFIX = process.env.RESULTS_PREFIX || 'results';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'ababaian/petadex.io';
@@ -176,14 +176,6 @@ const EXAMPLE_SEARCHES = [
   },
 ];
 
-// Helper to stream S3 body to string
-async function streamToString(stream) {
-  const chunks = [];
-  for await (const chunk of stream) {
-    chunks.push(chunk);
-  }
-  return Buffer.concat(chunks).toString('utf-8');
-}
 
 // Check S3 in parallel for which family IDs have a phylogenetic tree file.
 // Returns a Set of family IDs (numbers) that have a corresponding .nwk file.
@@ -250,24 +242,24 @@ async function enrichWithFamilyData(accessions) {
   return map;
 }
 
-// Transform Lambda results to frontend format
-function transformResults(results, queryLength) {
-  return results.map((hit, index) => ({
-    rank: index + 1,
-    accession: hit.target_id,
-    name: null, // Not available from MMseqs2
-    organism: null, // Not available from MMseqs2
-    identity: hit.percent_identity,
-    evalue: hit.evalue,
-    score: hit.bitscore,
-    query_coverage: queryLength ? Math.round(((hit.query_end - hit.query_start + 1) / queryLength) * 100) : null,
-    alignment_length: hit.alignment_length,
-    query_start: hit.query_start,
-    query_end: hit.query_end,
-    target_start: hit.target_start,
-    target_end: hit.target_end
-  }));
+// ─── Shared helper: resolve sessionId via index file ─────────────────────────
+// Lambda writes results/{sessionId}.index containing the job_id after search.
+// Returns completed result object or null if not ready yet.
+async function resolveFromIndex(s3, sessionId) {
+  const indexKey = `${RESULTS_PREFIX}/${sessionId}.index`;
+  try {
+    const idxResp = await s3.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: indexKey }));
+    const jobId = (await streamToString(idxResp.Body)).trim();
+    const s3Key = `${RESULTS_PREFIX}/${sessionId}/${jobId}.json`;
+    const resp = await s3.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: s3Key }));
+    const content = await streamToString(resp.Body);
+    const data = JSON.parse(content);
+    return { jobId, data };
+  } catch {
+    return null;
+  }
 }
+
 
 /**
  * POST /api/search

@@ -88,7 +88,7 @@ export async function handler(event) {
 
     // Invoke mmseqs2-search Lambda asynchronously
     const invokeParams = {
-      FunctionName: process.env.MMSEQS2_LAMBDA_NAME || 'petadex-mmseqs2-search-v2',
+      FunctionName: process.env.MMSEQS2_LAMBDA_NAME || 'petadex-mmseqs2-search',
       InvocationType: 'Event', // Async invocation
       Payload: JSON.stringify({
         job_id: jobId,

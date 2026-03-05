@@ -26,6 +26,7 @@ app.use(cors({
     'https://api.petadex.org',
     'http://localhost:8000',
     'http://localhost:9000',
+    'http://localhost:3000',
     'http://ec2-44-222-238-66.compute-1.amazonaws.com:3001'
   ],
   credentials: true,
