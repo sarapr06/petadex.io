@@ -7,8 +7,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import config from '../config';
+import { getStoredJobIds } from '../utils/session';
 
-const SearchHistory = ({ onSelectSearch, currentJobId }) => {
+const SearchHistory = ({ onSelectSearch, currentJobId, newSearchCount }) => {
   const [searches, setSearches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -18,8 +19,15 @@ const SearchHistory = ({ onSelectSearch, currentJobId }) => {
 
   const fetchHistory = useCallback(async () => {
     try {
+      const jobIds = getStoredJobIds();
+      if (!jobIds.length) {
+        setSearches([]);
+        setError(null);
+        return;
+      }
+
       setLoading(true);
-      const response = await fetch(`${searchApiUrl}/search/history?limit=20`);
+      const response = await fetch(`${searchApiUrl}/search/history?job_ids=${jobIds.join(',')}&limit=20`);
       if (!response.ok) {
         throw new Error('Failed to fetch search history');
       }
@@ -38,14 +46,12 @@ const SearchHistory = ({ onSelectSearch, currentJobId }) => {
     fetchHistory();
   }, [fetchHistory]);
 
-  // Refresh when a new search completes
+  // only fires when a new search actually completes
   useEffect(() => {
-    if (currentJobId) {
-      // Small delay to ensure the search is saved
-      const timer = setTimeout(fetchHistory, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [currentJobId, fetchHistory]);
+    if (newSearchCount === 0) return;  // skip on mount
+    const timer = setTimeout(fetchHistory, 1000);
+    return () => clearTimeout(timer);
+  }, [newSearchCount]);
 
   const formatDate = (timestamp) => {
     const date = new Date(timestamp);
@@ -193,8 +199,8 @@ const SearchHistory = ({ onSelectSearch, currentJobId }) => {
         {displayedSearches.map((search) => (
           <li
             key={search.job_id}
-            className={`history-item ${currentJobId === search.job_id ? 'active' : ''}`}
-            onClick={() => onSelectSearch(search.job_id)}
+            className={`history-item ${currentJobId === search.session_id ? 'active' : ''}`}
+            onClick={() => onSelectSearch(search.session_id)}
           >
             <div className="history-item-info">
               <div className="history-item-main">
