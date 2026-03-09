@@ -226,15 +226,27 @@
 
 /* Query sequence pill */
 .queryPill {
-  display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
   background: #f8f9fa;
   border: 1px solid #e9ecef;
   border-radius: 6px;
-  padding: 0.5rem 0.85rem;
   margin-bottom: 1rem;
-  flex-wrap: wrap;
+  overflow: hidden;
+}
+
+.queryPillToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.85rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.queryPillToggle:hover {
+  background: #e9ecef;
 }
 
 .queryPillLabel {
@@ -246,11 +258,27 @@
   flex-shrink: 0;
 }
 
-.queryPillSeq {
+.queryPillSeqPreview {
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: #212529;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.queryPillSeqFull {
   font-family: monospace;
   font-size: 0.8rem;
   color: #212529;
   word-break: break-all;
+  white-space: pre-wrap;
+  margin: 0;
+  padding: 0.5rem 0.85rem 0.75rem;
+  border-top: 1px solid #e9ecef;
+  line-height: 1.6;
 }
 
 /* Family summary */
@@ -296,16 +324,14 @@
 .familyBarRow {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.1rem;
   font-size: 0.82rem;
 }
 
 .familyBarLabel {
-  width: 96px;
+  width: 110px;
   flex-shrink: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   color: #495057;
   display: flex;
   align-items: center;
@@ -314,6 +340,7 @@
 
 .familyBarTrack {
   flex: 1;
+  margin-right: 0.5rem;
   height: 8px;
   background: #dee2e6;
   border-radius: 4px;

@@ -5,6 +5,7 @@ import * as s from '../styles/results.module.css';
 
 const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) => {
   const [familySummaryOpen, setFamilySummaryOpen] = useState(true);
+  const [queryOpen, setQueryOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const handleCopyLink = () => {
@@ -72,8 +73,17 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
       {/* Query sequence pill */}
       {cleanSeq && (
         <div className={s.queryPill}>
-          <span className={s.queryPillLabel}>Query</span>
-          <span className={s.queryPillSeq}>{formatSeq(cleanSeq, 100)}</span>
+          <button className={s.queryPillToggle} onClick={() => setQueryOpen(o => !o)}>
+            <span className={s.queryPillLabel}>Query</span>
+            <span className={s.queryPillSeqPreview}>{formatSeq(cleanSeq, 60)}</span>
+            <span
+              className={s.familySummaryChevron}
+              style={{ transform: queryOpen ? 'rotate(180deg)' : 'none', marginLeft: 'auto' }}
+            >▼</span>
+          </button>
+          {queryOpen && (
+            <pre className={s.queryPillSeqFull}>{cleanSeq}</pre>
+          )}
         </div>
       )}
 

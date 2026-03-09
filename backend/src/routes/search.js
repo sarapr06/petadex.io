@@ -442,10 +442,33 @@ router.get('/results/:job_id', async (req, res, next) => {
         const resp = await s3.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: s3Key }));
         const content = await streamToString(resp.Body);
         const data = JSON.parse(content);
+        const transformedResults = transformResults(data.results, data.query_length);
+
+        try {
+          const accessions = transformedResults.map(r => r.accession).filter(Boolean);
+          const familyMap = await enrichWithFamilyData(accessions);
+          for (const hit of transformedResults) {
+            const info = familyMap[hit.accession];
+            hit.enzyme_id = info?.enzyme_id ?? null;
+            hit.family = info?.family ?? null;
+            hit.component = info?.component ?? null;
+            hit.family_pid = info?.family_pid ?? null;
+          }
+          const uniqueFamilyIds = [...new Set(
+            transformedResults.map(r => r.family).filter(f => f != null)
+          )];
+          const familiesWithTrees = await checkFamilyTrees(uniqueFamilyIds);
+          for (const hit of transformedResults) {
+            hit.has_tree = hit.family != null && familiesWithTrees.has(hit.family);
+          }
+        } catch (dbErr) {
+          console.error('Family enrichment failed (non-fatal):', dbErr);
+        }
+
         return res.json({
           status: 'completed',
           job_id: jobId,
-          results: transformResults(data.results, data.query_length),
+          results: transformedResults,
           metadata: {
             query_length: data.query_length,
             num_results: data.num_results,
