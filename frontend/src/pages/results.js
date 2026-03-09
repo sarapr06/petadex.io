@@ -14,6 +14,7 @@ import { addJobId } from '../utils/session';
 import SearchHistory from '../components/SearchHistory';
 import ResultsView from '../components/ResultsView';
 import { formatSeq } from '../utils/lib';
+import SiteHeader from '../components/SiteHeader';
 import * as s from '../styles/results.module.css';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -253,7 +254,9 @@ const ResultsPage = () => {
   }
 
   return (
-    <div className={s.page}>
+    <>
+      <SiteHeader />
+      <div className={s.page}>
       <nav className={s.nav}>
         <Link to="/" className={s.navLink}>PETadex</Link>
         <span className={s.navSep}>/</span>
@@ -284,6 +287,7 @@ const ResultsPage = () => {
         newSearchCount={newSearchCount}
       />
     </div>
+    </>
   );
 };
 
