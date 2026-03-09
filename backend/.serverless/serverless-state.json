@@ -11,8 +11,8 @@
       "deploymentBucket": "petadex-serverless-deploy",
       "environment": {
         "DB_HOST": "petadex.ccz9y6yshbls.us-east-1.rds.amazonaws.com",
-        "DB_USER": "ribonaught",
-        "DB_PASS": "Ab>tmV-re*Xm6:Sf0ES3(F5EP-BU",
+        "DB_USER": "readonly_user",
+        "DB_PASS": "petadex",
         "DB_NAME": "petadex",
         "DB_PORT": "5432",
         "MMSEQS2_LAMBDA_NAME": "petadex-mmseqs2-search",
@@ -172,7 +172,7 @@
             "Properties": {
               "Code": {
                 "S3Bucket": "petadex-serverless-deploy",
-                "S3Key": "serverless/petadex-backend/dev/1773024579570-2026-03-09T02:49:39.570Z/petadex-backend.zip"
+                "S3Key": "serverless/petadex-backend/dev/1773065045092-2026-03-09T14:04:05.092Z/petadex-backend.zip"
               },
               "Handler": "src/handler.handler",
               "Runtime": "nodejs20.x",
@@ -182,8 +182,8 @@
               "Environment": {
                 "Variables": {
                   "DB_HOST": "petadex.ccz9y6yshbls.us-east-1.rds.amazonaws.com",
-                  "DB_USER": "ribonaught",
-                  "DB_PASS": "Ab>tmV-re*Xm6:Sf0ES3(F5EP-BU",
+                  "DB_USER": "readonly_user",
+                  "DB_PASS": "petadex",
                   "DB_NAME": "petadex",
                   "DB_PORT": "5432",
                   "MMSEQS2_LAMBDA_NAME": "petadex-mmseqs2-search",
@@ -210,14 +210,14 @@
               "ApiLogGroup"
             ]
           },
-          "ApiLambdaVersion4q7xhyHCimRL2GV7VGOmz5sJPfgKlMIXpkvo4Cqfk": {
+          "ApiLambdaVersionPMGynokhWX9jwGRRJBuA7LXCkJcaeAc93Adj7Xyo3U": {
             "Type": "AWS::Lambda::Version",
             "DeletionPolicy": "Retain",
             "Properties": {
               "FunctionName": {
                 "Ref": "ApiLambdaFunction"
               },
-              "CodeSha256": "AS3X/Nmxca3JZMV6NbLSPBeiXkqTe82Iqrua2BsdAec="
+              "CodeSha256": "BCA5G55s5Ct+WtOqcH0p8YSt83gs1lh8RF38dS1sFjM="
             }
           },
           "HttpApi": {
@@ -344,7 +344,7 @@
           "ApiLambdaFunctionQualifiedArn": {
             "Description": "Current Lambda function version",
             "Value": {
-              "Ref": "ApiLambdaVersion4q7xhyHCimRL2GV7VGOmz5sJPfgKlMIXpkvo4Cqfk"
+              "Ref": "ApiLambdaVersionPMGynokhWX9jwGRRJBuA7LXCkJcaeAc93Adj7Xyo3U"
             },
             "Export": {
               "Name": "sls-petadex-backend-dev-ApiLambdaFunctionQualifiedArn"
@@ -416,7 +416,7 @@
         "memory": 512,
         "runtime": "nodejs20.x",
         "vpc": {},
-        "versionLogicalId": "ApiLambdaVersion4q7xhyHCimRL2GV7VGOmz5sJPfgKlMIXpkvo4Cqfk"
+        "versionLogicalId": "ApiLambdaVersionPMGynokhWX9jwGRRJBuA7LXCkJcaeAc93Adj7Xyo3U"
       }
     },
     "configValidationMode": "warn",
@@ -436,7 +436,7 @@
     "artifact": "/Users/Pixel/Documents/projects/petadex.io/backend/.serverless/petadex-backend.zip"
   },
   "package": {
-    "artifactDirectoryName": "serverless/petadex-backend/dev/1773024579570-2026-03-09T02:49:39.570Z",
+    "artifactDirectoryName": "serverless/petadex-backend/dev/1773065045092-2026-03-09T14:04:05.092Z",
     "artifact": "petadex-backend.zip"
   }
 }
