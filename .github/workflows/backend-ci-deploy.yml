@@ -51,4 +51,4 @@ jobs:
           MMSEQS2_LAMBDA_NAME: ${{ secrets.MMSEQS2_LAMBDA_NAME }}
           RESULTS_BUCKET: ${{ secrets.RESULTS_BUCKET }}
           RESULTS_PREFIX: ${{ secrets.RESULTS_PREFIX }}
-        run: npx serverless deploy --stage prod
+        run: npx serverless@3 deploy --stage prod
