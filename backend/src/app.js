@@ -1,9 +1,13 @@
 // backend/src/app.js
 import 'dotenv/config';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 import express from 'express';
 import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 import fastaaRoutes from './routes/fastaa.js';
 import aaSeqFeaturesRoutes from './routes/aaSeqFeatures.js';
@@ -55,7 +59,7 @@ app.get('/health', async (req, res) => {
 });
 
 // Serve OpenAPI docs if you like
-const spec = YAML.load('./docs/openapi.yaml');
+const spec = YAML.load(join(__dirname, '../docs/openapi.yaml'));
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(spec));
 
 // Error handler

@@ -2,16 +2,38 @@ service: petadex-backend
 
 provider:
   name: aws
-  runtime: nodejs18.x
+  runtime: nodejs20.x
   region: us-east-1
+  deploymentBucket:
+    name: petadex-serverless-deploy
   environment:
     DB_HOST: ${env:DB_HOST}
     DB_USER: ${env:DB_USER}
     DB_PASS: ${env:DB_PASS}
     DB_NAME: ${env:DB_NAME}
+    DB_PORT: ${env:DB_PORT, '5432'}
+    MMSEQS2_LAMBDA_NAME: ${env:MMSEQS2_LAMBDA_NAME, 'petadex-mmseqs2-search'}
+    RESULTS_BUCKET: ${env:RESULTS_BUCKET, 'petadex'}
+    RESULTS_PREFIX: ${env:RESULTS_PREFIX, 'results'}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - lambda:InvokeFunction
+          Resource: arn:aws:lambda:us-east-1:*:function:petadex-mmseqs2-search
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:HeadObject
+            - s3:ListBucket
+          Resource:
+            - arn:aws:s3:::petadex
+            - arn:aws:s3:::petadex/*
   vpc:
     securityGroupIds:
-      - sg-05566dc054d55ac83   
+      - sg-05566dc054d55ac83
     subnetIds:
       - subnet-0a9f6e8de6432e5d6
       - subnet-0f9c86f70806c421a
@@ -19,11 +41,13 @@ provider:
 functions:
   api:
     handler: src/handler.handler
+    timeout: 29
+    memorySize: 512
     events:
       - httpApi:
-          path: /api/fastaa
-          method: get
+          path: /{proxy+}
+          method: '*'
       - httpApi:
-          path: /api/fastaa/{accession}
-          method: get
+          path: /
+          method: '*'
 

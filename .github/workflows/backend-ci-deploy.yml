@@ -25,22 +25,30 @@ jobs:
       - name: Run tests
         run: cd backend && npm test
 
-  deploy_to_ec2:
+  deploy:
     needs: build_and_test
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to EC2 via SSH
-        uses: appleboy/ssh-action@v1.0.3
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
-          timeout: 120s
-          script: |
-            cd /home/ec2-user/petadex.io/backend
-            git fetch --all
-            git reset --hard origin/main
-            npm ci --omit=dev
-            pm2 restart petadex-backend || pm2 start src/index.js --name petadex-backend
-            pm2 save
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+      - name: Install dependencies
+        run: cd backend && npm ci
+      - name: Deploy via Serverless Framework
+        working-directory: backend
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          DB_HOST: ${{ secrets.DB_HOST }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASS: ${{ secrets.DB_PASS }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_PORT: ${{ secrets.DB_PORT }}
+          MMSEQS2_LAMBDA_NAME: ${{ secrets.MMSEQS2_LAMBDA_NAME }}
+          RESULTS_BUCKET: ${{ secrets.RESULTS_BUCKET }}
+          RESULTS_PREFIX: ${{ secrets.RESULTS_PREFIX }}
+        run: npx serverless deploy --stage prod

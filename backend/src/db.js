@@ -10,6 +10,7 @@ export const pool = new Pool({
   ssl: {
     rejectUnauthorized: false // if your RDS requires SSL
   },
-  max:       10,
+  max:              2,
+  idleTimeoutMillis: 10000,
 });
 
