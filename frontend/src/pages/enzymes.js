@@ -353,7 +353,7 @@ const EnzymesPage = () => {
   const [sortBy, setSortBy] = useState('variant_count');
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
-  const FAMILIES_PER_PAGE = 100;
+  const FAMILIES_PER_PAGE = 10;
 
   // Load initial data (families and stats)
   useEffect(() => {
