@@ -1,0 +1,13 @@
+.scatterplotSquare {
+  fill-opacity: .7;
+  stroke-width: .5px;
+  stroke: white;
+}
+
+.scatterplotSquare:hover {
+  cursor: pointer;
+  opacity: 1;
+  stroke: black;
+  fill-opacity: 1;
+  stroke-width: 2px;
+}

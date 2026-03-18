@@ -19,7 +19,7 @@
 
 /* ── Page shell ─────────────────────────────────────────────────────────────── */
 .page {
-  max-width: 960px;
+  max-width: calc(100vw - 10rem);
   margin: 0 auto;
   padding: 1.5rem 1rem;
   font-family: system-ui, -apple-system, sans-serif;

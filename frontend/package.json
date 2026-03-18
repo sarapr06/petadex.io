@@ -7,6 +7,7 @@
   "dependencies": {
     "3dmol": "^2.5.3",
     "cytoscape": "^3.33.1",
+    "d3": "^7.9.0",
     "d3-hierarchy": "^3.1.2",
     "deck.gl": "^9.2.11",
     "gatsby": "^5.14.6",

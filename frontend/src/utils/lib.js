@@ -10,3 +10,8 @@ export function cleanSequence(sequence) {
     .replace(/[\s\r]/g, '')
     .toUpperCase()
 }
+
+export function formatEvalue(v) {
+  if (v === 0 || v < 1e-300) return '< 1e-300'
+  return v.toExponential(1)
+}
