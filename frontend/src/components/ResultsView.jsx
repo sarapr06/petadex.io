@@ -5,6 +5,7 @@ import AtlasMap from './AtlasMap';
 import { Scatterplot } from "./charts/Scatterplot"
 import { FamilyPieChart } from "./charts/PieChart"
 import * as s from '../styles/results.module.css';
+import AlignmentCoverageMap from './charts/AlignmentCoverageMap';
 
 const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) => {
   const [familySummaryOpen, setFamilySummaryOpen] = useState(true);
@@ -51,6 +52,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
     evalue: hit.evalue,
     name: hit.accession,
   }))
+
 
   return (
     <div>
@@ -197,10 +199,11 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
           </div>
           <div
             style={{
-              display: "flex",
+              display: "grid",
               gap: "2rem",
               alignItems: "flex-start",
               justifyContent: "space-around",
+              gridTemplateColumns: "1fr 1fr"
             }}
           >
             <Scatterplot width={800} height={500} data={scatterData} />
@@ -212,6 +215,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
               unknownCount={unknownCount}
               total={results.length}
             />
+            <AlignmentCoverageMap data={results}/>
           </div>
 
           {/* Atlas */}
