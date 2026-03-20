@@ -14,7 +14,8 @@ const SiteHeader = () => {
     { label: 'Enzymes', path: '/enzymes', key: 'enzymes' },
     { label: 'Search', path: '/search', key: 'search' },
     { label: 'Substrate', path: '/substrate', key: 'substrate' },
-    { label: 'Metadata', path: '/metadata', key: 'metadata' }
+    { label: 'Metadata', path: '/metadata', key: 'metadata' },
+    { label: 'Atlas', path: '/atlas', key: 'atlas' }
   ];
 
   // Show all navigation items on all pages

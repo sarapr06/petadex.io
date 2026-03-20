@@ -17,6 +17,7 @@ import geneDetailsRoutes from './routes/geneDetails.js';
 import pdbRoutes from './routes/pdb.js';
 import enzymesRoutes from './routes/enzymes.js';
 import searchRoutes from './routes/search.js';
+import atlasRoutes from './routes/atlas.js';
 import { pool } from './db.js';
 
 const app = express();
@@ -47,6 +48,7 @@ app.use('/api/gene-details', geneDetailsRoutes);
 app.use('/api/pdb', pdbRoutes);
 app.use('/api/enzymes', enzymesRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/atlas', atlasRoutes);
 
 // (Optional) health check route
 app.get('/health', async (req, res) => {
