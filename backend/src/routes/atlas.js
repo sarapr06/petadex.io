@@ -11,7 +11,9 @@ const router = Router();
 router.get('/umap', async (req, res, next) => {
   try {
     const { rows } = await pool.query(
-      'SELECT family_id, umap_x, umap_y, family_size FROM family_atlas'
+      `SELECT family_id, umap_x, umap_y, family_size,
+              organism, taxonomy, country
+       FROM family_atlas`
     );
     res.json({ points: rows });
   } catch (err) {
