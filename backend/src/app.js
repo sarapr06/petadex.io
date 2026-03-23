@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 
@@ -22,6 +23,7 @@ import { pool } from './db.js';
 
 const app = express();
 
+app.use(compression());
 app.use(cors({
   origin: [
     'https://petadex.net',
