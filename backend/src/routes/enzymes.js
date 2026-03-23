@@ -440,23 +440,14 @@ router.get('/component/:component_id', async (req, res, next) => {
 });
 
 /**
- * GET /api/enzymes/stats
- * Get statistics about the enzyme database
+ * GET /api/enzymes/stats/overview
+ * Get statistics about the enzyme database (served from materialized view)
  */
 router.get('/stats/overview', async (req, res, next) => {
   try {
-    const stats = await pool.query(`
-      SELECT
-        COUNT(DISTINCT e.enzyme_id) as total_enzymes,
-        COUNT(DISTINCT t.family) as total_families,
-        COUNT(DISTINCT t.component) as total_components,
-        COUNT(DISTINCT v.variant_id) as total_variants
-      FROM enzyme_fastaa e
-      LEFT JOIN enzyme_taxonomy t ON e.enzyme_id = t.enzyme_id
-      LEFT JOIN variant_dictionary v ON e.enzyme_id = v.enzyme_id
-    `);
-
-    res.json(stats.rows[0]);
+    const { rows } = await pool.query(`SELECT * FROM enzyme_stats_overview LIMIT 1`);
+    if (!rows.length) return res.status(404).json({ error: 'Stats not available' });
+    res.json(rows[0]);
   } catch (err) {
     next(err);
   }

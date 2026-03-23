@@ -347,43 +347,43 @@ const EnzymesPage = () => {
   const [searchEnzymeResults, setSearchEnzymeResults] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingFamilies, setLoadingFamilies] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState('variant_count');
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
-  const FAMILIES_PER_PAGE = 100;
+  const FAMILIES_INITIAL = 10;
+  const FAMILIES_PER_PAGE = 50;
 
-  // Load initial data (families and stats)
+  // Load families and stats in parallel — families render as soon as they arrive
   useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
+    setLoadingFamilies(true);
+    setFamilies([]);
+    setOffset(0);
+    setHasMore(false);
 
-        // Load statistics
-        const statsRes = await fetch(`${config.apiUrl}/enzymes/stats/overview`);
-        if (statsRes.ok) {
-          const statsData = await statsRes.json();
-          setStats(statsData);
-        }
+    // Stats: fire and forget — updates when ready, doesn't block families
+    fetch(`${config.apiUrl}/enzymes/stats/overview`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setStats(data); })
+      .catch(err => console.error('Error loading stats:', err));
 
-        // Load families summary
-        const familiesRes = await fetch(`${config.apiUrl}/enzymes/families/summary?limit=${FAMILIES_PER_PAGE}&offset=0&sort=${sortBy}`);
-        if (familiesRes.ok) {
-          const familiesData = await familiesRes.json();
-          setFamilies(familiesData.data || []);
-          setHasMore(familiesData.pagination?.hasMore || false);
-          setOffset(familiesData.data?.length || 0);
+    // Families: show as soon as resolved
+    fetch(`${config.apiUrl}/enzymes/families/summary?limit=${FAMILIES_INITIAL}&offset=0&sort=${sortBy}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setFamilies(data.data || []);
+          setHasMore(data.pagination?.hasMore || false);
+          setOffset(data.data?.length || 0);
         }
-      } catch (err) {
-        console.error('Error loading data:', err);
+      })
+      .catch(err => {
+        console.error('Error loading families:', err);
         setError(err.toString());
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
+      })
+      .finally(() => setLoadingFamilies(false));
   }, [sortBy]);
 
   // Load more families
@@ -424,9 +424,11 @@ const EnzymesPage = () => {
     }, 300);
   };
 
+  const [loadingSearch, setLoadingSearch] = useState(false);
+
   const performSearch = async (query) => {
     setView('search');
-    setLoading(true);
+    setLoadingSearch(true);
 
     try {
       const res = await fetch(`${config.apiUrl}/enzymes/search?q=${encodeURIComponent(query)}&limit=100`);
@@ -443,7 +445,7 @@ const EnzymesPage = () => {
       setSearchFamilyResults([]);
       setSearchEnzymeResults([]);
     } finally {
-      setLoading(false);
+      setLoadingSearch(false);
     }
   };
 
@@ -580,7 +582,7 @@ const EnzymesPage = () => {
         </div>
 
         {/* Main Content */}
-        {loading && view === 'families' ? (
+        {loadingFamilies && view === 'families' ? (
           <div style={{
             padding: "2rem",
             textAlign: "center",
@@ -646,7 +648,7 @@ const EnzymesPage = () => {
                     }
                   }}
                 >
-                  {loadingMore ? 'Loading...' : 'Load More Families'}
+                  {loadingMore ? 'Loading...' : 'Read More'}
                 </button>
               </div>
             )}
@@ -656,7 +658,7 @@ const EnzymesPage = () => {
             familyResults={searchFamilyResults}
             enzymeResults={searchEnzymeResults}
             query={searchQuery}
-            loading={loading}
+            loading={loadingSearch}
             expandedFamilies={expandedFamilies}
             onToggleFamily={toggleFamily}
           />
