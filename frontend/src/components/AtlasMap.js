@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import config from "../config"
 import {
   COMPONENT_SHADE_RGBA,
@@ -42,12 +42,23 @@ function hashColor(str, alpha = 200) {
   return [...color, alpha]
 }
 
-function getPointColor(point, colorBy) {
+const HIDDEN_COLOR = [30, 41, 59, 40]
+
+function getPointColor(point, colorBy, hidden) {
   if (colorBy === "none") return [100, 210, 190, 200]
   const { domain, phylum } = parseTaxonomy(point.taxonomy)
-  if (colorBy === "domain") return DOMAIN_COLORS[domain] || DOMAIN_COLORS.Unknown
-  if (colorBy === "phylum") return phylum === "Unknown" ? [148, 163, 184, 160] : hashColor(phylum)
+  if (colorBy === "domain") {
+    if (hidden.has(domain)) return HIDDEN_COLOR
+    return DOMAIN_COLORS[domain] || DOMAIN_COLORS.Unknown
+  }
+  if (colorBy === "phylum") {
+    const key = phylum
+    if (hidden.has(key)) return HIDDEN_COLOR
+    return key === "Unknown" ? [148, 163, 184, 160] : hashColor(key)
+  }
   if (colorBy === "component") {
+    const key = point.component != null ? String(point.component) : "Unassigned"
+    if (hidden.has(key)) return HIDDEN_COLOR
     return point.component != null
       ? COMPONENT_SHADE_RGBA[point.component] || [148, 163, 184, 160]
       : [148, 163, 184, 160]
@@ -117,7 +128,7 @@ function buildLegend(points, colorBy) {
     }))
 }
 
-function buildScatterLayer(points, maxSize, ScatterplotLayer, colorBy) {
+function buildScatterLayer(points, maxSize, ScatterplotLayer, colorBy, hidden) {
   return new ScatterplotLayer({
     id: "umap",
     data: points,
@@ -125,8 +136,8 @@ function buildScatterLayer(points, maxSize, ScatterplotLayer, colorBy) {
     getRadius: d => Math.sqrt(d.family_size / maxSize) * 1.5,
     radiusMinPixels: 2,
     radiusMaxPixels: 12,
-    getFillColor: d => getPointColor(d, colorBy),
-    updateTriggers: { getFillColor: colorBy },
+    getFillColor: d => getPointColor(d, colorBy, hidden),
+    updateTriggers: { getFillColor: [colorBy, ...hidden] },
     pickable: true,
   })
 }
@@ -188,6 +199,37 @@ const AtlasMap = () => {
   const [pointCount,           setPointCount]           = useState(0)
   const [colorBy,              setColorBy]              = useState("none")
   const [legend,               setLegend]               = useState([])
+  const [hidden,               setHidden]               = useState(new Set())
+
+  const updateLayer = useCallback((h) => {
+    if (!deckRef.current || !pointsRef.current.length || !LayerRef.current) return
+    deckRef.current.setProps({
+      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, h)],
+    })
+  }, [colorBy])
+
+  const toggleKey = useCallback((key) => {
+    setHidden(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      updateLayer(next)
+      return next
+    })
+  }, [updateLayer])
+
+  const toggleKeys = useCallback((keys) => {
+    setHidden(prev => {
+      const next = new Set(prev)
+      const allHidden = keys.every(k => next.has(k))
+      for (const k of keys) {
+        if (allHidden) next.delete(k)
+        else next.add(k)
+      }
+      updateLayer(next)
+      return next
+    })
+  }, [updateLayer])
 
   // ── initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -232,7 +274,7 @@ const AtlasMap = () => {
           views: new OrthographicView({ id: "ortho" }),
           initialViewState: { target: [cx, cy, 0], zoom },
           controller: true,
-          layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "none")],
+          layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "none", new Set())],
           getTooltip: ({ object }) => object && buildTooltip(object),
         })
 
@@ -255,8 +297,10 @@ const AtlasMap = () => {
   // ── react to colorBy changes ──────────────────────────────────────────────
   useEffect(() => {
     if (!deckRef.current || !pointsRef.current.length || !LayerRef.current) return
+    const fresh = new Set()
+    setHidden(fresh)
     deckRef.current.setProps({
-      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy)],
+      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, fresh)],
     })
     setLegend(buildLegend(pointsRef.current, colorBy))
   }, [colorBy])
@@ -332,38 +376,51 @@ const AtlasMap = () => {
             maxWidth: "220px",
           }}
         >
-          {legend.map(({ label, count, color }) => (
-            <div
-              key={label}
-              style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "5px" }}
-            >
+          {legend.map(({ label, count, color }) => {
+            const off = hidden.has(label)
+            return (
               <div
+                key={label}
+                onClick={() => toggleKey(label)}
                 style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "50%",
-                  flexShrink: 0,
-                  background: `rgba(${color[0]},${color[1]},${color[2]},${(color[3] ?? 200) / 255})`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "7px",
+                  marginBottom: "5px",
+                  cursor: "pointer",
+                  opacity: off ? 0.35 : 1,
                 }}
-              />
-              <span
-                style={{
-                  color: "#cbd5e1",
-                  fontSize: "11px",
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-                title={label}
               >
-                {label}
-              </span>
-              <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>
-                {count}
-              </span>
-            </div>
-          ))}
+                <div
+                  style={{
+                    width: "10px",
+                    height: "10px",
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    background: off
+                      ? "#334155"
+                      : `rgba(${color[0]},${color[1]},${color[2]},${(color[3] ?? 200) / 255})`,
+                  }}
+                />
+                <span
+                  style={{
+                    color: off ? "#475569" : "#cbd5e1",
+                    fontSize: "11px",
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={label}
+                >
+                  {label}
+                </span>
+                <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>
+                  {count}
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -385,68 +442,95 @@ const AtlasMap = () => {
             maxWidth: "240px",
           }}
         >
-          {legend.groups.map(({ cath, cathColor, total, children }) => (
-            <div key={cath} style={{ marginBottom: "8px" }}>
-              {/* CATH domain parent row */}
-              <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "3px" }}>
+          {legend.groups.map(({ cath, cathColor, total, children }) => {
+            const childKeys = children.map(c => c.label)
+            const allChildrenOff = childKeys.length > 0 && childKeys.every(k => hidden.has(k))
+            const parentOff = cath === "Unassigned" ? hidden.has("Unassigned") : allChildrenOff
+            return (
+              <div key={cath} style={{ marginBottom: "8px" }}>
+                {/* CATH domain parent row */}
                 <div
-                  style={{
-                    width: "10px",
-                    height: "10px",
-                    borderRadius: "3px",
-                    flexShrink: 0,
-                    background: cathColor,
-                  }}
-                />
-                <span
-                  style={{
-                    color: "#e2e8f0",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    flex: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                  title={cath}
-                >
-                  {cath}
-                </span>
-                <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>
-                  {total}
-                </span>
-              </div>
-              {/* Component children */}
-              {children.map(({ label, count, color }) => (
-                <div
-                  key={label}
+                  onClick={() =>
+                    cath === "Unassigned"
+                      ? toggleKey("Unassigned")
+                      : toggleKeys(childKeys)
+                  }
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: "7px",
-                    marginBottom: "2px",
-                    paddingLeft: "17px",
+                    marginBottom: "3px",
+                    cursor: "pointer",
+                    opacity: parentOff ? 0.35 : 1,
                   }}
                 >
                   <div
                     style={{
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
+                      width: "10px",
+                      height: "10px",
+                      borderRadius: "3px",
                       flexShrink: 0,
-                      background: `rgba(${color[0]},${color[1]},${color[2]},${(color[3] ?? 200) / 255})`,
+                      background: parentOff ? "#334155" : cathColor,
                     }}
                   />
-                  <span style={{ color: "#cbd5e1", fontSize: "10px", flex: 1 }}>
-                    Component {label}
+                  <span
+                    style={{
+                      color: parentOff ? "#475569" : "#e2e8f0",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      flex: 1,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={cath}
+                  >
+                    {cath}
                   </span>
                   <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>
-                    {count}
+                    {total}
                   </span>
                 </div>
-              ))}
-            </div>
-          ))}
+                {/* Component children */}
+                {children.map(({ label, count, color }) => {
+                  const off = hidden.has(label)
+                  return (
+                    <div
+                      key={label}
+                      onClick={() => toggleKey(label)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "7px",
+                        marginBottom: "2px",
+                        paddingLeft: "17px",
+                        cursor: "pointer",
+                        opacity: off ? 0.35 : 1,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          flexShrink: 0,
+                          background: off
+                            ? "#334155"
+                            : `rgba(${color[0]},${color[1]},${color[2]},${(color[3] ?? 200) / 255})`,
+                        }}
+                      />
+                      <span style={{ color: off ? "#475569" : "#cbd5e1", fontSize: "10px", flex: 1 }}>
+                        Component {label}
+                      </span>
+                      <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>
+                        {count}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
         </div>
       )}
 
