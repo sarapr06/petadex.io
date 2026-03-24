@@ -41,6 +41,11 @@ function getPointColor(point, colorBy) {
   const { domain, phylum } = parseTaxonomy(point.taxonomy)
   if (colorBy === "domain") return DOMAIN_COLORS[domain] || DOMAIN_COLORS.Unknown
   if (colorBy === "phylum") return phylum === "Unknown" ? [148, 163, 184, 160] : hashColor(phylum)
+  if (colorBy === "component") {
+    if (point.component == null) return [148, 163, 184, 160]
+    const color = CATEGORICAL_PALETTE[point.component % CATEGORICAL_PALETTE.length]
+    return [...color, 220]
+  }
   return [100, 210, 190, 200]
 }
 
@@ -49,7 +54,10 @@ function buildLegend(points, colorBy) {
   const counts = new Map()
   for (const p of points) {
     const { domain, phylum } = parseTaxonomy(p.taxonomy)
-    const key = colorBy === "domain" ? domain : phylum
+    const key =
+      colorBy === "domain" ? domain
+      : colorBy === "phylum" ? phylum
+      : String(p.component ?? "Unassigned")
     counts.set(key, (counts.get(key) || 0) + 1)
   }
   return Array.from(counts.entries())
@@ -60,6 +68,10 @@ function buildLegend(points, colorBy) {
       color:
         colorBy === "domain"
           ? DOMAIN_COLORS[label] || DOMAIN_COLORS.Unknown
+          : colorBy === "component"
+          ? label === "Unassigned"
+            ? [148, 163, 184, 160]
+            : [...CATEGORICAL_PALETTE[parseInt(label) % CATEGORICAL_PALETTE.length], 220]
           : label === "Unknown"
           ? [148, 163, 184, 160]
           : hashColor(label),
@@ -89,6 +101,7 @@ function buildTooltip(object) {
     ["Domain", domain],
     ["Phylum", phylum],
     object.country ? ["Country", object.country] : null,
+    object.component != null ? ["Component", object.component] : null,
   ].filter(Boolean)
 
   const rowsHtml = rows
@@ -118,9 +131,10 @@ function buildTooltip(object) {
 // ── component ───────────────────────────────────────────────────────────────
 
 const COLOR_MODES = [
-  { value: "none",   label: "None" },
-  { value: "domain", label: "Domain" },
-  { value: "phylum", label: "Phylum" },
+  { value: "none",      label: "None" },
+  { value: "domain",    label: "Domain" },
+  { value: "phylum",    label: "Phylum" },
+  { value: "component", label: "Component" },
 ]
 
 const AtlasMap = () => {
