@@ -1,5 +1,11 @@
 import React, { useEffect, useRef, useState } from "react"
 import config from "../config"
+import {
+  COMPONENT_SHADE_RGBA,
+  COMPONENT_TO_CATH,
+  CATH_GROUPS,
+  CATH_BASE_CSS,
+} from "../utils/cathColors"
 
 // ── colour helpers ──────────────────────────────────────────────────────────
 
@@ -42,22 +48,59 @@ function getPointColor(point, colorBy) {
   if (colorBy === "domain") return DOMAIN_COLORS[domain] || DOMAIN_COLORS.Unknown
   if (colorBy === "phylum") return phylum === "Unknown" ? [148, 163, 184, 160] : hashColor(phylum)
   if (colorBy === "component") {
-    if (point.component == null) return [148, 163, 184, 160]
-    const color = CATEGORICAL_PALETTE[point.component % CATEGORICAL_PALETTE.length]
-    return [...color, 220]
+    return point.component != null
+      ? COMPONENT_SHADE_RGBA[point.component] || [148, 163, 184, 160]
+      : [148, 163, 184, 160]
   }
   return [100, 210, 190, 200]
 }
 
 function buildLegend(points, colorBy) {
   if (colorBy === "none") return []
+
+  if (colorBy === "component") {
+    // Count points per component
+    const compCounts = new Map()
+    let unassignedCount = 0
+    for (const p of points) {
+      if (p.component != null) {
+        compCounts.set(p.component, (compCounts.get(p.component) || 0) + 1)
+      } else {
+        unassignedCount++
+      }
+    }
+
+    // Group components under their CATH domain parent
+    const cathOrder = Object.keys(CATH_GROUPS)
+    const groups = []
+    for (const cath of cathOrder) {
+      const children = CATH_GROUPS[cath]
+        .filter(comp => compCounts.has(comp))
+        .map(comp => ({
+          label: String(comp),
+          count: compCounts.get(comp),
+          color: COMPONENT_SHADE_RGBA[comp] || [148, 163, 184, 160],
+        }))
+      if (children.length > 0) {
+        const total = children.reduce((s, c) => s + c.count, 0)
+        groups.push({ cath, cathColor: CATH_BASE_CSS[cath], total, children })
+      }
+    }
+    if (unassignedCount > 0) {
+      groups.push({
+        cath: "Unassigned",
+        cathColor: "rgb(148,163,184)",
+        total: unassignedCount,
+        children: [],
+      })
+    }
+    return { grouped: true, groups }
+  }
+
   const counts = new Map()
   for (const p of points) {
     const { domain, phylum } = parseTaxonomy(p.taxonomy)
-    const key =
-      colorBy === "domain" ? domain
-      : colorBy === "phylum" ? phylum
-      : String(p.component ?? "Unassigned")
+    const key = colorBy === "domain" ? domain : phylum
     counts.set(key, (counts.get(key) || 0) + 1)
   }
   return Array.from(counts.entries())
@@ -68,10 +111,6 @@ function buildLegend(points, colorBy) {
       color:
         colorBy === "domain"
           ? DOMAIN_COLORS[label] || DOMAIN_COLORS.Unknown
-          : colorBy === "component"
-          ? label === "Unassigned"
-            ? [148, 163, 184, 160]
-            : [...CATEGORICAL_PALETTE[parseInt(label) % CATEGORICAL_PALETTE.length], 220]
           : label === "Unknown"
           ? [148, 163, 184, 160]
           : hashColor(label),
@@ -144,17 +183,24 @@ const AtlasMap = () => {
   const maxSizeRef      = useRef(1)
   const LayerRef        = useRef(null)   // ScatterplotLayer constructor
 
-  const [loading,    setLoading]    = useState(true)
-  const [error,      setError]      = useState(null)
-  const [pointCount, setPointCount] = useState(0)
-  const [colorBy,    setColorBy]    = useState("none")
-  const [legend,     setLegend]     = useState([])
+  const [loading,              setLoading]              = useState(true)
+  const [error,                setError]                = useState(null)
+  const [pointCount,           setPointCount]           = useState(0)
+  const [colorBy,              setColorBy]              = useState("none")
+  const [legend,               setLegend]               = useState([])
 
   // ── initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     async function init() {
       try {
-        const res = await fetch(`${config.apiUrl}/atlas/umap`)
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000)
+        let res
+        try {
+          res = await fetch(`${config.apiUrl}/atlas/umap`, { signal: controller.signal })
+        } finally {
+          clearTimeout(timeoutId)
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const { points } = await res.json()
 
@@ -195,7 +241,7 @@ const AtlasMap = () => {
         setLoading(false)
       } catch (err) {
         console.error("AtlasMap error:", err)
-        setError(err.message)
+        setError(err.name === "AbortError" ? "Atlas data timed out — server may be unavailable" : err.message)
         setLoading(false)
       }
     }
@@ -268,8 +314,8 @@ const AtlasMap = () => {
         </div>
       )}
 
-      {/* legend */}
-      {legend.length > 0 && (
+      {/* text legend — flat (domain/phylum) */}
+      {Array.isArray(legend) && legend.length > 0 && (
         <div
           style={{
             position: "absolute",
@@ -316,6 +362,89 @@ const AtlasMap = () => {
               <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>
                 {count}
               </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* grouped legend — component mode (CATH → components) */}
+      {legend && legend.grouped && (
+        <div
+          style={{
+            position: "absolute",
+            top: "52px",
+            left: "14px",
+            maxHeight: "calc(80vh - 80px)",
+            overflowY: "auto",
+            background: "rgba(15,23,42,0.85)",
+            border: "1px solid #1e293b",
+            borderRadius: "6px",
+            padding: "8px 10px",
+            zIndex: 10,
+            minWidth: "180px",
+            maxWidth: "240px",
+          }}
+        >
+          {legend.groups.map(({ cath, cathColor, total, children }) => (
+            <div key={cath} style={{ marginBottom: "8px" }}>
+              {/* CATH domain parent row */}
+              <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "3px" }}>
+                <div
+                  style={{
+                    width: "10px",
+                    height: "10px",
+                    borderRadius: "3px",
+                    flexShrink: 0,
+                    background: cathColor,
+                  }}
+                />
+                <span
+                  style={{
+                    color: "#e2e8f0",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={cath}
+                >
+                  {cath}
+                </span>
+                <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>
+                  {total}
+                </span>
+              </div>
+              {/* Component children */}
+              {children.map(({ label, count, color }) => (
+                <div
+                  key={label}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "7px",
+                    marginBottom: "2px",
+                    paddingLeft: "17px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      background: `rgba(${color[0]},${color[1]},${color[2]},${(color[3] ?? 200) / 255})`,
+                    }}
+                  />
+                  <span style={{ color: "#cbd5e1", fontSize: "10px", flex: 1 }}>
+                    Component {label}
+                  </span>
+                  <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>
+                    {count}
+                  </span>
+                </div>
+              ))}
             </div>
           ))}
         </div>
