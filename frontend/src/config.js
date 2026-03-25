@@ -25,7 +25,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
 
 const config = {
   // API base URL (without trailing slash)
-  apiUrl: process.env.GATSBY_API_URL || '',
+  apiUrl: process.env.GATSBY_API_URL || 'http://localhost:3001/api',
 };
 
 export default config;

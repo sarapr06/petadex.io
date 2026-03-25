@@ -132,8 +132,10 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
               fontSize: "1.25rem",
               color: "#2c3e50"
             }}>
-              <Link
-                to={`/family/${family.family_id}`}
+              <a
+                href={`/family/${family.family_id}`}
+                target="_blank"
+                rel="noopener noreferrer"
                 style={{
                   color: "#2c3e50",
                   textDecoration: "none",
@@ -145,7 +147,7 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
                 onMouseLeave={(e) => e.currentTarget.style.borderColor = "transparent"}
               >
                 Family {family.family_id}
-              </Link>
+              </a>
             </h3>
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{

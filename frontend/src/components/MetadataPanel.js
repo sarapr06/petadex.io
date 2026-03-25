@@ -45,12 +45,14 @@ export default function MetadataPanel({ metadata, accession }) {
     );
   }
 
+  const meta = Array.isArray(metadata) ? metadata[0] : metadata;
+
   const metadataItems = [
-    { label: "Accession", value: metadata.accession },
-    { label: "Source", value: metadata.source || "Not specified" },
-    { label: "Synonyms", value: metadata.synonyms || "None" },
-    { label: "Sequence Length", value: metadata.sequence ? `${metadata.sequence.length} amino acids` : "N/A" },
-    { label: "Date Added", value: metadata.date_entered ? new Date(metadata.date_entered).toLocaleString() : "Unknown" },
+    { label: "Accession", value: meta.accession },
+    { label: "Source", value: meta.source || "Not specified" },
+    { label: "Synonyms", value: meta.synonyms || "None" },
+    { label: "Sequence Length", value: meta.sequence ? `${meta.sequence.length} amino acids` : "N/A" },
+    { label: "Date Added", value: meta.date_entered ? new Date(meta.date_entered).toLocaleString() : "Unknown" },
   ];
 
   const hasCoordinates = originData?.latitude && originData?.longitude;

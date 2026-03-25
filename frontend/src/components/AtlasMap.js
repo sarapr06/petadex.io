@@ -194,9 +194,22 @@ const COLOR_MODES = [
   { value: "component", label: "Component" },
 ]
 
+const navBtnStyle = {
+  padding: "3px 7px",
+  borderRadius: "4px",
+  border: "1px solid #334155",
+  background: "#1e293b",
+  color: "#94a3b8",
+  fontSize: "14px",
+  cursor: "pointer",
+  fontFamily: "inherit",
+  lineHeight: 1,
+}
+
 const AtlasMap = ({ familyId: familyIdProp } = {}) => {
-  const highlightFamilyId = familyIdProp != null ? parseInt(familyIdProp) : null
-  const compact = highlightFamilyId != null
+  const propHighlightId = familyIdProp != null ? parseInt(familyIdProp) : null
+  const compact = propHighlightId != null
+  const [highlightFamilyId, setHighlightFamilyId] = useState(propHighlightId)
   const containerRef    = useRef(null)
   const deckRef         = useRef(null)
   const pointsRef       = useRef([])
@@ -212,6 +225,10 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
   const [legend,               setLegend]               = useState([])
   const [hidden,               setHidden]               = useState(new Set())
   const [ripplePos,            setRipplePos]            = useState(null)
+  const [searchQuery,          setSearchQuery]          = useState("")
+  const [searchMatches,        setSearchMatches]        = useState([])
+  const [searchMatchIdx,       setSearchMatchIdx]       = useState(0)
+  const [searchPanel,          setSearchPanel]          = useState(null)  // current match point
 
   const zoomToHighlight = useCallback(() => {
     if (!deckRef.current || !highlightPosRef.current) return
@@ -220,6 +237,67 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
       initialViewState: { target: [x, y, z], zoom: 6, transitionDuration: 800, _ts: Date.now() },
     })
   }, [])
+
+  const zoomToPoint = useCallback((point) => {
+    if (!deckRef.current || !point) return
+    deckRef.current.setProps({
+      initialViewState: { target: [point.umap_x, point.umap_y, 0], zoom: 6, transitionDuration: 600, _ts: Date.now() },
+    })
+  }, [])
+
+  const handleSearch = useCallback((q) => {
+    setSearchQuery(q)
+    if (!q.trim()) {
+      setSearchMatches([])
+      setSearchMatchIdx(0)
+      setSearchPanel(null)
+      setRipplePos(null)
+      highlightPosRef.current = null
+      setHighlightFamilyId(propHighlightId)
+      if (deckRef.current && pointsRef.current.length && LayerRef.current) {
+        deckRef.current.setProps({
+          layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, propHighlightId)],
+        })
+      }
+      return
+    }
+    const lower = q.toLowerCase()
+    const matches = pointsRef.current.filter(p =>
+      String(p.family_id).includes(lower) ||
+      (p.organism && p.organism.toLowerCase().includes(lower))
+    )
+    setSearchMatches(matches)
+    setSearchMatchIdx(0)
+    if (matches.length > 0) {
+      setHighlightFamilyId(matches[0].family_id)
+      setSearchPanel(matches[0])
+      highlightPosRef.current = [matches[0].umap_x, matches[0].umap_y, 0]
+      zoomToPoint(matches[0])
+      if (deckRef.current && LayerRef.current) {
+        deckRef.current.setProps({
+          layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, matches[0].family_id)],
+        })
+      }
+    } else {
+      setSearchPanel(null)
+    }
+  }, [zoomToPoint, colorBy, hidden, propHighlightId])
+
+  const cycleMatch = useCallback((dir) => {
+    if (!searchMatches.length) return
+    const next = (searchMatchIdx + dir + searchMatches.length) % searchMatches.length
+    setSearchMatchIdx(next)
+    const point = searchMatches[next]
+    setHighlightFamilyId(point.family_id)
+    setSearchPanel(point)
+    highlightPosRef.current = [point.umap_x, point.umap_y, 0]
+    zoomToPoint(point)
+    if (deckRef.current && LayerRef.current) {
+      deckRef.current.setProps({
+        layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, point.family_id)],
+      })
+    }
+  }, [searchMatches, searchMatchIdx, zoomToPoint, colorBy, hidden])
 
   const projectHighlight = useCallback(() => {
     if (!deckRef.current || !highlightPosRef.current) return
@@ -387,6 +465,48 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
         </svg>
       )}
 
+      {/* pinned tooltip for search-selected family */}
+      {searchPanel && ripplePos && (() => {
+        const { domain, phylum } = parseTaxonomy(searchPanel.taxonomy)
+        const rows = [
+          ["Family",    searchPanel.family_id],
+          ["Sequences", searchPanel.family_size.toLocaleString()],
+          searchPanel.organism ? ["Organism", searchPanel.organism] : null,
+          ["Domain",    domain],
+          ["Phylum",    phylum],
+          searchPanel.country   ? ["Country",   searchPanel.country]   : null,
+          searchPanel.component != null ? ["Component", searchPanel.component] : null,
+        ].filter(Boolean)
+        return (
+          <div
+            style={{
+              position: "absolute",
+              left: ripplePos.x + 20,
+              top:  ripplePos.y - 10,
+              zIndex: 20,
+              background: "#1e293b",
+              border: "1px solid #334155",
+              borderRadius: "6px",
+              padding: "10px 12px",
+              fontSize: "12px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+              pointerEvents: "none",
+              maxWidth: "280px",
+            }}
+          >
+            {rows.map(([k, v]) => (
+              <div key={k} style={{ display: "flex", gap: "8px", marginTop: "3px" }}>
+                <span style={{ color: "#94a3b8", minWidth: "72px" }}>{k}</span>
+                <span style={{ color: "#f1f5f9", wordBreak: "break-word" }}>{v}</span>
+              </div>
+            ))}
+            <div style={{ marginTop: "6px", color: "#64748b", fontSize: "11px" }}>
+              Click to view family
+            </div>
+          </div>
+        )
+      })()}
+
       {/* zoom-to-highlight button (family page only) */}
       {compact && !loading && !error && highlightPosRef.current && (
         <button
@@ -418,6 +538,68 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
           </svg>
           Locate family
         </button>
+      )}
+
+      {/* search bar */}
+      {!loading && !error && (
+        <div
+          style={{
+            position: "absolute",
+            top: compact ? "48px" : "14px",
+            right: "14px",
+            zIndex: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+          }}
+        >
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <svg
+              width="12" height="12" viewBox="0 0 16 16" fill="none"
+              stroke="#64748b" strokeWidth="2" strokeLinecap="round"
+              style={{ position: "absolute", left: "8px", pointerEvents: "none" }}
+            >
+              <circle cx="7" cy="7" r="5" />
+              <line x1="11" y1="11" x2="15" y2="15" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search family / organism…"
+              value={searchQuery}
+              onChange={e => handleSearch(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter") cycleMatch(e.shiftKey ? -1 : 1)
+                if (e.key === "Escape") handleSearch("")
+              }}
+              style={{
+                paddingLeft: "26px",
+                paddingRight: "8px",
+                paddingTop: "5px",
+                paddingBottom: "5px",
+                borderRadius: "4px",
+                border: "1px solid #334155",
+                background: "#1e293b",
+                color: "#e2e8f0",
+                fontSize: "12px",
+                fontFamily: "inherit",
+                width: "200px",
+                outline: "none",
+              }}
+            />
+          </div>
+          {searchMatches.length > 0 && (
+            <>
+              <span style={{ color: "#64748b", fontSize: "11px", whiteSpace: "nowrap" }}>
+                {searchMatchIdx + 1}/{searchMatches.length}
+              </span>
+              <button onClick={() => cycleMatch(-1)} title="Previous" style={navBtnStyle}>‹</button>
+              <button onClick={() => cycleMatch(1)}  title="Next"     style={navBtnStyle}>›</button>
+            </>
+          )}
+          {searchQuery && searchMatches.length === 0 && (
+            <span style={{ color: "#f87171", fontSize: "11px" }}>No match</span>
+          )}
+        </div>
       )}
 
       {/* colour-by controls */}

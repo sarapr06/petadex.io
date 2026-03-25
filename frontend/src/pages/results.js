@@ -282,7 +282,7 @@ const ResultsPage = () => {
       </div>
 
       <SearchHistory
-        onSelectSearch={(sid) => { stopAll(); navigate(`/results?job=${sid}`); }}
+        onSelectSearch={(sid) => window.open(`/results?job=${sid}`, '_blank')}
         currentJobId={status === 'completed' ? sessionId : null}
         newSearchCount={newSearchCount}
       />

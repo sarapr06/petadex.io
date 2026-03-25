@@ -162,22 +162,24 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
                   <tr key={hit.accession} className={s.tr}>
                     <td className={s.td}>{hit.rank}</td>
                     <td className={s.td}>
-                      <Link to={`/sequence/${hit.accession}`} className={s.link}>{hit.accession}</Link>
+                      <a href={`/sequence/${hit.accession}`} target="_blank" rel="noopener noreferrer" className={s.link}>{hit.accession}</a>
                     </td>
                     <td className={s.td}>{hit.name || '-'}</td>
                     <td className={s.td}><em>{hit.organism || '-'}</em></td>
                     <td className={s.td}>
                       {hit.family != null ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <Link to={familyUrl(hit.family)} className={s.link}>Family {hit.family}</Link>
+                          <a href={familyUrl(hit.family)} target="_blank" rel="noopener noreferrer" className={s.link}>Family {hit.family}</a>
                           {hit.has_tree && (
-                            <Link
-                              to={familyUrl(hit.family)}
+                            <a
+                              href={familyUrl(hit.family)}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               className={s.treeIconLink}
                               title={`Tree for Family ${hit.family}`}
                             >
                               🌿
-                            </Link>
+                            </a>
                           )}
                         </span>
                       ) : '-'}

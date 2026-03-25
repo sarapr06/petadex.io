@@ -110,7 +110,7 @@ const SequenceSearch = () => {
         }
       `}</style>
 
-      <ExampleCards onSelectExample={(sid) => navigate(`/results?job=${sid}`)} disabled={submitting} />
+      <ExampleCards onSelectExample={(sid) => window.open(`/results?job=${sid}`, '_blank')} disabled={submitting} />
 
       <div className="input-section">
         <textarea
@@ -152,7 +152,7 @@ const SequenceSearch = () => {
       {error && <div className="error-msg">{error}</div>}
 
       <SearchHistory
-        onSelectSearch={(sid) => navigate(`/results?job=${sid}`)}
+        onSelectSearch={(sid) => window.open(`/results?job=${sid}`, '_blank')}
         currentJobId={null}
         newSearchCount={0}
       />
