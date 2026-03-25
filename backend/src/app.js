@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import swaggerUi from 'swagger-ui-express';
 import YAML from 'yamljs';
 
@@ -17,10 +18,13 @@ import geneDetailsRoutes from './routes/geneDetails.js';
 import pdbRoutes from './routes/pdb.js';
 import enzymesRoutes from './routes/enzymes.js';
 import searchRoutes from './routes/search.js';
+import atlasRoutes from './routes/atlas.js';
+import familyRoutes from './routes/family.js';
 import { pool } from './db.js';
 
 const app = express();
 
+app.use(compression());
 app.use(cors({
   origin: [
     'https://petadex.net',
@@ -47,6 +51,8 @@ app.use('/api/gene-details', geneDetailsRoutes);
 app.use('/api/pdb', pdbRoutes);
 app.use('/api/enzymes', enzymesRoutes);
 app.use('/api/search', searchRoutes);
+app.use('/api/atlas', atlasRoutes);
+app.use('/api/family', familyRoutes);
 
 // (Optional) health check route
 app.get('/health', async (req, res) => {

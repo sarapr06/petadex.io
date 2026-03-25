@@ -14,7 +14,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const treeViewerUrl = familyId => `/tree/${familyId}`;
+  const familyUrl = familyId => `/family/${familyId}`;
 
   // Family tally
   const familyCounts = {};
@@ -115,12 +115,12 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
                 {sorted.map(([label, { count, enzyme_id, family_num, has_tree }]) => (
                   <div key={label} className={s.familyBarRow}>
                     <div className={s.familyBarLabel}>
-                      {label !== 'Unknown' && enzyme_id != null
-                        ? <Link to={`/enzyme/${enzyme_id}`} className={s.link}>{label}</Link>
+                      {label !== 'Unknown' && family_num != null
+                        ? <Link to={familyUrl(family_num)} className={s.link}>{label}</Link>
                         : label}
                       {label !== 'Unknown' && family_num != null && has_tree && (
                         <Link
-                          to={treeViewerUrl(family_num)}
+                          to={familyUrl(family_num)}
                           className={s.treeIconLink}
                           title={`View phylogenetic tree for ${label}`}
                         >
@@ -169,12 +169,10 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
                     <td className={s.td}>
                       {hit.family != null ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                          {hit.enzyme_id != null
-                            ? <Link to={`/enzyme/${hit.enzyme_id}`} className={s.link}>Family {hit.family}</Link>
-                            : `Family ${hit.family}`}
+                          <Link to={familyUrl(hit.family)} className={s.link}>Family {hit.family}</Link>
                           {hit.has_tree && (
                             <Link
-                              to={treeViewerUrl(hit.family)}
+                              to={familyUrl(hit.family)}
                               className={s.treeIconLink}
                               title={`Tree for Family ${hit.family}`}
                             >

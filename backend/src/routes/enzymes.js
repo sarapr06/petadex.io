@@ -440,16 +440,14 @@ router.get('/component/:component_id', async (req, res, next) => {
 });
 
 /**
- * GET /api/enzymes/stats
- * Get statistics about the enzyme database
+ * GET /api/enzymes/stats/overview
+ * Get statistics about the enzyme database (served from materialized view)
  */
 router.get('/stats/overview', async (req, res, next) => {
   try {
-    const stats = await pool.query(`
-      SELECT * FROM enzyme_stats_overview
-    `);
-
-    res.json(stats.rows[0]);
+    const { rows } = await pool.query(`SELECT * FROM enzyme_stats_overview LIMIT 1`);
+    if (!rows.length) return res.status(404).json({ error: 'Stats not available' });
+    res.json(rows[0]);
   } catch (err) {
     next(err);
   }
