@@ -43,8 +43,10 @@ function hashColor(str, alpha = 200) {
 }
 
 const HIDDEN_COLOR = [30, 41, 59, 40]
+const HIGHLIGHT_COLOR = [255, 20, 147, 255]
 
-function getPointColor(point, colorBy, hidden) {
+function getPointColor(point, colorBy, hidden, highlightFamilyId) {
+  if (highlightFamilyId != null && point.family_id === highlightFamilyId) return HIGHLIGHT_COLOR
   if (colorBy === "none") return [100, 210, 190, 200]
   const { domain, phylum } = parseTaxonomy(point.taxonomy)
   if (colorBy === "domain") {
@@ -128,24 +130,29 @@ function buildLegend(points, colorBy) {
     }))
 }
 
-function buildScatterLayer(points, maxSize, ScatterplotLayer, colorBy, hidden) {
+function buildScatterLayer(points, maxSize, ScatterplotLayer, colorBy, hidden, highlightFamilyId) {
+  // Sort so highlighted family renders last (on top)
+  const sorted = highlightFamilyId != null
+    ? [...points].sort((a, b) => (a.family_id === highlightFamilyId) - (b.family_id === highlightFamilyId))
+    : points
   return new ScatterplotLayer({
     id: "umap",
-    data: points,
+    data: sorted,
     getPosition: d => [d.umap_x, d.umap_y],
     getRadius: d => Math.sqrt(d.family_size / maxSize) * 1.5,
     radiusMinPixels: 2,
     radiusMaxPixels: 12,
-    getFillColor: d => getPointColor(d, colorBy, hidden),
-    updateTriggers: { getFillColor: [colorBy, ...hidden] },
+    getFillColor: d => getPointColor(d, colorBy, hidden, highlightFamilyId),
+    updateTriggers: { getFillColor: [colorBy, ...hidden, highlightFamilyId] },
     pickable: true,
   })
 }
 
-function buildTooltip(object) {
+function buildTooltip(object, highlightFamilyId) {
   const { domain, phylum } = parseTaxonomy(object.taxonomy)
+  const isCurrent = highlightFamilyId != null && object.family_id === highlightFamilyId
   const rows = [
-    ["Family", object.family_id],
+    ["Family", `${object.family_id}${isCurrent ? " (current)" : ""}`],
     ["Sequences", object.family_size.toLocaleString()],
     object.organism ? ["Organism", object.organism] : null,
     ["Domain", domain],
@@ -165,7 +172,7 @@ function buildTooltip(object) {
     .join("")
 
   return {
-    html: `<div style="max-width:280px">${rowsHtml}<div style="margin-top:6px;color:#64748b;font-size:11px">Click to view family</div></div>`,
+    html: `<div style="max-width:280px">${rowsHtml}${!isCurrent ? '<div style="margin-top:6px;color:#64748b;font-size:11px">Click to view family</div>' : ''}</div>`,
     style: {
       background: "#1e293b",
       padding: "10px 12px",
@@ -187,12 +194,16 @@ const COLOR_MODES = [
   { value: "component", label: "Component" },
 ]
 
-const AtlasMap = () => {
+const AtlasMap = ({ familyId: familyIdProp } = {}) => {
+  const highlightFamilyId = familyIdProp != null ? parseInt(familyIdProp) : null
+  const compact = highlightFamilyId != null
   const containerRef    = useRef(null)
   const deckRef         = useRef(null)
   const pointsRef       = useRef([])
   const maxSizeRef      = useRef(1)
   const LayerRef        = useRef(null)   // ScatterplotLayer constructor
+
+  const highlightPosRef = useRef(null)   // world [x, y] of highlighted point
 
   const [loading,              setLoading]              = useState(true)
   const [error,                setError]                = useState(null)
@@ -200,13 +211,30 @@ const AtlasMap = () => {
   const [colorBy,              setColorBy]              = useState("none")
   const [legend,               setLegend]               = useState([])
   const [hidden,               setHidden]               = useState(new Set())
+  const [ripplePos,            setRipplePos]            = useState(null)
+
+  const zoomToHighlight = useCallback(() => {
+    if (!deckRef.current || !highlightPosRef.current) return
+    const [x, y, z] = highlightPosRef.current
+    deckRef.current.setProps({
+      initialViewState: { target: [x, y, z], zoom: 6, transitionDuration: 800, _ts: Date.now() },
+    })
+  }, [])
+
+  const projectHighlight = useCallback(() => {
+    if (!deckRef.current || !highlightPosRef.current) return
+    const viewports = deckRef.current.getViewports()
+    if (!viewports || !viewports.length) return
+    const [sx, sy] = viewports[0].project(highlightPosRef.current)
+    setRipplePos({ x: sx, y: sy })
+  }, [])
 
   const updateLayer = useCallback((h) => {
     if (!deckRef.current || !pointsRef.current.length || !LayerRef.current) return
     deckRef.current.setProps({
-      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, h)],
+      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, h, highlightFamilyId)],
     })
-  }, [colorBy])
+  }, [colorBy, highlightFamilyId])
 
   const toggleKey = useCallback((key) => {
     setHidden(prev => {
@@ -237,9 +265,12 @@ const AtlasMap = () => {
       try {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 30000)
+        const endpoint = highlightFamilyId != null
+          ? `${config.apiUrl}/family/${highlightFamilyId}/umap`
+          : `${config.apiUrl}/atlas/umap`
         let res
         try {
-          res = await fetch(`${config.apiUrl}/atlas/umap`, { signal: controller.signal })
+          res = await fetch(endpoint, { signal: controller.signal })
         } finally {
           clearTimeout(timeoutId)
         }
@@ -269,24 +300,34 @@ const AtlasMap = () => {
         maxSizeRef.current  = maxSize
         pointsRef.current   = points
 
+        // Store highlighted point's world position for ripple overlay
+        if (highlightFamilyId != null) {
+          const hp = points.find(p => p.family_id === highlightFamilyId)
+          if (hp) highlightPosRef.current = [hp.umap_x, hp.umap_y, 0]
+        }
+
         const deck = new Deck({
           parent: containerRef.current,
           views: new OrthographicView({ id: "ortho" }),
           initialViewState: { target: [cx, cy, 0], zoom },
           controller: true,
-          layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "none", new Set())],
-          getTooltip: ({ object }) => object && buildTooltip(object),
+          layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "none", new Set(), highlightFamilyId)],
+          getTooltip: ({ object }) => object && buildTooltip(object, highlightFamilyId),
           onClick: ({ object }) => {
-            if (object?.family_id != null) {
+            if (object?.family_id != null && object.family_id !== highlightFamilyId) {
               window.location.href = `/family/${object.family_id}`
             }
           },
           getCursor: ({ isHovering }) => isHovering ? "pointer" : "grab",
+          onViewStateChange: () => { requestAnimationFrame(projectHighlight) },
         })
 
         deckRef.current = deck
         setPointCount(points.length)
         setLoading(false)
+
+        // Initial projection after first render
+        requestAnimationFrame(projectHighlight)
       } catch (err) {
         console.error("AtlasMap error:", err)
         setError(err.name === "AbortError" ? "Atlas data timed out — server may be unavailable" : err.message)
@@ -306,7 +347,7 @@ const AtlasMap = () => {
     const fresh = new Set()
     setHidden(fresh)
     deckRef.current.setProps({
-      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, fresh)],
+      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, fresh, highlightFamilyId)],
     })
     setLegend(buildLegend(pointsRef.current, colorBy))
   }, [colorBy])
@@ -317,7 +358,8 @@ const AtlasMap = () => {
       style={{
         position: "relative",
         width: "100%",
-        height: "80vh",
+        height: compact ? "50vh" : "80vh",
+        minHeight: compact ? 350 : undefined,
         background: "#0f172a",
         borderRadius: "8px",
         overflow: "hidden",
@@ -326,12 +368,64 @@ const AtlasMap = () => {
       {/* deck.gl canvas */}
       <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
 
+      {/* pulse ring on highlighted family */}
+      {ripplePos && (
+        <svg
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            pointerEvents: "none",
+            zIndex: 5,
+          }}
+        >
+          <circle cx={ripplePos.x} cy={ripplePos.y} r={14} fill="none" stroke="#FF1493" strokeWidth={2}>
+            <animate attributeName="r" from="8" to="18" dur="1.5s" repeatCount="indefinite" />
+            <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
+          </circle>
+        </svg>
+      )}
+
+      {/* zoom-to-highlight button (family page only) */}
+      {compact && !loading && !error && highlightPosRef.current && (
+        <button
+          onClick={zoomToHighlight}
+          title="Zoom to this family"
+          style={{
+            position: "absolute",
+            top: "14px",
+            right: "14px",
+            zIndex: 10,
+            padding: "5px 10px",
+            borderRadius: "4px",
+            border: "1px solid #334155",
+            background: "#1e293b",
+            color: "#94a3b8",
+            fontSize: "12px",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="7" cy="7" r="5" />
+            <line x1="11" y1="11" x2="15" y2="15" />
+            <line x1="5" y1="7" x2="9" y2="7" />
+            <line x1="7" y1="5" x2="7" y2="9" />
+          </svg>
+          Locate family
+        </button>
+      )}
+
       {/* colour-by controls */}
       {!loading && !error && (
         <div
           style={{
             position: "absolute",
-            top: "14px",
+            top: compact ? "48px" : "14px",
             left: "14px",
             display: "flex",
             alignItems: "center",
@@ -369,9 +463,9 @@ const AtlasMap = () => {
         <div
           style={{
             position: "absolute",
-            top: "52px",
+            top: compact ? "86px" : "52px",
             left: "14px",
-            maxHeight: "calc(80vh - 80px)",
+            maxHeight: compact ? "calc(50vh - 80px)" : "calc(80vh - 80px)",
             overflowY: "auto",
             background: "rgba(15,23,42,0.85)",
             border: "1px solid #1e293b",
@@ -435,9 +529,9 @@ const AtlasMap = () => {
         <div
           style={{
             position: "absolute",
-            top: "52px",
+            top: compact ? "86px" : "52px",
             left: "14px",
-            maxHeight: "calc(80vh - 80px)",
+            maxHeight: compact ? "calc(50vh - 80px)" : "calc(80vh - 80px)",
             overflowY: "auto",
             background: "rgba(15,23,42,0.85)",
             border: "1px solid #1e293b",

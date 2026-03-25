@@ -5,13 +5,12 @@ import "../styles/home.css"
 import SiteHeader from "../components/SiteHeader"
 import Seo from "../components/seo"
 import SequenceViewer from "../components/SequenceViewer"
+import AtlasMap from "../components/AtlasMap"
 import config from "../config"
 import { useScrollHeader } from "../hooks/useScrollHeader"
 import {
   COMPONENT_TO_CATH,
-  COMPONENT_SHADE_RGBA,
   COMPONENT_SHADE_CSS,
-  CATH_GROUPS,
   CATH_BASE_CSS,
 } from "../utils/cathColors"
 
@@ -253,245 +252,6 @@ function DendrogramSVG({ root }) {
       <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "#868e96" }}>
         {numLeaves} leaves · scroll to zoom · drag to pan
       </div>
-    </div>
-  )
-}
-
-// ── UMAP mini-atlas ────────────────────────────────────────────────────────
-
-function buildUmapLegend(points) {
-  const compCounts = new Map()
-  let unassignedCount = 0
-  for (const p of points) {
-    if (p.component != null) {
-      compCounts.set(p.component, (compCounts.get(p.component) || 0) + 1)
-    } else {
-      unassignedCount++
-    }
-  }
-  const cathOrder = Object.keys(CATH_GROUPS)
-  const groups = []
-  for (const cath of cathOrder) {
-    const children = CATH_GROUPS[cath]
-      .filter(comp => compCounts.has(comp))
-      .map(comp => ({
-        label: String(comp),
-        count: compCounts.get(comp),
-        color: COMPONENT_SHADE_RGBA[comp] || [148, 163, 184, 160],
-      }))
-    if (children.length > 0) {
-      const total = children.reduce((s, c) => s + c.count, 0)
-      groups.push({ cath, cathColor: CATH_BASE_CSS[cath], total, children })
-    }
-  }
-  if (unassignedCount > 0) {
-    groups.push({
-      cath: "Unassigned",
-      cathColor: "rgb(148,163,184)",
-      total: unassignedCount,
-      children: [],
-    })
-  }
-  return groups
-}
-
-function FamilyUMAP({ familyId }) {
-  const containerRef = useRef(null)
-  const deckRef = useRef(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [pointCount, setPointCount] = useState(0)
-  const [legend, setLegend] = useState([])
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function init() {
-      try {
-        const res = await fetch(`${config.apiUrl}/family/${familyId}/umap`, {
-          signal: AbortSignal.timeout(30000),
-        })
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const { points } = await res.json()
-
-        const { Deck, OrthographicView } = await import("@deck.gl/core")
-        const { ScatterplotLayer } = await import("@deck.gl/layers")
-
-        if (cancelled || !containerRef.current) return
-
-        const xs = points.map(p => p.umap_x)
-        const ys = points.map(p => p.umap_y)
-        const minX = Math.min(...xs), maxX = Math.max(...xs)
-        const minY = Math.min(...ys), maxY = Math.max(...ys)
-        const cx = (minX + maxX) / 2
-        const cy = (minY + maxY) / 2
-        const xRange = maxX - minX
-        const yRange = maxY - minY
-
-        const w = containerRef.current.clientWidth * 0.85
-        const h = containerRef.current.clientHeight * 0.85
-        const zoom = Math.log2(Math.min(w / xRange, h / yRange))
-        const maxSize = Math.max(...points.map(p => p.family_size))
-
-        const fid = parseInt(familyId)
-
-        const deck = new Deck({
-          parent: containerRef.current,
-          views: new OrthographicView({ id: "ortho" }),
-          initialViewState: { target: [cx, cy, 0], zoom },
-          controller: true,
-          layers: [
-            new ScatterplotLayer({
-              id: "umap",
-              data: points,
-              getPosition: d => [d.umap_x, d.umap_y],
-              getRadius: d => Math.sqrt(d.family_size / maxSize) * 1.5,
-              radiusMinPixels: 2,
-              radiusMaxPixels: 12,
-              getFillColor: d => {
-                if (d.family_id === fid) return [255, 20, 147, 255]
-                const comp = d.component
-                if (comp != null && COMPONENT_SHADE_RGBA[comp]) {
-                  const c = COMPONENT_SHADE_RGBA[comp]
-                  return [c[0], c[1], c[2], 80]
-                }
-                return [148, 163, 184, 60]
-              },
-              pickable: true,
-            }),
-          ],
-          getTooltip: ({ object }) => {
-            if (!object) return null
-            const isCurrent = object.family_id === fid
-            const rows = [
-              ["Family", `${object.family_id}${isCurrent ? " (current)" : ""}`],
-              ["Sequences", object.family_size.toLocaleString()],
-              object.organism ? ["Organism", object.organism] : null,
-              object.country ? ["Country", object.country] : null,
-              object.component != null ? ["Component", object.component] : null,
-            ].filter(Boolean)
-
-            const rowsHtml = rows
-              .map(([k, v]) =>
-                `<div style="display:flex;gap:8px;margin-top:3px">
-                   <span style="color:#94a3b8;min-width:72px">${k}</span>
-                   <span style="color:#f1f5f9;word-break:break-word">${v}</span>
-                 </div>`
-              )
-              .join("")
-
-            return {
-              html: `<div style="max-width:280px">${rowsHtml}${!isCurrent ? '<div style="margin-top:6px;color:#64748b;font-size:11px">Click to view family</div>' : ''}</div>`,
-              style: {
-                background: "#1e293b",
-                padding: "10px 12px",
-                borderRadius: "6px",
-                fontSize: "12px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
-                border: "1px solid #334155",
-                pointerEvents: "none",
-              },
-            }
-          },
-          onClick: ({ object }) => {
-            if (object && object.family_id !== fid) {
-              window.location.href = `/family/${object.family_id}`
-            }
-          },
-          getCursor: ({ isHovering }) => isHovering ? "pointer" : "grab",
-        })
-
-        deckRef.current = deck
-        setPointCount(points.length)
-        setLegend(buildUmapLegend(points))
-        setLoading(false)
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.name === "AbortError" ? "Timed out loading UMAP data" : err.message)
-          setLoading(false)
-        }
-      }
-    }
-
-    init()
-    return () => {
-      cancelled = true
-      if (deckRef.current) { deckRef.current.finalize(); deckRef.current = null }
-    }
-  }, [familyId])
-
-  return (
-    <div style={{
-      position: "relative",
-      width: "100%",
-      height: "50vh",
-      minHeight: 350,
-      background: "#0f172a",
-      borderRadius: "8px",
-      overflow: "hidden",
-    }}>
-      <div ref={containerRef} style={{ position: "absolute", inset: 0 }} />
-
-      {/* Component legend */}
-      {legend.length > 0 && (
-        <div
-          style={{
-            position: "absolute",
-            top: "14px",
-            left: "14px",
-            maxHeight: "calc(50vh - 50px)",
-            overflowY: "auto",
-            background: "rgba(15,23,42,0.85)",
-            border: "1px solid #1e293b",
-            borderRadius: "6px",
-            padding: "8px 10px",
-            zIndex: 10,
-            minWidth: "180px",
-            maxWidth: "240px",
-          }}
-        >
-          {legend.map(({ cath, cathColor, total, children }) => (
-            <div key={cath} style={{ marginBottom: "8px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "3px" }}>
-                <div style={{
-                  width: "10px", height: "10px", borderRadius: "3px",
-                  flexShrink: 0, background: cathColor,
-                }} />
-                <span style={{ color: "#e2e8f0", fontSize: "11px", fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={cath}>
-                  {cath}
-                </span>
-                <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>{total}</span>
-              </div>
-              {children.map(({ label, count, color }) => (
-                <div key={label} style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "2px", paddingLeft: "17px" }}>
-                  <div style={{
-                    width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0,
-                    background: `rgba(${color[0]},${color[1]},${color[2]},${(color[3] ?? 200) / 255})`,
-                  }} />
-                  <span style={{ color: "#cbd5e1", fontSize: "10px", flex: 1 }}>Component {label}</span>
-                  <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>{count}</span>
-                </div>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {loading && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
-          Loading UMAP…
-        </div>
-      )}
-      {error && (
-        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#f87171" }}>
-          {error}
-        </div>
-      )}
-      {!loading && !error && (
-        <div style={{ position: "absolute", bottom: "12px", right: "12px", color: "#64748b", fontSize: "12px" }}>
-          {pointCount.toLocaleString()} families · scroll to zoom · drag to pan
-        </div>
-      )}
     </div>
   )
 }
@@ -948,9 +708,9 @@ export default function FamilyTemplate({ pageContext }) {
               <MembersTable familyId={familyId} centroid={family} />
             </Section>
 
-            {/* ── 3. UMAP panel ── */}
+            {/* ── 3. ESM Atlas ── */}
             <Section title="ESM Atlas">
-              <FamilyUMAP familyId={familyId} />
+              <AtlasMap familyId={familyId} />
             </Section>
 
             {/* ── 4. Phylogenetic tree ── */}
