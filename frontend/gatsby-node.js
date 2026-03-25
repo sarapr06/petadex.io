@@ -26,10 +26,16 @@ exports.onCreateWebpackConfig = ({ actions }) => {
 exports.createPages = async ({ actions }) => {
   const { createPage } = actions;
   
-  // Use production URL during build
+  // Use production URL during build; skip static page generation in local dev
   const apiUrl = process.env.GATSBY_API_URL || "https://api.petadex.net/api";
-  
+  const isDev = process.env.NODE_ENV === "development";
+
   console.log(`Using API URL: ${apiUrl}`);
+
+  if (isDev) {
+    console.log("ℹ️  Skipping static page generation in development mode.");
+    return;
+  }
 
   // Create sequence pages
   try {

@@ -367,6 +367,7 @@ const EnzymesPage = () => {
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const FAMILIES_PER_PAGE = 10;
+  const FAMILIES_INITIAL = 20;
 
   // Load families and stats in parallel — families render as soon as they arrive
   useEffect(() => {
