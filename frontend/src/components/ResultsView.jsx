@@ -1,12 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Link } from 'gatsby';
 import { formatSeq, cleanSequence } from '../utils/lib';
+import AtlasMap from './AtlasMap';
 import * as s from '../styles/results.module.css';
 
 const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) => {
   const [familySummaryOpen, setFamilySummaryOpen] = useState(true);
   const [queryOpen, setQueryOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const hitFamilyIds = useMemo(() =>
+    new Set(results.map(h => h.family).filter(f => f != null)),
+    [results]
+  );
 
   const handleCopyLink = () => {
     navigator.clipboard?.writeText(`${window.location.origin}/results?job=${sessionId}`);
@@ -146,6 +152,9 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
               </div>
             )}
           </div>
+
+          {/* Atlas */}
+          <AtlasMap highlightFamilyIds={hitFamilyIds} />
 
           {/* Results table */}
           <div className={s.tableWrap}>

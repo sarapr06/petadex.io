@@ -45,8 +45,9 @@ function hashColor(str, alpha = 200) {
 const HIDDEN_COLOR = [30, 41, 59, 40]
 const HIGHLIGHT_COLOR = [255, 20, 147, 255]
 
-function getPointColor(point, colorBy, hidden, highlightFamilyId) {
+function getPointColor(point, colorBy, hidden, highlightFamilyId, highlightFamilyIds) {
   if (highlightFamilyId != null && point.family_id === highlightFamilyId) return HIGHLIGHT_COLOR
+  if (highlightFamilyIds != null && highlightFamilyIds.has(point.family_id)) return HIGHLIGHT_COLOR
   if (colorBy === "none") return [100, 210, 190, 200]
   const { domain, phylum } = parseTaxonomy(point.taxonomy)
   if (colorBy === "domain") {
@@ -130,10 +131,13 @@ function buildLegend(points, colorBy) {
     }))
 }
 
-function buildScatterLayer(points, maxSize, ScatterplotLayer, colorBy, hidden, highlightFamilyId) {
-  // Sort so highlighted family renders last (on top)
-  const sorted = highlightFamilyId != null
-    ? [...points].sort((a, b) => (a.family_id === highlightFamilyId) - (b.family_id === highlightFamilyId))
+function buildScatterLayer(points, maxSize, ScatterplotLayer, colorBy, hidden, highlightFamilyId, highlightFamilyIds) {
+  const sorted = (highlightFamilyId != null || highlightFamilyIds != null)
+    ? [...points].sort((a, b) => {
+        const aHit = (highlightFamilyIds?.has(a.family_id) ? 1 : 0) + (a.family_id === highlightFamilyId ? 1 : 0)
+        const bHit = (highlightFamilyIds?.has(b.family_id) ? 1 : 0) + (b.family_id === highlightFamilyId ? 1 : 0)
+        return aHit - bHit
+      })
     : points
   return new ScatterplotLayer({
     id: "umap",
@@ -142,8 +146,8 @@ function buildScatterLayer(points, maxSize, ScatterplotLayer, colorBy, hidden, h
     getRadius: d => Math.sqrt(d.family_size / maxSize) * 1.5,
     radiusMinPixels: 2,
     radiusMaxPixels: 12,
-    getFillColor: d => getPointColor(d, colorBy, hidden, highlightFamilyId),
-    updateTriggers: { getFillColor: [colorBy, ...hidden, highlightFamilyId] },
+    getFillColor: d => getPointColor(d, colorBy, hidden, highlightFamilyId, highlightFamilyIds),
+    updateTriggers: { getFillColor: [colorBy, ...hidden, highlightFamilyId, highlightFamilyIds] },
     pickable: true,
   })
 }
@@ -206,7 +210,7 @@ const navBtnStyle = {
   lineHeight: 1,
 }
 
-const AtlasMap = ({ familyId: familyIdProp } = {}) => {
+const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds } = {}) => {
   const propHighlightId = familyIdProp != null ? parseInt(familyIdProp) : null
   const compact = propHighlightId != null
   const [highlightFamilyId, setHighlightFamilyId] = useState(propHighlightId)
@@ -245,6 +249,26 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
     })
   }, [])
 
+  const fitToHighlighted = useCallback(() => {
+    if (!deckRef.current || !containerRef.current) return
+    const pts = pointsRef.current.filter(p =>
+      (highlightFamilyIds?.has(p.family_id)) ||
+      (highlightFamilyId != null && p.family_id === highlightFamilyId)
+    )
+    if (!pts.length) return
+    const xs = pts.map(p => p.umap_x), ys = pts.map(p => p.umap_y)
+    const minX = Math.min(...xs), maxX = Math.max(...xs)
+    const minY = Math.min(...ys), maxY = Math.max(...ys)
+    const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2
+    const w = containerRef.current.clientWidth  * 0.7
+    const h = containerRef.current.clientHeight * 0.7
+    const xRange = maxX - minX || 1, yRange = maxY - minY || 1
+    const zoom = Math.log2(Math.min(w / xRange, h / yRange))
+    deckRef.current.setProps({
+      initialViewState: { target: [cx, cy, 0], zoom, transitionDuration: 700, _ts: Date.now() },
+    })
+  }, [highlightFamilyIds, highlightFamilyId])
+
   const handleSearch = useCallback((q) => {
     setSearchQuery(q)
     if (!q.trim()) {
@@ -256,7 +280,7 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
       setHighlightFamilyId(propHighlightId)
       if (deckRef.current && pointsRef.current.length && LayerRef.current) {
         deckRef.current.setProps({
-          layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, propHighlightId)],
+          layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, propHighlightId, highlightFamilyIds)],
         })
       }
       return
@@ -275,7 +299,7 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
       zoomToPoint(matches[0])
       if (deckRef.current && LayerRef.current) {
         deckRef.current.setProps({
-          layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, matches[0].family_id)],
+          layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, matches[0].family_id, highlightFamilyIds)],
         })
       }
     } else {
@@ -294,25 +318,38 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
     zoomToPoint(point)
     if (deckRef.current && LayerRef.current) {
       deckRef.current.setProps({
-        layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, point.family_id)],
+        layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, point.family_id, highlightFamilyIds)],
       })
     }
   }, [searchMatches, searchMatchIdx, zoomToPoint, colorBy, hidden])
 
   const projectHighlight = useCallback(() => {
-    if (!deckRef.current || !highlightPosRef.current) return
+    if (!deckRef.current) return
     const viewports = deckRef.current.getViewports()
     if (!viewports || !viewports.length) return
-    const [sx, sy] = viewports[0].project(highlightPosRef.current)
-    setRipplePos({ x: sx, y: sy })
-  }, [])
+    const vp = viewports[0]
+    const positions = []
+    if (highlightPosRef.current) {
+      const [sx, sy] = vp.project(highlightPosRef.current)
+      positions.push({ x: sx, y: sy })
+    }
+    if (highlightFamilyIds) {
+      for (const p of pointsRef.current) {
+        if (highlightFamilyIds.has(p.family_id)) {
+          const [sx, sy] = vp.project([p.umap_x, p.umap_y, 0])
+          positions.push({ x: sx, y: sy })
+        }
+      }
+    }
+    setRipplePos(positions.length > 0 ? positions : null)
+  }, [highlightFamilyIds])
 
   const updateLayer = useCallback((h) => {
     if (!deckRef.current || !pointsRef.current.length || !LayerRef.current) return
     deckRef.current.setProps({
-      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, h, highlightFamilyId)],
+      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, h, highlightFamilyId, highlightFamilyIds)],
     })
-  }, [colorBy, highlightFamilyId])
+  }, [colorBy, highlightFamilyId, highlightFamilyIds])
 
   const toggleKey = useCallback((key) => {
     setHidden(prev => {
@@ -389,7 +426,7 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
           views: new OrthographicView({ id: "ortho" }),
           initialViewState: { target: [cx, cy, 0], zoom },
           controller: true,
-          layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "none", new Set(), highlightFamilyId)],
+          layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "none", new Set(), highlightFamilyId, highlightFamilyIds)],
           getTooltip: ({ object }) => object && buildTooltip(object, highlightFamilyId),
           onClick: ({ object }) => {
             if (object?.family_id != null && object.family_id !== highlightFamilyId) {
@@ -425,7 +462,7 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
     const fresh = new Set()
     setHidden(fresh)
     deckRef.current.setProps({
-      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, fresh, highlightFamilyId)],
+      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, fresh, highlightFamilyId, highlightFamilyIds)],
     })
     setLegend(buildLegend(pointsRef.current, colorBy))
   }, [colorBy])
@@ -458,15 +495,18 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
             zIndex: 5,
           }}
         >
-          <circle cx={ripplePos.x} cy={ripplePos.y} r={14} fill="none" stroke="#FF1493" strokeWidth={2}>
-            <animate attributeName="r" from="8" to="18" dur="1.5s" repeatCount="indefinite" />
-            <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
-          </circle>
+          {ripplePos.map((pos, i) => (
+            <circle key={i} cx={pos.x} cy={pos.y} r={14} fill="none" stroke="#FF1493" strokeWidth={2}>
+              <animate attributeName="r" from="8" to="18" dur="1.5s" repeatCount="indefinite" />
+              <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
+            </circle>
+          ))}
         </svg>
       )}
 
       {/* pinned tooltip for search-selected family */}
-      {searchPanel && ripplePos && (() => {
+      {searchPanel && ripplePos?.[0] && (() => {
+        const pos = ripplePos[0]
         const { domain, phylum } = parseTaxonomy(searchPanel.taxonomy)
         const rows = [
           ["Family",    searchPanel.family_id],
@@ -481,8 +521,8 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
           <div
             style={{
               position: "absolute",
-              left: ripplePos.x + 20,
-              top:  ripplePos.y - 10,
+              left: pos.x + 20,
+              top:  pos.y - 10,
               zIndex: 20,
               background: "#1e293b",
               border: "1px solid #334155",
@@ -507,8 +547,39 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
         )
       })()}
 
-      {/* zoom-to-highlight button (family page only) */}
-      {compact && !loading && !error && highlightPosRef.current && (
+      {/* fit-to-highlighted button */}
+      {!loading && !error && (highlightFamilyIds?.size > 0 || searchMatches.length > 0) && (
+        <button
+          onClick={fitToHighlighted}
+          title="Fit view to highlighted families"
+          style={{
+            position: "absolute",
+            top: "14px",
+            right: "14px",
+            zIndex: 10,
+            padding: "5px 10px",
+            borderRadius: "4px",
+            border: "1px solid #334155",
+            background: "#1e293b",
+            color: "#94a3b8",
+            fontSize: "12px",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            display: "flex",
+            alignItems: "center",
+            gap: "5px",
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <rect x="1" y="1" width="5" height="5" /><rect x="10" y="1" width="5" height="5" />
+            <rect x="1" y="10" width="5" height="5" /><rect x="10" y="10" width="5" height="5" />
+          </svg>
+          Fit to hits
+        </button>
+      )}
+
+      {/* zoom-to-highlight button (family page only, hidden when multi-highlight active) */}
+      {compact && !loading && !error && !highlightFamilyIds && highlightPosRef.current && (
         <button
           onClick={zoomToHighlight}
           title="Zoom to this family"
@@ -545,7 +616,7 @@ const AtlasMap = ({ familyId: familyIdProp } = {}) => {
         <div
           style={{
             position: "absolute",
-            top: compact ? "48px" : "14px",
+            top: (compact || highlightFamilyIds?.size > 0) ? "48px" : "14px",
             right: "14px",
             zIndex: 10,
             display: "flex",
