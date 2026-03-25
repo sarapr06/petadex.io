@@ -46,16 +46,14 @@ export default function EnzymeTemplate({ pageContext }) {
       return;
     }
 
-    const path = window.location.pathname;
-    const match = path.match(/\/enzyme\/([^/]+)/);
+    const enzymeId = pageContext.enzymeId
+      || window.location.pathname.match(/\/enzyme\/([^/]+)/)?.[1];
 
-    if (!match) {
+    if (!enzymeId) {
       setError("Invalid enzyme URL");
       setLoading(false);
       return;
     }
-
-    const enzymeId = match[1];
 
     async function fetchEnzyme() {
       try {
@@ -158,7 +156,13 @@ export default function EnzymeTemplate({ pageContext }) {
             </span>
             {enzyme.family !== null && (
               <span style={{ fontSize: '0.9rem', color: '#64748b' }}>
-                <strong>Family:</strong> {enzyme.family}
+                <strong>Family:</strong>{' '}
+                <Link
+                  to={`/family/${enzyme.family}`}
+                  style={{ color: '#3b82f6', textDecoration: 'none' }}
+                >
+                  {enzyme.family}
+                </Link>
                 {enzyme.family_pid === null && (
                   <span style={{
                     marginLeft: '0.5rem',

@@ -165,7 +165,7 @@ function buildTooltip(object) {
     .join("")
 
   return {
-    html: `<div style="max-width:280px">${rowsHtml}</div>`,
+    html: `<div style="max-width:280px">${rowsHtml}<div style="margin-top:6px;color:#64748b;font-size:11px">Click to view family</div></div>`,
     style: {
       background: "#1e293b",
       padding: "10px 12px",
@@ -276,6 +276,12 @@ const AtlasMap = () => {
           controller: true,
           layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "none", new Set())],
           getTooltip: ({ object }) => object && buildTooltip(object),
+          onClick: ({ object }) => {
+            if (object?.family_id != null) {
+              window.location.href = `/family/${object.family_id}`
+            }
+          },
+          getCursor: ({ isHovering }) => isHovering ? "pointer" : "grab",
         })
 
         deckRef.current = deck

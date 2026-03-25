@@ -132,7 +132,20 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
               fontSize: "1.25rem",
               color: "#2c3e50"
             }}>
-              Family {family.family_id}
+              <Link
+                to={`/family/${family.family_id}`}
+                style={{
+                  color: "#2c3e50",
+                  textDecoration: "none",
+                  borderBottom: "2px solid transparent",
+                  transition: "border-color 0.2s"
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onMouseEnter={(e) => e.currentTarget.style.borderColor = "#3b82f6"}
+                onMouseLeave={(e) => e.currentTarget.style.borderColor = "transparent"}
+              >
+                Family {family.family_id}
+              </Link>
             </h3>
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{

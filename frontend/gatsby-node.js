@@ -89,4 +89,34 @@ exports.createPages = async ({ actions }) => {
   } catch (error) {
     console.error("❌ Error creating enzyme pages:", error.message);
   }
+
+  // Create family pages
+  try {
+    console.log(`Fetching families from ${apiUrl}/enzymes/families/summary`);
+    const response = await fetch(`${apiUrl}/enzymes/families/summary?limit=10000`, {
+      signal: AbortSignal.timeout(60000)
+    });
+
+    if (!response.ok) {
+      throw new Error(`API returned status ${response.status}`);
+    }
+
+    const result = await response.json();
+    const families = result.data || [];
+    console.log(`Found ${families.length} families`);
+
+    families.forEach(family => {
+      createPage({
+        path: `/family/${family.family_id}`,
+        component: require.resolve("./src/templates/family.js"),
+        context: {
+          familyId: family.family_id,
+        },
+      });
+    });
+
+    console.log(`✓ Created ${families.length} family pages`);
+  } catch (error) {
+    console.error("❌ Error creating family pages:", error.message);
+  }
 };
