@@ -144,6 +144,30 @@ router.get('/:familyId/members', async (req, res, next) => {
 });
 
 /**
+ * GET /api/family/:familyId/metadata
+ * Returns metadata for a single family from the family_atlas materialized view.
+ */
+router.get('/:familyId/metadata', async (req, res, next) => {
+  const { error, value: familyId } = familyIdSchema.validate(req.params.familyId);
+  if (error) return res.status(400).json({ error: error.message });
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT family_id, genbank_accession_id, definition, organism, taxonomy,
+              journal, collection_date, country, family_size, umap_x, umap_y
+       FROM family_atlas
+       WHERE family_id = $1
+       LIMIT 1`,
+      [familyId]
+    );
+    if (!rows.length) return res.status(404).json({ error: `No atlas metadata for family ${familyId}` });
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * GET /api/family/:familyId/umap
  * Returns all UMAP points from family_atlas for the scatter panel.
  * Current family is identified client-side for highlighting.

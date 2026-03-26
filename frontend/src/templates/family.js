@@ -520,6 +520,48 @@ function pageBtnStyle(disabled) {
   }
 }
 
+// ── Family Metadata ────────────────────────────────────────────────────────
+
+function FamilyMetadata({ familyId }) {
+  const [meta, setMeta] = useState(null)
+
+  useEffect(() => {
+    if (!familyId) return
+    fetch(`${config.apiUrl}/family/${familyId}/metadata`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => d && setMeta(d))
+      .catch(() => {})
+  }, [familyId])
+
+  if (!meta) return (
+    <div style={{ color: "#94a3b8", fontSize: "0.9rem" }}>No atlas metadata available</div>
+  )
+
+  const row = (label, value) => value ? (
+    <div key={label} style={{
+      display: "grid", gridTemplateColumns: "200px 1fr", gap: "1rem",
+      padding: "0.75rem 1rem", backgroundColor: "#f9fafb",
+      borderRadius: "6px", borderLeft: "3px solid #e5e7eb"
+    }}>
+      <div style={{ fontWeight: 600, color: "#374151" }}>{label}</div>
+      <div style={{ color: "#6b7280", wordBreak: "break-word" }}>{value}</div>
+    </div>
+  ) : null
+
+  return (
+    <div style={{ display: "grid", gap: "0.75rem" }}>
+      {row("Accession", meta.genbank_accession_id)}
+      {row("Definition", meta.definition)}
+      {row("Organism", meta.organism)}
+      {row("Taxonomy", meta.taxonomy)}
+      {row("Country", meta.country)}
+      {row("Collection Date", meta.collection_date)}
+      {row("Journal", meta.journal)}
+      {row("Family Size", meta.family_size?.toLocaleString())}
+    </div>
+  )
+}
+
 // ── Section wrapper ────────────────────────────────────────────────────────
 
 function Section({ title, children }) {
@@ -708,12 +750,17 @@ export default function FamilyTemplate({ pageContext }) {
               <MembersTable familyId={familyId} centroid={family} />
             </Section>
 
-            {/* ── 3. ESM Atlas ── */}
+            {/* ── 3. Centroid Metadata ── */}
+            <Section title="Centroid Metadata">
+              <FamilyMetadata familyId={familyId} />
+            </Section>
+
+            {/* ── 4. ESM Atlas ── */}
             <Section title="ESM Atlas">
               <AtlasMap familyId={familyId} />
             </Section>
 
-            {/* ── 4. Phylogenetic tree ── */}
+            {/* ── 5. Phylogenetic tree ── */}
             <Section title="Phylogenetic Tree">
               {treeLoading && (
                 <div style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
