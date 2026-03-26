@@ -372,6 +372,22 @@
   opacity: 1;
 }
 
+/* Chart sections */
+.chartSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.chartTitle {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c757d;
+  margin: 0;
+}
+
 /* Results table */
 .tableWrap {
   overflow-x: auto;

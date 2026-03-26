@@ -13,11 +13,11 @@ export const FamilyPieChart = ({
 
   // Build pieData from pre-computed familyCounts
   const pieData = Object.entries(familyCounts)
-    .map(([name, { count }]) => ({ name, count }))
+    .map(([name, { count, family_num }]) => ({ name, count, family_num }))
     .sort((a, b) => b.count - a.count)
 
   if (unknownCount > 0) {
-    pieData.push({ name: "Unknown", count: unknownCount })
+    pieData.push({ name: "Unknown", count: unknownCount, family_num: null })
   }
 
   const colorScale = d3
@@ -57,9 +57,10 @@ export const FamilyPieChart = ({
               fill={colorScale(d.data.name)}
               stroke="white"
               strokeWidth={1.5}
-              style={{ cursor: "pointer", transition: "d 0.15s" }}
+              style={{ cursor: d.data.family_num != null ? "pointer" : "default", transition: "d 0.15s" }}
               onMouseEnter={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
+              onClick={() => d.data.family_num != null && window.open(`/family/${d.data.family_num}`, "_blank")}
             />
           ))}
           {/* Center label */}
@@ -103,11 +104,12 @@ export const FamilyPieChart = ({
               alignItems: "center",
               gap: 6,
               opacity: hovered === null || hovered === i ? 1 : 0.4,
-              cursor: "pointer",
+              cursor: d.family_num != null ? "pointer" : "default",
               transition: "opacity 0.15s",
             }}
             onMouseEnter={() => setHovered(i)}
             onMouseLeave={() => setHovered(null)}
+            onClick={() => d.family_num != null && window.open(`/family/${d.family_num}`, "_blank")}
           >
             <div
               style={{

@@ -51,6 +51,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
     size: hit.bitscore ?? 5,
     evalue: hit.evalue,
     name: hit.accession,
+    enzyme_id: hit.enzyme_id,
   }))
 
 
@@ -206,20 +207,32 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
               gridTemplateColumns: "1fr 1fr"
             }}
           >
-            <Scatterplot width={800} height={500} data={scatterData} />
-            <FamilyPieChart
-              data={results}
-              width={260}
-              height={260}
-              familyCounts={familyCounts}
-              unknownCount={unknownCount}
-              total={results.length}
-            />
-            <AlignmentCoverageMap data={results}/>
+            <div className={s.chartSection}>
+              <p className={s.chartTitle}>Identity vs. Query Coverage</p>
+              <Scatterplot width={800} height={500} data={scatterData} />
+            </div>
+            <div className={s.chartSection}>
+              <p className={s.chartTitle}>Family Distribution</p>
+              <FamilyPieChart
+                data={results}
+                width={260}
+                height={260}
+                familyCounts={familyCounts}
+                unknownCount={unknownCount}
+                total={results.length}
+              />
+            </div>
+            <div className={s.chartSection}>
+              <p className={s.chartTitle}>Alignment Coverage Map</p>
+              <AlignmentCoverageMap data={results}/>
+            </div>
           </div>
 
           {/* Atlas */}
-          <AtlasMap highlightFamilyIds={hitFamilyIds} />
+          <div className={s.chartSection} style={{ marginTop: "1rem" }}>
+            <p className={s.chartTitle}>Enzyme Atlas — Hit Family Locations</p>
+            <AtlasMap highlightFamilyIds={hitFamilyIds} />
+          </div>
 
           {/* Results table */}
           <div className={s.tableWrap}>

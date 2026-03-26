@@ -3,7 +3,6 @@ import * as d3 from "d3"
 import { Axes } from "./Axes"
 import * as styles from "./scatterplot.module.css"
 import { Tooltip } from "./Tooltip"
-import { Legend } from "./Legend"
 
 export const Scatterplot = ({ width, height, data }) => {
   const [zoomTransform, setZoomTransform] = useState(d3.zoomIdentity)
@@ -20,10 +19,7 @@ export const Scatterplot = ({ width, height, data }) => {
   const yMin = d3.min(data, d => d.y) - 5
   const yMax = d3.max(data, d => d.y) + 5
 
-  const evalues = data.map(d => d.evalue).filter(v => v > 0)
-  const evalueMin = d3.min(evalues)
-  const evalueMax = d3.max(evalues)
-  const sortedData = [...data].sort((a, b) => b.evalue - a.evalue)
+  const sortedData = [...data]
 
   const [interactionData, setInteractionData] = useState()
 
@@ -36,9 +32,6 @@ export const Scatterplot = ({ width, height, data }) => {
   const zoomedYScale = zoomTransform.rescaleY(yScale)
 
   const sizeScale = d3.scaleSqrt().domain([0, 600]).range([4, 16])
-  const colorScale = d3
-    .scaleSequentialLog(d3.interpolateYlOrRd)
-    .domain([evalueMin, evalueMax])
 
   // Set up D3 zoom behavior
   useEffect(() => {
@@ -80,30 +73,29 @@ export const Scatterplot = ({ width, height, data }) => {
   }, [])
 
   const squares = sortedData.map((d, i) => {
-    const size = sizeScale(d.size)
-    // Use zoomed scales for positioning
-    const xPos = zoomedXScale(d.x) - size / 2
-    const yPos = zoomedYScale(d.y) - size / 2
-    const fillColor = colorScale(d.evalue)
+    const r = sizeScale(d.size) / 2
+    const cx = zoomedXScale(d.x)
+    const cy = zoomedYScale(d.y)
     return (
       <g
         key={i}
+        style={{ cursor: "pointer" }}
+        onClick={() => { if (!zoomMode && d.enzyme_id != null) window.open(`/enzyme/${d.enzyme_id}`, "_blank") }}
         onMouseMove={() =>
           setInteractionData({
-            xPos: xPos + margin.left,
-            yPos: yPos + margin.top,
+            xPos: cx + margin.left,
+            yPos: cy + margin.top,
             ...d,
           })
         }
         onMouseLeave={() => setInteractionData(undefined)}
       >
-        <rect
-          x={xPos}
-          y={yPos}
-          opacity={1}
-          fill={fillColor}
-          width={size}
-          height={size}
+        <circle
+          cx={cx}
+          cy={cy}
+          r={r}
+          fill="#1a73e8"
+          opacity={0.7}
           className={styles.scatterplotSquare}
         />
       </g>
@@ -204,12 +196,6 @@ export const Scatterplot = ({ width, height, data }) => {
             {squares}
             {annotations}
           </g>
-          <Legend
-            colorScale={colorScale}
-            innerWidth={innerWidth}
-            evalueMin={evalueMin}
-            evalueMax={evalueMax}
-          />
         </g>
       </svg>
 
