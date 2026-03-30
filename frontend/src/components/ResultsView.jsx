@@ -7,6 +7,7 @@ import { Scatterplot } from "./charts/Scatterplot"
 import { TaxonomyScatterChart } from "./charts/TaxonomyScatterChart"
 import * as s from '../styles/results.module.css';
 import AlignmentCoverageMap from './charts/AlignmentCoverageMap';
+import { FunctionalAnnotationChart } from './charts/FunctionalAnnotationChart';
 
 // Deterministic per-family color — must match enzymes.js
 function familyColor(familyId) {
@@ -249,6 +250,10 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
             <div className={s.chartSection}>
               <p className={s.chartTitle}>Alignment Coverage Map</p>
               <AlignmentCoverageMap data={results}/>
+            </div>
+            <div className={s.chartSection}>
+              <p className={s.chartTitle}>Functional Annotation</p>
+              <FunctionalAnnotationChart data={results} height={500} />
             </div>
           </div>
 
