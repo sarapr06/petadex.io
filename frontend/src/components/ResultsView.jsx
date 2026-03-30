@@ -53,7 +53,8 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
   const uniqueFamilies = Object.keys(familyCounts).length;
   const maxCount = sorted[0]?.[1].count || 1;
 
-  const cleanSeq = cleanSequence(sequence)
+  const cleanSeq = metadata?.query_sequence || cleanSequence(sequence)
+  const queryHeader = metadata?.query_header || null
 
   const scatterData = results.map(hit => ({
     x: hit.identity,
@@ -143,7 +144,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
             className={s.queryPillToggle}
             onClick={() => setQueryOpen(o => !o)}
           >
-            <span className={s.queryPillLabel}>Query</span>
+            <span className={s.queryPillLabel}>Query{queryHeader ? `: ${queryHeader}` : ''}</span>
             <span className={s.queryPillSeqPreview}>
               {formatSeq(cleanSeq, 60)}
             </span>
@@ -157,7 +158,11 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
               ▼
             </span>
           </button>
-          {queryOpen && <pre className={s.queryPillSeqFull}>{cleanSeq}</pre>}
+          {queryOpen && (
+            <pre className={s.queryPillSeqFull}>
+              {queryHeader ? `>${queryHeader}\n` : ''}{cleanSeq}
+            </pre>
+          )}
         </div>
       )}
 

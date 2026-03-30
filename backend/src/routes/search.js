@@ -297,6 +297,8 @@ router.post('/', async (req, res, next) => {
           database_size: cached.data.database_size,
           search_time_ms: cached.data.search_time_ms,
           timestamp: cached.data.timestamp,
+          query_sequence: cached.data.query_sequence || null,
+          query_header: cached.data.query_header || null,
         },
       });
     }
@@ -427,6 +429,8 @@ router.get('/results/:job_id', async (req, res, next) => {
           database_size: result.data.database_size,
           search_time_ms: result.data.search_time_ms,
           timestamp: result.data.timestamp,
+          query_sequence: result.data.query_sequence || null,
+          query_header: result.data.query_header || null,
         },
       });
     }
