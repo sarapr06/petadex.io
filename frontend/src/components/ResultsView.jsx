@@ -7,6 +7,12 @@ import { FamilyPieChart } from "./charts/PieChart"
 import * as s from '../styles/results.module.css';
 import AlignmentCoverageMap from './charts/AlignmentCoverageMap';
 
+// Deterministic per-family color — must match enzymes.js
+function familyColor(familyId) {
+  const hue = (familyId * 137.508) % 360;
+  return `hsl(${hue}, 60%, 45%)`;
+}
+
 const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) => {
   const [familySummaryOpen, setFamilySummaryOpen] = useState(true);
   const [queryOpen, setQueryOpen] = useState(false);
@@ -160,7 +166,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
                     <div key={label} className={s.familyBarRow}>
                       <div className={s.familyBarLabel}>
                         {label !== 'Unknown' && family_num != null ? (
-                          <Link to={familyUrl(family_num)} className={s.link}>
+                          <Link to={familyUrl(family_num)} className={s.link} style={{ color: familyColor(family_num) }}>
                             {label}
                           </Link>
                         ) : (
@@ -184,8 +190,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
                           className={s.familyBarFill}
                           style={{
                             width: `${(count / maxCount) * 100}%`,
-                            background:
-                              label === "Unknown" ? "#adb5bd" : "#007bff",
+                            background: label === "Unknown" ? "#adb5bd" : familyColor(family_num),
                           }}
                         />
                       </div>
@@ -260,7 +265,9 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
                   <tr key={`${hit.rank}-${hit.accession}`} className={s.tr}>
                     <td className={s.td}>{hit.rank}</td>
                     <td className={s.td}>
-                      <a href={`/sequence/${hit.accession}`} target="_blank" rel="noopener noreferrer" className={s.link}>{hit.accession}</a>
+                      <a href={`/sequence/${hit.accession}`} target="_blank" rel="noopener noreferrer" className={s.link}
+                        style={{ color: hit.family != null ? familyColor(hit.family) : undefined }}
+                      >{hit.accession}</a>
                     </td>
                     <td className={s.td}>{hit.name || "-"}</td>
                     <td className={s.td}>
@@ -269,7 +276,10 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
                     <td className={s.td}>
                       {hit.family != null ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                          <a href={familyUrl(hit.family)} target="_blank" rel="noopener noreferrer" className={s.link}>Family {hit.family}</a>
+                          <span style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: familyColor(hit.family), flexShrink: 0 }} />
+                          <a href={familyUrl(hit.family)} target="_blank" rel="noopener noreferrer" className={s.link}
+                            style={{ color: familyColor(hit.family) }}
+                          >Family {hit.family}</a>
                           {hit.has_tree && (
                             <a
                               href={familyUrl(hit.family)}

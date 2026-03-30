@@ -140,35 +140,35 @@ function transformResults(rawResults, queryLength) {
 
 const searchSchema = Joi.object({
   sequence: Joi.string()
-    .pattern(/^[ACDEFGHIKLMNPQRSTVWY\s\n\r*-]+$/i)
+    .pattern(/^>[^\n\r]+[\n\r]+[ACDEFGHIKLMNPQRSTVWY\s\n\r*-]+$/i)
     .min(10).max(10000).required()
-    .messages({ 'string.pattern.base': 'Invalid characters in sequence. Use standard amino acid codes.' }),
+    .messages({ 'string.pattern.base': 'Sequence must begin with a FASTA header line (e.g. >accession) followed by amino acid sequence.' }),
   max_results: Joi.number().integer().min(1).max(500).default(50),
 });
 
 const jobIdSchema = Joi.alternatives().try(
-  Joi.string().pattern(/^[a-f0-9]{32}$/),          // MD5 sessionId
-  Joi.string().uuid({ version: 'uuidv4' }),          // Lambda job_id
-  Joi.string().pattern(/^example_[a-zA-Z0-9_]+$/)   // example slugs
+  Joi.string().pattern(/^[a-f0-9]{32}$/),                    // MD5 sessionId
+  Joi.string().uuid({ version: 'uuidv4' }),                   // Lambda job_id
+  Joi.string().pattern(/^regen_example_[a-zA-Z0-9_]+$/)      // example slugs
 ).required();
 
 const EXAMPLE_SEARCHES = [
   {
-    job_id: 'example_ispetase',
+    job_id: 'regen_example_ispetase',
     name: 'IsPETase',
     description: 'Well-characterized PETase from Ideonella sakaiensis',
     organism: 'Ideonella sakaiensis',
     query_length: 290,
   },
   {
-    job_id: 'example_fastpetase',
+    job_id: 'regen_example_fast_petase',
     name: 'FAST-PETase',
     description: 'Engineered variant with enhanced activity and thermostability',
     organism: 'Engineered',
     query_length: 290,
   },
   {
-    job_id: 'example_SRR10663367',
+    job_id: 'regen_example_srr10663367',
     name: 'SRR10663367',
     description: 'Logan-discovered enzyme with activity exceeding FAST-PETase',
     organism: 'Metagenome',
@@ -276,7 +276,7 @@ router.post('/', async (req, res, next) => {
     if (error) return sendError(res, 400, error.details[0].message);
 
     const { sequence, max_results } = value;
-    const cleanSequence = sequence.replace(/[\s\n\r]/g, '').toUpperCase();
+    const cleanSequence = sequence.replace(/^>[^\n\r]*[\n\r]+/, '').replace(/[\s\n\r]/g, '').toUpperCase();
     const sessionId = makeSessionId(cleanSequence, max_results);
     const s3 = getS3Client();
 
@@ -368,12 +368,10 @@ router.get('/examples', (_req, res) => res.json({ examples: EXAMPLE_SEARCHES }))
 /**
  * GET /api/search/results/:job_id
  *
- * MD5 sessionId:
+ * MD5 sessionId or regen_example_*:
  *   - Check index file → completed if found, processing if not
  * UUID job_id:
  *   - Fetch results/{sessionId}/{job_id}.json directly (for history/shared links)
- * example_*:
- *   - Fetch results/{job_id}.json directly
  */
 router.get('/results/:job_id', async (req, res, next) => {
   try {
@@ -382,8 +380,8 @@ router.get('/results/:job_id', async (req, res, next) => {
 
     const s3 = getS3Client();
 
-    // MD5 sessionId — check index file
-    if (/^[a-f0-9]{32}$/.test(jobId)) {
+    // MD5 sessionId or regen_example_* — check index file
+    if (/^[a-f0-9]{32}$/.test(jobId) || /^regen_example_/.test(jobId)) {
       const result = await resolveFromIndex(s3, jobId);
 
       if (!result) {
@@ -430,59 +428,6 @@ router.get('/results/:job_id', async (req, res, next) => {
           timestamp: result.data.timestamp,
         },
       });
-    }
-
-    // example_* — flat results/{job_id}.json
-    const s3Key = /^example_/.test(jobId)
-      ? `${RESULTS_PREFIX}/${jobId}.json`
-      : null;
-
-    if (s3Key) {
-      try {
-        const resp = await s3.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: s3Key }));
-        const content = await streamToString(resp.Body);
-        const data = JSON.parse(content);
-        const transformedResults = transformResults(data.results, data.query_length);
-
-        try {
-          const accessions = transformedResults.map(r => r.accession).filter(Boolean);
-          const familyMap = await enrichWithFamilyData(accessions);
-          for (const hit of transformedResults) {
-            const info = familyMap[hit.accession];
-            hit.enzyme_id = info?.enzyme_id ?? null;
-            hit.family = info?.family ?? null;
-            hit.component = info?.component ?? null;
-            hit.family_pid = info?.family_pid ?? null;
-          }
-          const uniqueFamilyIds = [...new Set(
-            transformedResults.map(r => r.family).filter(f => f != null)
-          )];
-          const familiesWithTrees = await checkFamilyTrees(uniqueFamilyIds);
-          for (const hit of transformedResults) {
-            hit.has_tree = hit.family != null && familiesWithTrees.has(hit.family);
-          }
-        } catch (dbErr) {
-          console.error('Family enrichment failed (non-fatal):', dbErr);
-        }
-
-        return res.json({
-          status: 'completed',
-          job_id: jobId,
-          results: transformedResults,
-          metadata: {
-            query_length: data.query_length,
-            num_results: data.num_results,
-            database_size: data.database_size,
-            search_time_ms: data.search_time_ms,
-            timestamp: data.timestamp,
-          },
-        });
-      } catch (err) {
-        if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
-          return res.status(404).json({ status: 'not_found', job_id: jobId, error: 'Job not found.' });
-        }
-        throw err;
-      }
     }
 
     return res.status(404).json({ status: 'not_found', job_id: jobId, error: 'Job not found.' });

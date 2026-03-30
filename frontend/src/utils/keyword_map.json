@@ -1,0 +1,65 @@
+{
+  "Polyester hydrolase / PETase": [
+    "PETase", "PET hydrolase", "polyethylene terephthalate hydrolase",
+    "BHET hydrolase", "bis(hydroxyethyl) terephthalate hydrolase",
+    "polyester hydrolase", "polyurethanase", "PBAT hydrolase",
+    "cutinase", "cutinase family"
+  ],
+  "PHA depolymerase": [
+    "PHB depolymerase", "PHA depolymerase", "PLA depolymerase",
+    "PBS depolymerase", "polyhydroxyalkanoate depolymerase",
+    "poly(3-hydroxyalkanoate) depolymerase",
+    "3-hydroxybutyrate oligomer hydrolase", "hydroxybutyrate-dimer hydrolase",
+    "D-(-)-3-hydroxybutyrate oligomer hydrolase",
+    "rubber oxygenase", "latex clearing protein"
+  ],
+  "Lipase / esterase": [
+    "lipase", "esterase", "carboxylesterase", "acylhydrolase",
+    "triacylglycerol lipase", "GDSL hydrolase", "SGNH hydrolase",
+    "epoxide hydrolase"
+  ],
+  "Oxidoreductase (laccase / MCO)": [
+    "laccase", "multicopper oxidase", "copper resistance system multicopper oxidase",
+    "L-ascorbate oxidase", "ferroxidase", "copper oxidase",
+    "chloroperoxidase", "peroxidase", "nitrite reductase", "oxidoreductase"
+  ],
+  "Protease": [
+    "S8 family", "subtilisin", "peptidase", "protease", "proteinase",
+    "serine protease", "kexin", "sedolisin",
+    "trypsin", "chymotrypsin", "acrosin", "brachyurin", "elastase"
+  ],
+  "Amidase": [
+    "amidase", "amidohydrolase", "allophanate hydrolase",
+    "indoleacetamide hydrolase", "acetamidase", "fatty-acid amide hydrolase"
+  ],
+  "Beta-lactamase / PBP": [
+    "beta-lactamase", "penicillin binding protein", "penicillin-binding protein"
+  ],
+  "Aromatic catabolism enzyme": [
+    "dienelactone hydrolase", "3-oxoadipate enol-lactonase",
+    "4-carboxymuconolactone decarboxylase", "muconate"
+  ],
+  "Glycoside hydrolase": [
+    "glycoside hydrolase", "glucosidase", "xylanase", "cellulase",
+    "amylase", "mannosidase", "chitinase"
+  ],
+  "Dehalogenase": [
+    "dehalogenase", "haloalkane"
+  ],
+  "tRNA amidotransferase (noise)": [
+    "amidotransferase subunit GatA", "amidotransferase GatCAB",
+    "glutamyl-tRNA(Gln) amidotransferase", "glutamyl-tRNA amidotransferase",
+    "aspartyl-tRNA", "aspartyl/glutamyl-tRNA"
+  ],
+  "Serine hydrolase (unspecified)": [
+    "serine hydrolase"
+  ],
+  "Alpha/beta hydrolase fold (unspecified)": [
+    "alpha/beta hydrolase", "alpha/beta fold hydrolase", "alpha/beta-hydrolase",
+    "hydrolase"
+  ],
+  "Hypothetical / uncharacterized": [
+    "hypothetical protein", "uncharacterized protein", "unnamed protein product",
+    "predicted protein"
+  ]
+}

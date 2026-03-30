@@ -45,9 +45,25 @@ function hashColor(str, alpha = 200) {
 const HIDDEN_COLOR = [30, 41, 59, 40]
 const HIGHLIGHT_COLOR = [255, 20, 147, 255]
 
+// Convert family_id to a deck.gl RGBA — matches familyColor() in ResultsView/enzymes
+function familyIdToRGBA(familyId) {
+  const hue = (familyId * 137.508) % 360
+  const h = hue / 360, s = 0.6, l = 0.45
+  const a = s * Math.min(l, 1 - l)
+  const f = n => {
+    const k = (n + h * 12) % 12
+    return l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)))
+  }
+  return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255), 255]
+}
+
 function getPointColor(point, colorBy, hidden, highlightFamilyId, highlightFamilyIds) {
   if (highlightFamilyId != null && point.family_id === highlightFamilyId) return HIGHLIGHT_COLOR
-  if (highlightFamilyIds != null && highlightFamilyIds.has(point.family_id)) return HIGHLIGHT_COLOR
+  if (highlightFamilyIds != null) {
+    return highlightFamilyIds.has(point.family_id)
+      ? familyIdToRGBA(point.family_id)
+      : [100, 116, 139, 100]
+  }
   if (colorBy === "none") return [100, 210, 190, 200]
   const { domain, phylum } = parseTaxonomy(point.taxonomy)
   if (colorBy === "domain") {
@@ -143,7 +159,10 @@ function buildScatterLayer(points, maxSize, ScatterplotLayer, colorBy, hidden, h
     id: "umap",
     data: sorted,
     getPosition: d => [d.umap_x, d.umap_y],
-    getRadius: d => Math.sqrt(d.family_size / maxSize) * 1.5,
+    getRadius: d => {
+      const base = Math.sqrt(d.family_size / maxSize) * 1.5
+      return (highlightFamilyIds?.has(d.family_id)) ? base * 1.8 : base
+    },
     radiusMinPixels: 2,
     radiusMaxPixels: 12,
     getFillColor: d => getPointColor(d, colorBy, hidden, highlightFamilyId, highlightFamilyIds),

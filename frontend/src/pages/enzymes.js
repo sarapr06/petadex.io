@@ -8,7 +8,13 @@ import Seo from "../components/seo";
 import config from "../config";
 import { useScrollHeader } from "../hooks/useScrollHeader";
 
-// EnzymeRow Component - Displays individual enzyme (centroid or variant)
+
+// Deterministic per-family color from family_id using golden-ratio hue spread
+function familyColor(familyId) {
+  const hue = (familyId * 137.508) % 360;
+  return `hsl(${hue}, 60%, 45%)`;
+}
+
 const EnzymeRow = ({ enzyme, isCentroid }) => (
   <div style={{
     padding: "0.75rem 1rem",
@@ -76,6 +82,8 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
   const [variants, setVariants] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  const color = familyColor(family.family_id);
+
   const loadVariants = async () => {
     if (variants.length) return; // Already loaded
 
@@ -103,6 +111,7 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
   return (
     <div style={{
       border: "1px solid #e2e8f0",
+      borderLeft: `4px solid ${color}`,
       borderRadius: "8px",
       marginBottom: "1rem",
       backgroundColor: "white",
