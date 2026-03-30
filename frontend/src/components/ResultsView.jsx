@@ -3,7 +3,7 @@ import { Link } from 'gatsby';
 import { formatSeq, cleanSequence } from '../utils/lib';
 import AtlasMap from './AtlasMap';
 import { Scatterplot } from "./charts/Scatterplot"
-import { FamilyPieChart } from "./charts/PieChart"
+import { TaxonomyScatterChart } from "./charts/TaxonomyScatterChart"
 import * as s from '../styles/results.module.css';
 import AlignmentCoverageMap from './charts/AlignmentCoverageMap';
 
@@ -58,6 +58,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
     evalue: hit.evalue,
     name: hit.accession,
     enzyme_id: hit.enzyme_id,
+    family: hit.family,
   }))
 
 
@@ -207,25 +208,18 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
             style={{
               display: "grid",
               gap: "2rem",
-              alignItems: "flex-start",
+              alignItems: "stretch",
               justifyContent: "space-around",
               gridTemplateColumns: "1fr 1fr"
             }}
           >
             <div className={s.chartSection}>
               <p className={s.chartTitle}>Identity vs. Query Coverage</p>
-              <Scatterplot width={800} height={500} data={scatterData} />
+              <Scatterplot height={500} data={scatterData} />
             </div>
             <div className={s.chartSection}>
-              <p className={s.chartTitle}>Family Distribution</p>
-              <FamilyPieChart
-                data={results}
-                width={260}
-                height={260}
-                familyCounts={familyCounts}
-                unknownCount={unknownCount}
-                total={results.length}
-              />
+              <p className={s.chartTitle}>Taxonomy vs. Identity</p>
+              <TaxonomyScatterChart data={results} height={500} />
             </div>
             <div className={s.chartSection}>
               <p className={s.chartTitle}>Alignment Coverage Map</p>

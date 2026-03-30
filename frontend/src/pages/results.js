@@ -47,17 +47,18 @@ function buildBugReportUrl(message, jobId) {
 function transformResults(rawResults, queryLength) {
   return (rawResults || []).map((hit, index) => ({
     rank: index + 1,
-    accession: hit.target_id,
-    target_id: hit.target_id,
-    name: hit.target_name || null,
-    organism: hit.organism || null,
-    percent_identity: hit.percent_identity,
-    identity: hit.percent_identity,
+    accession: hit.target_id || hit.accession,
+    target_id: hit.target_id || hit.accession,
+    name: hit.target_name || hit.name || hit.metadata?.definition || null,
+    organism: hit.organism || hit.metadata?.organism || null,
+    taxonomy: hit.taxonomy || hit.metadata?.taxonomy || null,
+    percent_identity: hit.percent_identity ?? hit.identity,
+    identity: hit.percent_identity ?? hit.identity,
     evalue: hit.evalue,
     bitscore: hit.bitscore,
     query_coverage: queryLength && hit.query_end != null && hit.query_start != null
       ? Math.round(((hit.query_end - hit.query_start + 1) / queryLength) * 100)
-      : null,
+      : (hit.query_coverage ?? null),
     alignment_length: hit.alignment_length,
     query_start: hit.query_start,
     query_end: hit.query_end,

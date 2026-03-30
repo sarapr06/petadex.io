@@ -4,13 +4,33 @@ import { Axes } from "./Axes"
 import * as styles from "./scatterplot.module.css"
 import { Tooltip } from "./Tooltip"
 
-export const Scatterplot = ({ width, height, data }) => {
+function familyColor(familyId) {
+  const hue = (familyId * 137.508) % 360
+  return `hsl(${hue}, 60%, 45%)`
+}
+
+export const Scatterplot = ({ height, data }) => {
+  const containerRef = useRef(null)
+  const [containerWidth, setContainerWidth] = useState(0)
   const [zoomTransform, setZoomTransform] = useState(d3.zoomIdentity)
   const [zoomMode, setZoomMode] = useState(false)
   const svgRef = useRef(null)
   const zoomRef = useRef(null)
 
-  const margin = { top: 60, right: 100, bottom: 100, left: 60 }
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => {
+      const w = entries[0]?.contentRect?.width
+      if (w && w > 0) setContainerWidth(Math.floor(w))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const width = containerWidth || 700
+
+  const margin = { top: 20, right: 24, bottom: 72, left: 54 }
   const innerWidth = width - margin.left - margin.right
   const innerHeight = height - margin.top - margin.bottom
 
@@ -94,7 +114,7 @@ export const Scatterplot = ({ width, height, data }) => {
           cx={cx}
           cy={cy}
           r={r}
-          fill="#1a73e8"
+          fill={d.family != null ? familyColor(d.family) : "#1a73e8"}
           opacity={0.7}
           className={styles.scatterplotSquare}
         />
@@ -136,8 +156,12 @@ export const Scatterplot = ({ width, height, data }) => {
       )
     })
 
+  if (!containerWidth) {
+    return <div ref={containerRef} style={{ width: "100%", minHeight: height }} />
+  }
+
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={containerRef} style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1 }}>
       {/* Controls */}
       <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
         <button
@@ -170,46 +194,48 @@ export const Scatterplot = ({ width, height, data }) => {
         </button>
       </div>
 
-      <svg
-        ref={svgRef}
-        width={width}
-        height={height}
-        shapeRendering="crispEdges"
-        // Block mouse tooltip events from firing when panning/zooming
-        style={{ userSelect: "none" }}
-      >
-        {/* Clip path so points don't render outside the plot area */}
-        <defs>
-          <clipPath id="plot-area">
-            <rect x={0} y={0} width={innerWidth} height={innerHeight} />
-          </clipPath>
-        </defs>
+      <div className={styles.svgWrap}>
+        <svg
+          ref={svgRef}
+          width={width}
+          height={height}
+          shapeRendering="crispEdges"
+          // Block mouse tooltip events from firing when panning/zooming
+          style={{ userSelect: "none", display: "block" }}
+        >
+          {/* Clip path so points don't render outside the plot area */}
+          <defs>
+            <clipPath id="plot-area">
+              <rect x={0} y={0} width={innerWidth} height={innerHeight} />
+            </clipPath>
+          </defs>
 
-        <g transform={`translate(${margin.left}, ${margin.top})`}>
-          <Axes
-            xScale={zoomedXScale}
-            yScale={zoomedYScale}
-            width={innerWidth}
-            height={innerHeight}
-          />
-          <g clipPath="url(#plot-area)">
-            {squares}
-            {annotations}
+          <g transform={`translate(${margin.left}, ${margin.top})`}>
+            <Axes
+              xScale={zoomedXScale}
+              yScale={zoomedYScale}
+              width={innerWidth}
+              height={innerHeight}
+            />
+            <g clipPath="url(#plot-area)">
+              {squares}
+              {annotations}
+            </g>
           </g>
-        </g>
-      </svg>
+        </svg>
 
-      <div
-        style={{
-          position: "absolute",
-          width,
-          height,
-          top: 0,
-          left: 0,
-          pointerEvents: "none",
-        }}
-      >
-        <Tooltip interactionData={interactionData} />
+        <div
+          style={{
+            position: "absolute",
+            width,
+            height,
+            top: 0,
+            left: 0,
+            pointerEvents: "none",
+          }}
+        >
+          <Tooltip interactionData={interactionData} containerWidth={width} />
+        </div>
       </div>
     </div>
   )
