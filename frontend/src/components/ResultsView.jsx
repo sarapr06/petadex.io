@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Link } from 'gatsby';
 import { formatSeq, cleanSequence } from '../utils/lib';
+import { generateCSV, downloadCSV } from '../utils/csvDownload';
 import AtlasMap from './AtlasMap';
 import { Scatterplot } from "./charts/Scatterplot"
 import { TaxonomyScatterChart } from "./charts/TaxonomyScatterChart"
@@ -15,6 +16,8 @@ function familyColor(familyId) {
 
 const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) => {
   const [familySummaryOpen, setFamilySummaryOpen] = useState(true);
+  const [atlasOpen, setAtlasOpen] = useState(true);
+  const [atlasActive, setAtlasActive] = useState(false);
   const [queryOpen, setQueryOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -60,6 +63,36 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
     enzyme_id: hit.enzyme_id,
     family: hit.family,
   }))
+
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
+
+  const handleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  const sortedResults = useMemo(() => {
+    if (!sortKey) return results
+    return [...results].sort((a, b) => {
+      let av = a[sortKey], bv = b[sortKey]
+      if (av == null) return 1
+      if (bv == null) return -1
+      if (typeof av === 'string') { av = av.toLowerCase(); bv = (bv || '').toLowerCase() }
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+  }, [results, sortKey, sortDir])
+
+  const handleDownload = () => {
+    const headers = ['#', 'Accession', 'Name', 'Organism', 'Family', 'Identity (%)', 'E-value', 'Coverage (%)']
+    const rows = results.map(h => [
+      h.rank, h.accession, h.name || '', h.organism || '',
+      h.family != null ? `Family ${h.family}` : '',
+      h.identity?.toFixed(1) ?? '', h.evalue ?? '', h.query_coverage ?? '',
+    ])
+    downloadCSV(generateCSV(headers, rows), `petadex-results-${sessionId || 'search'}`)
+  }
 
 
   return (
@@ -175,15 +208,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
                         )}
                         {label !== 'Unknown' &&
                           family_num != null &&
-                          has_tree && (
-                            <Link
-                              to={familyUrl(family_num)}
-                              className={s.treeIconLink}
-                              title={`View phylogenetic tree for ${label}`}
-                            >
-                              🌿
-                            </Link>
-                          )}
+                          has_tree && null}
                       </div>
                       <div className={s.familyBarTrack}>
                         {/* width & background are dynamic — inline only */}
@@ -215,7 +240,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
           >
             <div className={s.chartSection}>
               <p className={s.chartTitle}>Identity vs. Query Coverage</p>
-              <Scatterplot height={500} data={scatterData} />
+              <Scatterplot height={500} data={scatterData} familyCounts={familyCounts} unknownCount={unknownCount} total={results.length} />
             </div>
             <div className={s.chartSection}>
               <p className={s.chartTitle}>Taxonomy vs. Identity</p>
@@ -229,33 +254,65 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
 
           {/* Atlas */}
           <div className={s.chartSection} style={{ marginTop: "1rem" }}>
-            <p className={s.chartTitle}>Enzyme Atlas — Hit Family Locations</p>
-            <AtlasMap highlightFamilyIds={hitFamilyIds} />
+            <div className={s.familySummaryTitle} onClick={() => setAtlasOpen(o => !o)} style={{ background: '#f1f3f5', padding: '0.5rem 0.75rem', borderRadius: 6 }}>
+              <span>Enzyme Atlas — Hit Family Locations</span>
+              <span className={s.familySummaryChevron} style={{ transform: atlasOpen ? "rotate(180deg)" : "none" }}>▼</span>
+            </div>
+            <div style={atlasOpen ? { position: 'relative' } : { visibility: 'hidden', height: 0, overflow: 'hidden' }}>
+              <AtlasMap highlightFamilyIds={hitFamilyIds} controllerEnabled={atlasActive} />
+              {!atlasActive && atlasOpen && (
+                <div
+                  onClick={() => setAtlasActive(true)}
+                  onMouseLeave={() => setAtlasActive(false)}
+                  style={{
+                    position: 'absolute', inset: 0, zIndex: 10,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: 'rgba(15,23,42,0.45)', cursor: 'pointer',
+                    borderRadius: 8,
+                  }}
+                >
+                  <span style={{ color: '#fff', fontSize: '0.9rem', fontWeight: 600, background: 'rgba(0,0,0,0.5)', padding: '0.4rem 1rem', borderRadius: 20 }}>
+                    Click to interact
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Results table */}
-          <div className={s.tableWrap}>
+          <div className={s.tableWrap} style={{ marginTop: "2.5rem" }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+              <button className={s.copyBtn} onClick={handleDownload}>⬇ Download CSV</button>
+            </div>
             <table className={s.table}>
               <thead>
                 <tr>
                   {[
-                    "#",
-                    "Accession",
-                    "Name",
-                    "Organism",
-                    "Family",
-                    "Identity",
-                    "E-value",
-                    "Coverage",
-                  ].map(h => (
-                    <th key={h} className={s.th}>
-                      {h}
+                    { label: '#',         key: 'rank' },
+                    { label: 'Accession', key: 'accession' },
+                    { label: 'Name',      key: 'name' },
+                    { label: 'Organism',  key: 'organism' },
+                    { label: 'Family',    key: 'family',  minWidth: '10rem' },
+                    { label: 'Identity',  key: 'identity' },
+                    { label: 'E-value',   key: 'evalue',  minWidth: '8rem' },
+                    { label: 'Coverage',  key: 'query_coverage' },
+                  ].map(({ label, key, minWidth }) => (
+                    <th
+                      key={key}
+                      className={s.th}
+                      onClick={() => handleSort(key)}
+                      style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', minWidth: minWidth || undefined }}
+                    >
+                      {label}
+                      <span style={{ marginLeft: 4, opacity: sortKey === key ? 1 : 0.3, fontSize: '0.75em' }}>
+                        {sortKey === key ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+                      </span>
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {results.map(hit => (
+                {sortedResults.map(hit => (
                   <tr key={`${hit.rank}-${hit.accession}`} className={s.tr}>
                     <td className={s.td}>{hit.rank}</td>
                     <td className={s.td}>
@@ -274,17 +331,7 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
                           <a href={familyUrl(hit.family)} target="_blank" rel="noopener noreferrer" className={s.link}
                             style={{ color: familyColor(hit.family) }}
                           >Family {hit.family}</a>
-                          {hit.has_tree && (
-                            <a
-                              href={familyUrl(hit.family)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={s.treeIconLink}
-                              title={`Tree for Family ${hit.family}`}
-                            >
-                              🌿
-                            </a>
-                          )}
+                          {hit.has_tree && null}
                         </span>
                       ) : (
                         "-"

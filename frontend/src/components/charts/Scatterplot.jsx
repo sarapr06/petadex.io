@@ -9,7 +9,7 @@ function familyColor(familyId) {
   return `hsl(${hue}, 60%, 45%)`
 }
 
-export const Scatterplot = ({ height, data }) => {
+export const Scatterplot = ({ height, data, familyCounts = {}, unknownCount = 0, total = 0 }) => {
   const containerRef = useRef(null)
   const [containerWidth, setContainerWidth] = useState(0)
   const [zoomTransform, setZoomTransform] = useState(d3.zoomIdentity)
@@ -156,6 +156,13 @@ export const Scatterplot = ({ height, data }) => {
       )
     })
 
+  const legendEntries = [
+    ...Object.entries(familyCounts)
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([label, { count, family_num }]) => ({ label, count, family_num, color: familyColor(family_num) })),
+    ...(unknownCount > 0 ? [{ label: "Unknown", count: unknownCount, family_num: null, color: "#adb5bd" }] : []),
+  ]
+
   if (!containerWidth) {
     return <div ref={containerRef} style={{ width: "100%", minHeight: height }} />
   }
@@ -194,6 +201,22 @@ export const Scatterplot = ({ height, data }) => {
         </button>
       </div>
 
+      {legendEntries.length > 0 && (
+        <div className={styles.legendWrap}>
+          {legendEntries.map(({ label, count, family_num, color }) => (
+            <span
+              key={label}
+              className={styles.legendChip}
+              style={{ borderColor: color, background: `${color}10`, cursor: family_num != null ? "pointer" : "default" }}
+              onClick={() => family_num != null && window.open(`/family/${family_num}`, "_blank")}
+            >
+              <span className={styles.legendChipDot} style={{ background: color }} />
+              {label}
+              <span className={styles.legendChipCount}>{count}</span>
+            </span>
+          ))}
+        </div>
+      )}
       <div className={styles.svgWrap}>
         <svg
           ref={svgRef}

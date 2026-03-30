@@ -229,7 +229,7 @@ const navBtnStyle = {
   lineHeight: 1,
 }
 
-const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds } = {}) => {
+const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnabled = true } = {}) => {
   const propHighlightId = familyIdProp != null ? parseInt(familyIdProp) : null
   const compact = propHighlightId != null
   const [highlightFamilyId, setHighlightFamilyId] = useState(propHighlightId)
@@ -444,7 +444,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds } = {}) => {
           parent: containerRef.current,
           views: new OrthographicView({ id: "ortho" }),
           initialViewState: { target: [cx, cy, 0], zoom },
-          controller: true,
+          controller: controllerEnabled,
           layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "none", new Set(), highlightFamilyId, highlightFamilyIds)],
           getTooltip: ({ object }) => object && buildTooltip(object, highlightFamilyId),
           onClick: ({ object }) => {
@@ -474,6 +474,12 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds } = {}) => {
       if (deckRef.current) { deckRef.current.finalize(); deckRef.current = null }
     }
   }, [])
+
+  // ── sync controller enabled/disabled ─────────────────────────────────────
+  useEffect(() => {
+    if (!deckRef.current) return
+    deckRef.current.setProps({ controller: controllerEnabled })
+  }, [controllerEnabled])
 
   // ── react to colorBy changes ──────────────────────────────────────────────
   useEffect(() => {
