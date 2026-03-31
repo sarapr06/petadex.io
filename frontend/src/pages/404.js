@@ -1,7 +1,6 @@
 import * as React from "react"
 import { useEffect, useState } from "react"
 
-import Layout from "../components/layout"
 import Seo from "../components/seo"
 import SequenceTemplate from "../templates/sequence"
 
@@ -29,10 +28,10 @@ const NotFoundPage = () => {
 
   // Otherwise, show the standard 404 page
   return (
-    <Layout>
+    <section className='ui-section-hero'>
       <h1>404: Not Found</h1>
       <p>You just hit a route that doesn&#39;t exist... the sadness.</p>
-    </Layout>
+    </section>
   )
 }
 

@@ -285,6 +285,7 @@ router.post('/', async (req, res, next) => {
     const cached = await resolveFromIndex(s3, sessionId);
     if (cached) {
       console.log(`Cache hit – sessionId=${sessionId} job=${cached.jobId}`);
+      console.log(cached.data)
       return res.json({
         job_id: cached.jobId,
         session_id: sessionId,
@@ -292,6 +293,8 @@ router.post('/', async (req, res, next) => {
         cached: true,
         results: transformResults(cached.data.results, cached.data.query_length),
         metadata: {
+          query_header: cached.data.query_header,
+          query_sequence: cached.data.query_sequence,
           query_length: cached.data.query_length,
           num_results: cached.data.num_results,
           database_size: cached.data.database_size,
@@ -308,7 +311,7 @@ router.post('/', async (req, res, next) => {
         InvocationType: 'Event',
         Payload: JSON.stringify({
           sessionId: sessionId,
-          sequence: cleanSequence,
+          sequence: sequence,
           max_results: max_results,
         }),
       }));
@@ -415,6 +418,8 @@ router.get('/results/:job_id', async (req, res, next) => {
         console.error('Family enrichment failed (non-fatal):', dbErr);
       }
 
+      console.log(result.data)
+
       return res.json({
         status: 'completed',
         job_id: result.jobId,
@@ -422,6 +427,8 @@ router.get('/results/:job_id', async (req, res, next) => {
         cached: true,
         results: transformedResults,
         metadata: {
+          query_header: result.data.query_header,
+          query_sequence: result.data.query_sequence,
           query_length: result.data.query_length,
           num_results: result.data.num_results,
           database_size: result.data.database_size,

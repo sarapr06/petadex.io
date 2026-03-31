@@ -1,6 +1,4 @@
 import React from "react";
-import "../styles/home.css";
-import SiteHeader from "../components/SiteHeader";
 import Seo from "../components/seo";
 import MetadataMap from "../components/MetadataMap";
 import { useScrollHeader } from "../hooks/useScrollHeader";
@@ -10,9 +8,8 @@ const MetadataPage = () => {
 
   return (
     <>
-      <SiteHeader />
 
-      <main style={{
+      <section style={{
         maxWidth: "1200px",
         margin: "0 auto",
         padding: "2rem",
@@ -36,7 +33,7 @@ const MetadataPage = () => {
         </div>
 
         <MetadataMap />
-      </main>
+      </section>
     </>
   );
 };

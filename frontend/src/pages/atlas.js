@@ -10,9 +10,8 @@ const AtlasPage = () => {
 
   return (
     <>
-      <SiteHeader />
 
-      <main
+      <section
         style={{
           maxWidth: "1400px",
           margin: "0 auto",
@@ -30,7 +29,7 @@ const AtlasPage = () => {
         </div>
 
         <AtlasMap />
-      </main>
+      </section>
     </>
   )
 }

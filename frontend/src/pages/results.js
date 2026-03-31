@@ -14,7 +14,6 @@ import { addJobId } from '../utils/session';
 import SearchHistory from '../components/SearchHistory';
 import ResultsView from '../components/ResultsView';
 import { formatSeq } from '../utils/lib';
-import SiteHeader from '../components/SiteHeader';
 import * as s from '../styles/results.module.css';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -183,7 +182,6 @@ const ResultsPage = () => {
     : new URLSearchParams();
 
   const sessionId = urlParams.get('job') || null;
-  const seqFromUrl = urlParams.get('seq') || '';
 
   const [status, setStatus] = useState(sessionId ? 'polling' : 'idle');
   const [results, setResults] = useState(null);
@@ -211,9 +209,12 @@ const ResultsPage = () => {
 
   const handleResults = useCallback((data, sid) => {
     stopAll();
+    console.log(data)
     addJobId(data.job_id || sid);
     setResults(transformResults(data.results, data.query_length || data.metadata?.query_length));
     setMetadata(data.metadata || {
+      query_header: data.query_header,
+      query_sequence: data.query_sequence,
       query_length: data.query_length,
       num_results: data.num_results,
       database_size: data.database_size,
@@ -256,7 +257,6 @@ const ResultsPage = () => {
 
   return (
     <>
-      <SiteHeader />
       <div className={s.page}>
       <nav className={s.nav}>
         <Link to="/" className={s.navLink}>PETadex</Link>
@@ -266,14 +266,13 @@ const ResultsPage = () => {
 
       <div className={s.card}>
         {status === 'polling' && (
-          <LoadingScreen sessionId={sessionId} sequence={seqFromUrl} elapsed={elapsed} />
+          <LoadingScreen sessionId={sessionId}  elapsed={elapsed} />
         )}
         {status === 'completed' && results && (
           <ResultsView
             results={results}
             metadata={metadata}
             sessionId={sessionId}
-            sequence={seqFromUrl}
             onNewSearch={handleNewSearch}
           />
         )}

@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react"
 import { Link } from "gatsby"
 import { hierarchy } from "d3-hierarchy"
-import "../styles/home.css"
-import SiteHeader from "../components/SiteHeader"
 import Seo from "../components/seo"
 import SequenceViewer from "../components/SequenceViewer"
 import AtlasMap from "../components/AtlasMap"
@@ -31,49 +29,62 @@ function CathBadge({ components }) {
     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
       {Object.entries(cathMap).map(([cath, comps]) => (
         <div key={cath}>
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.5rem",
-          }}>
-            <span style={{
-              display: "inline-block",
-              width: "10px",
-              height: "10px",
-              borderRadius: "3px",
-              backgroundColor: CATH_BASE_CSS[cath] || "#475569",
-              flexShrink: 0,
-            }} />
-            <span style={{
-              fontSize: "0.85rem",
-              fontWeight: 600,
-              color: "#2c3e50",
-              fontFamily: "monospace",
-            }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+            }}
+          >
+            <span
+              style={{
+                display: "inline-block",
+                width: "10px",
+                height: "10px",
+                borderRadius: "3px",
+                backgroundColor: CATH_BASE_CSS[cath] || "#475569",
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: "0.85rem",
+                fontWeight: 600,
+                color: "#2c3e50",
+                fontFamily: "monospace",
+              }}
+            >
               {cath}
             </span>
           </div>
           <div style={{ paddingLeft: "20px", marginTop: "0.25rem" }}>
-            {comps.sort((a, b) => a - b).map(comp => (
-              <div key={comp} style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                marginBottom: "0.15rem",
-              }}>
-                <span style={{
-                  display: "inline-block",
-                  width: "8px",
-                  height: "8px",
-                  borderRadius: "50%",
-                  backgroundColor: COMPONENT_SHADE_CSS[comp] || "#94a3b8",
-                  flexShrink: 0,
-                }} />
-                <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
-                  Component {comp}
-                </span>
-              </div>
-            ))}
+            {comps
+              .sort((a, b) => a - b)
+              .map(comp => (
+                <div
+                  key={comp}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                    marginBottom: "0.15rem",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "inline-block",
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      backgroundColor: COMPONENT_SHADE_CSS[comp] || "#94a3b8",
+                      flexShrink: 0,
+                    }}
+                  />
+                  <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                    Component {comp}
+                  </span>
+                </div>
+              ))}
           </div>
         </div>
       ))}
@@ -137,8 +148,12 @@ function buildPhylogram(root, treeW, treeH) {
     const bl = node.data.branchLength != null ? node.data.branchLength : 0
     node.distFromRoot = (node.parent ? node.parent.distFromRoot : 0) + bl
   })
-  const maxDist = root.descendants().reduce((m, n) => Math.max(m, n.distFromRoot), 1e-10)
-  root.each(node => { node.y = (node.distFromRoot / maxDist) * treeW })
+  const maxDist = root
+    .descendants()
+    .reduce((m, n) => Math.max(m, n.distFromRoot), 1e-10)
+  root.each(node => {
+    node.y = (node.distFromRoot / maxDist) * treeW
+  })
   const leaves = []
   root.eachBefore(node => {
     if (!node.children || node.children.length === 0) leaves.push(node)
@@ -181,7 +196,11 @@ function DendrogramSVG({ root }) {
   const svgW = MARGIN.left + TREE_W + LABEL_W + MARGIN.right
   const svgH = MARGIN.top + treeH + MARGIN.bottom
 
-  const layoutRoot = buildPhylogram(hierarchy(root, d => d.children), TREE_W, treeH)
+  const layoutRoot = buildPhylogram(
+    hierarchy(root, d => d.children),
+    TREE_W,
+    treeH,
+  )
   const nodes = layoutRoot.descendants()
   const links = layoutRoot.links()
 
@@ -196,28 +215,74 @@ function DendrogramSVG({ root }) {
     setTransform(t => ({ ...t, k: Math.min(Math.max(t.k * factor, 0.2), 8) }))
   }, [])
 
-  const onMouseDown = useCallback(e => {
-    drag.current = { startX: e.clientX - transform.x, startY: e.clientY - transform.y }
-  }, [transform])
+  const onMouseDown = useCallback(
+    e => {
+      drag.current = {
+        startX: e.clientX - transform.x,
+        startY: e.clientY - transform.y,
+      }
+    },
+    [transform],
+  )
 
   const onMouseMove = useCallback(e => {
     if (!drag.current) return
-    setTransform(t => ({ ...t, x: e.clientX - drag.current.startX, y: e.clientY - drag.current.startY }))
+    setTransform(t => ({
+      ...t,
+      x: e.clientX - drag.current.startX,
+      y: e.clientY - drag.current.startY,
+    }))
   }, [])
 
-  const onMouseUp = useCallback(() => { drag.current = null }, [])
+  const onMouseUp = useCallback(() => {
+    drag.current = null
+  }, [])
   const resetView = () => setTransform({ x: 0, y: 0, k: 1 })
   const MAX_LABEL = 32
 
   return (
     <div style={{ position: "relative" }}>
-      <div style={{ position: "absolute", top: 8, right: 8, zIndex: 10, display: "flex", gap: "0.4rem" }}>
-        <button onClick={() => setTransform(t => ({ ...t, k: Math.min(t.k * 1.3, 8) }))} style={treeBtnStyle}>+</button>
-        <button onClick={() => setTransform(t => ({ ...t, k: Math.max(t.k * 0.77, 0.2) }))} style={treeBtnStyle}>−</button>
-        <button onClick={resetView} style={treeBtnStyle}>Reset</button>
+      <div
+        style={{
+          position: "absolute",
+          top: 8,
+          right: 8,
+          zIndex: 10,
+          display: "flex",
+          gap: "0.4rem",
+        }}
+      >
+        <button
+          onClick={() =>
+            setTransform(t => ({ ...t, k: Math.min(t.k * 1.3, 8) }))
+          }
+          style={treeBtnStyle}
+        >
+          +
+        </button>
+        <button
+          onClick={() =>
+            setTransform(t => ({ ...t, k: Math.max(t.k * 0.77, 0.2) }))
+          }
+          style={treeBtnStyle}
+        >
+          −
+        </button>
+        <button onClick={resetView} style={treeBtnStyle}>
+          Reset
+        </button>
       </div>
       <div
-        style={{ width: "100%", height: "60vh", minHeight: 300, overflow: "hidden", background: "#fafafa", border: "1px solid #e9ecef", borderRadius: 6, cursor: drag.current ? "grabbing" : "grab" }}
+        style={{
+          width: "100%",
+          height: "60vh",
+          minHeight: 300,
+          overflow: "hidden",
+          background: "#fafafa",
+          border: "1px solid #e9ecef",
+          borderRadius: 6,
+          cursor: drag.current ? "grabbing" : "grab",
+        }}
         onWheel={onWheel}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
@@ -227,20 +292,37 @@ function DendrogramSVG({ root }) {
         <svg
           width={svgW}
           height={svgH}
-          style={{ display: "block", transformOrigin: "0 0", transform: `translate(${transform.x}px,${transform.y}px) scale(${transform.k})` }}
+          style={{
+            display: "block",
+            transformOrigin: "0 0",
+            transform: `translate(${transform.x}px,${transform.y}px) scale(${transform.k})`,
+          }}
         >
           <g stroke="#adb5bd" fill="none" strokeWidth={0.8}>
-            {links.map((link, i) => <path key={i} d={linkPath(link)} />)}
+            {links.map((link, i) => (
+              <path key={i} d={linkPath(link)} />
+            ))}
           </g>
           {nodes.map((node, i) => {
             const isLeaf = !node.children
             const label = node.data.name || ""
-            const displayLabel = label.length > MAX_LABEL ? label.slice(0, MAX_LABEL) + "…" : label
+            const displayLabel =
+              label.length > MAX_LABEL ? label.slice(0, MAX_LABEL) + "…" : label
             return (
               <g key={i} transform={`translate(${sx(node)},${sy(node)})`}>
-                <circle r={isLeaf ? 2.5 : 2} fill={isLeaf ? "#007bff" : "#6c757d"} />
+                <circle
+                  r={isLeaf ? 2.5 : 2}
+                  fill={isLeaf ? "#007bff" : "#6c757d"}
+                />
                 {isLeaf && displayLabel && (
-                  <text x={6} dy="0.32em" fontSize={11} fontFamily="monospace" fill="#343a40" style={{ userSelect: "none" }}>
+                  <text
+                    x={6}
+                    dy="0.32em"
+                    fontSize={11}
+                    fontFamily="monospace"
+                    fill="#343a40"
+                    style={{ userSelect: "none" }}
+                  >
                     {displayLabel}
                   </text>
                 )}
@@ -249,7 +331,9 @@ function DendrogramSVG({ root }) {
           })}
         </svg>
       </div>
-      <div style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "#868e96" }}>
+      <div
+        style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "#868e96" }}
+      >
         {numLeaves} leaves · scroll to zoom · drag to pan
       </div>
     </div>
@@ -266,21 +350,26 @@ function MembersTable({ familyId, centroid }) {
   const [pagination, setPagination] = useState(null)
   const [expandedSeq, setExpandedSeq] = useState(null)
 
-  const loadMembers = useCallback(async (p) => {
-    setLoading(true)
-    try {
-      const res = await fetch(`${config.apiUrl}/family/${familyId}/members?page=${p}&limit=50`)
-      if (res.ok) {
-        const data = await res.json()
-        setMembers(data.data || [])
-        setPagination(data.pagination)
+  const loadMembers = useCallback(
+    async p => {
+      setLoading(true)
+      try {
+        const res = await fetch(
+          `${config.apiUrl}/family/${familyId}/members?page=${p}&limit=50`,
+        )
+        if (res.ok) {
+          const data = await res.json()
+          setMembers(data.data || [])
+          setPagination(data.pagination)
+        }
+      } catch (err) {
+        console.error("Error loading members:", err)
+      } finally {
+        setLoading(false)
       }
-    } catch (err) {
-      console.error("Error loading members:", err)
-    } finally {
-      setLoading(false)
-    }
-  }, [familyId])
+    },
+    [familyId],
+  )
 
   useEffect(() => {
     if (viewMode === "members") {
@@ -288,7 +377,7 @@ function MembersTable({ familyId, centroid }) {
     }
   }, [viewMode, page, loadMembers])
 
-  const handleToggle = (mode) => {
+  const handleToggle = mode => {
     setViewMode(mode)
     if (mode === "members") {
       setPage(1)
@@ -296,15 +385,18 @@ function MembersTable({ familyId, centroid }) {
     setExpandedSeq(null)
   }
 
-  const rows = viewMode === "centroid" && centroid
-    ? [{
-        enzyme_id: centroid.centroid_enzyme_id,
-        genbank_accession_id: centroid.centroid_accession,
-        translated_sequence: centroid.centroid_sequence,
-        family_pid: null,
-        component: centroid.centroid_component,
-      }]
-    : members
+  const rows =
+    viewMode === "centroid" && centroid
+      ? [
+          {
+            enzyme_id: centroid.centroid_enzyme_id,
+            genbank_accession_id: centroid.centroid_accession,
+            translated_sequence: centroid.centroid_sequence,
+            family_pid: null,
+            component: centroid.centroid_component,
+          },
+        ]
+      : members
 
   return (
     <div>
@@ -356,11 +448,13 @@ function MembersTable({ familyId, centroid }) {
       ) : (
         <>
           <div style={{ overflowX: "auto" }}>
-            <table style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              fontSize: "0.85rem",
-            }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: "0.85rem",
+              }}
+            >
               <thead>
                 <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
                   <th style={thStyle}>Accession</th>
@@ -370,8 +464,9 @@ function MembersTable({ familyId, centroid }) {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => {
-                  const isCentroid = row.family_pid === null || row.family_pid === 100
+                {rows.map(row => {
+                  const isCentroid =
+                    row.family_pid === null || row.family_pid === 100
                   const isExpanded = expandedSeq === row.enzyme_id
                   return (
                     <React.Fragment key={row.enzyme_id}>
@@ -384,37 +479,52 @@ function MembersTable({ familyId, centroid }) {
                         <td style={tdStyle}>
                           <Link
                             to={`/enzyme/${row.enzyme_id}`}
-                            style={{ fontFamily: "monospace", color: "#2c3e50", textDecoration: "none" }}
+                            style={{
+                              fontFamily: "monospace",
+                              color: "#2c3e50",
+                              textDecoration: "none",
+                            }}
                           >
-                            {row.genbank_accession_id || `Enzyme ${row.enzyme_id}`}
+                            {row.genbank_accession_id ||
+                              `Enzyme ${row.enzyme_id}`}
                           </Link>
                           {isCentroid && (
-                            <span style={{
-                              marginLeft: "0.5rem",
-                              padding: "0.1rem 0.35rem",
-                              backgroundColor: "#f59e0b",
-                              color: "white",
-                              borderRadius: "3px",
-                              fontSize: "0.65rem",
-                              fontWeight: 700,
-                            }}>
+                            <span
+                              style={{
+                                marginLeft: "0.5rem",
+                                padding: "0.1rem 0.35rem",
+                                backgroundColor: "#f59e0b",
+                                color: "white",
+                                borderRadius: "3px",
+                                fontSize: "0.65rem",
+                                fontWeight: 700,
+                              }}
+                            >
                               CENTROID
                             </span>
                           )}
                         </td>
                         <td style={tdStyle}>
-                          {isCentroid ? "—" : row.family_pid != null ? `${row.family_pid}%` : "—"}
+                          {isCentroid
+                            ? "—"
+                            : row.family_pid != null
+                              ? `${row.family_pid}%`
+                              : "—"}
                         </td>
                         <td style={tdStyle}>
                           {row.component != null ? (
-                            <span style={{
-                              padding: "0.15rem 0.4rem",
-                              backgroundColor: COMPONENT_SHADE_CSS[row.component] || "#e0e7ff",
-                              color: "white",
-                              borderRadius: "4px",
-                              fontSize: "0.75rem",
-                              fontWeight: 600,
-                            }}>
+                            <span
+                              style={{
+                                padding: "0.15rem 0.4rem",
+                                backgroundColor:
+                                  COMPONENT_SHADE_CSS[row.component] ||
+                                  "#e0e7ff",
+                                color: "white",
+                                borderRadius: "4px",
+                                fontSize: "0.75rem",
+                                fontWeight: 600,
+                              }}
+                            >
                               {row.component}
                             </span>
                           ) : (
@@ -424,7 +534,11 @@ function MembersTable({ familyId, centroid }) {
                         <td style={tdStyle}>
                           {row.translated_sequence ? (
                             <button
-                              onClick={() => setExpandedSeq(isExpanded ? null : row.enzyme_id)}
+                              onClick={() =>
+                                setExpandedSeq(
+                                  isExpanded ? null : row.enzyme_id,
+                                )
+                              }
                               style={{
                                 background: "none",
                                 border: "none",
@@ -434,7 +548,9 @@ function MembersTable({ familyId, centroid }) {
                                 padding: 0,
                               }}
                             >
-                              {isExpanded ? "Hide" : `${row.translated_sequence.length} aa`}
+                              {isExpanded
+                                ? "Hide"
+                                : `${row.translated_sequence.length} aa`}
                             </button>
                           ) : (
                             <span style={{ color: "#94a3b8" }}>—</span>
@@ -443,7 +559,13 @@ function MembersTable({ familyId, centroid }) {
                       </tr>
                       {isExpanded && row.translated_sequence && (
                         <tr>
-                          <td colSpan={4} style={{ padding: "0.75rem 1rem", backgroundColor: "#f8fafc" }}>
+                          <td
+                            colSpan={4}
+                            style={{
+                              padding: "0.75rem 1rem",
+                              backgroundColor: "#f8fafc",
+                            }}
+                          >
                             <SequenceViewer
                               aminoAcidSequence={row.translated_sequence}
                               nucleotideSequence={null}
@@ -459,33 +581,38 @@ function MembersTable({ familyId, centroid }) {
           </div>
 
           {/* Pagination */}
-          {viewMode === "members" && pagination && pagination.totalPages > 1 && (
-            <div style={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              gap: "1rem",
-              marginTop: "1rem",
-            }}>
-              <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                style={pageBtnStyle(page <= 1)}
+          {viewMode === "members" &&
+            pagination &&
+            pagination.totalPages > 1 && (
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  gap: "1rem",
+                  marginTop: "1rem",
+                }}
               >
-                Previous
-              </button>
-              <span style={{ fontSize: "0.85rem", color: "#64748b" }}>
-                Page {page} of {pagination.totalPages} ({pagination.total} total)
-              </span>
-              <button
-                onClick={() => setPage(p => p + 1)}
-                disabled={!pagination.hasMore}
-                style={pageBtnStyle(!pagination.hasMore)}
-              >
-                Next
-              </button>
-            </div>
-          )}
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  style={pageBtnStyle(page <= 1)}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: "0.85rem", color: "#64748b" }}>
+                  Page {page} of {pagination.totalPages} ({pagination.total}{" "}
+                  total)
+                </span>
+                <button
+                  onClick={() => setPage(p => p + 1)}
+                  disabled={!pagination.hasMore}
+                  style={pageBtnStyle(!pagination.hasMore)}
+                >
+                  Next
+                </button>
+              </div>
+            )}
         </>
       )}
     </div>
@@ -528,25 +655,36 @@ function FamilyMetadata({ familyId }) {
   useEffect(() => {
     if (!familyId) return
     fetch(`${config.apiUrl}/family/${familyId}/metadata`)
-      .then(r => r.ok ? r.json() : null)
+      .then(r => (r.ok ? r.json() : null))
       .then(d => d && setMeta(d))
       .catch(() => {})
   }, [familyId])
 
-  if (!meta) return (
-    <div style={{ color: "#94a3b8", fontSize: "0.9rem" }}>No atlas metadata available</div>
-  )
+  if (!meta)
+    return (
+      <div style={{ color: "#94a3b8", fontSize: "0.9rem" }}>
+        No atlas metadata available
+      </div>
+    )
 
-  const row = (label, value) => value ? (
-    <div key={label} style={{
-      display: "grid", gridTemplateColumns: "200px 1fr", gap: "1rem",
-      padding: "0.75rem 1rem", backgroundColor: "#f9fafb",
-      borderRadius: "6px", borderLeft: "3px solid #e5e7eb"
-    }}>
-      <div style={{ fontWeight: 600, color: "#374151" }}>{label}</div>
-      <div style={{ color: "#6b7280", wordBreak: "break-word" }}>{value}</div>
-    </div>
-  ) : null
+  const row = (label, value) =>
+    value ? (
+      <div
+        key={label}
+        style={{
+          display: "grid",
+          gridTemplateColumns: "200px 1fr",
+          gap: "1rem",
+          padding: "0.75rem 1rem",
+          backgroundColor: "#f9fafb",
+          borderRadius: "6px",
+          borderLeft: "3px solid #e5e7eb",
+        }}
+      >
+        <div style={{ fontWeight: 600, color: "#374151" }}>{label}</div>
+        <div style={{ color: "#6b7280", wordBreak: "break-word" }}>{value}</div>
+      </div>
+    ) : null
 
   return (
     <div style={{ display: "grid", gap: "0.75rem" }}>
@@ -566,20 +704,24 @@ function FamilyMetadata({ familyId }) {
 
 function Section({ title, children }) {
   return (
-    <div style={{
-      border: "1px solid #e2e8f0",
-      borderRadius: "8px",
-      padding: "1.5rem",
-      backgroundColor: "white",
-      boxShadow: "0 1px 3px 0 rgba(0,0,0,0.1)",
-      marginBottom: "1.5rem",
-    }}>
-      <h2 style={{
-        fontSize: "1.25rem",
-        marginBottom: "1rem",
-        color: "#2c3e50",
-        marginTop: 0,
-      }}>
+    <div
+      style={{
+        border: "1px solid #e2e8f0",
+        borderRadius: "8px",
+        padding: "1.5rem",
+        backgroundColor: "white",
+        boxShadow: "0 1px 3px 0 rgba(0,0,0,0.1)",
+        marginBottom: "1.5rem",
+      }}
+    >
+      <h2
+        style={{
+          fontSize: "1.25rem",
+          marginBottom: "1rem",
+          color: "#2c3e50",
+          marginTop: 0,
+        }}
+      >
         {title}
       </h2>
       {children}
@@ -591,7 +733,11 @@ function Section({ title, children }) {
 
 export default function FamilyTemplate({ pageContext }) {
   useScrollHeader()
-  const familyId = pageContext?.familyId || (typeof window !== "undefined" ? window.location.pathname.match(/\/family\/(\d+)/)?.[1] : null)
+  const familyId =
+    pageContext?.familyId ||
+    (typeof window !== "undefined"
+      ? window.location.pathname.match(/\/family\/(\d+)/)?.[1]
+      : null)
 
   const [family, setFamily] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -611,8 +757,14 @@ export default function FamilyTemplate({ pageContext }) {
         if (!r.ok) throw new Error(`Family ${familyId} not found`)
         return r.json()
       })
-      .then(data => { setFamily(data); setLoading(false) })
-      .catch(err => { setError(err.message); setLoading(false) })
+      .then(data => {
+        setFamily(data)
+        setLoading(false)
+      })
+      .catch(err => {
+        setError(err.message)
+        setLoading(false)
+      })
   }, [familyId])
 
   // Fetch tree independently
@@ -624,8 +776,14 @@ export default function FamilyTemplate({ pageContext }) {
         if (!r.ok) throw new Error("No tree available")
         return r.text()
       })
-      .then(text => { setTreeNwk(text.trim()); setTreeLoading(false) })
-      .catch(err => { setTreeError(err.message); setTreeLoading(false) })
+      .then(text => {
+        setTreeNwk(text.trim())
+        setTreeLoading(false)
+      })
+      .catch(err => {
+        setTreeError(err.message)
+        setTreeLoading(false)
+      })
   }, [familyId])
 
   let treeRoot = null
@@ -648,18 +806,22 @@ export default function FamilyTemplate({ pageContext }) {
 
   return (
     <>
-      <SiteHeader currentPage="enzymes" />
-
-      <main style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "2rem",
-        paddingTop: "2rem",
-      }}>
+      <section
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "2rem",
+          paddingTop: "2rem",
+        }}
+      >
         <div style={{ marginBottom: "1rem" }}>
           <Link
             to="/enzymes"
-            style={{ color: "#3b82f6", textDecoration: "none", fontSize: "0.9rem" }}
+            style={{
+              color: "#3b82f6",
+              textDecoration: "none",
+              fontSize: "0.9rem",
+            }}
           >
             &larr; Back to Enzymes
           </Link>
@@ -671,151 +833,189 @@ export default function FamilyTemplate({ pageContext }) {
             Loading family…
           </div>
         ) : error ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "#dc2626" }}>
+          <div
+            style={{ padding: "2rem", textAlign: "center", color: "#dc2626" }}
+          >
             {error}
           </div>
-        ) : family && (
-          <>
-            <div style={{ marginBottom: "2rem" }}>
-              <h1 style={{
-                fontSize: "2.5rem",
-                marginBottom: "0.5rem",
-                color: "#2c3e50",
-              }}>
-                Family {family.family_id}
-              </h1>
+        ) : (
+          family && (
+            <>
+              <div style={{ marginBottom: "2rem" }}>
+                <h1
+                  style={{
+                    fontSize: "2.5rem",
+                    marginBottom: "0.5rem",
+                    color: "#2c3e50",
+                  }}
+                >
+                  Family {family.family_id}
+                </h1>
 
-              <div style={{
-                display: "flex",
-                gap: "2rem",
-                flexWrap: "wrap",
-                alignItems: "flex-start",
-                marginTop: "1rem",
-              }}>
-                {/* Stats */}
-                <div style={{
-                  display: "flex",
-                  gap: "1.5rem",
-                  flexWrap: "wrap",
-                  flex: 1,
-                  minWidth: "300px",
-                }}>
-                  <div style={statBox}>
-                    <div style={statLabel}>Centroid</div>
-                    <div style={{ fontFamily: "monospace", fontSize: "1rem", color: "#2c3e50" }}>
-                      <Link
-                        to={`/enzyme/${family.centroid_enzyme_id}`}
-                        style={{ color: "#2c3e50", textDecoration: "none", borderBottom: "2px solid #3b82f6" }}
-                      >
-                        {family.centroid_accession}
-                      </Link>
-                    </div>
-                  </div>
-                  <div style={statBox}>
-                    <div style={statLabel}>Variants</div>
-                    <div style={statValue}>{parseInt(family.variant_count).toLocaleString()}</div>
-                  </div>
-                  <div style={statBox}>
-                    <div style={statLabel}>Components</div>
-                    <div style={statValue}>{family.component_count}</div>
-                  </div>
-                  {family.avg_identity && (
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "2rem",
+                    flexWrap: "wrap",
+                    alignItems: "flex-start",
+                    marginTop: "1rem",
+                  }}
+                >
+                  {/* Stats */}
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: "1.5rem",
+                      flexWrap: "wrap",
+                      flex: 1,
+                      minWidth: "300px",
+                    }}
+                  >
                     <div style={statBox}>
-                      <div style={statLabel}>Avg Identity</div>
-                      <div style={statValue}>{family.avg_identity}%</div>
+                      <div style={statLabel}>Centroid</div>
+                      <div
+                        style={{
+                          fontFamily: "monospace",
+                          fontSize: "1rem",
+                          color: "#2c3e50",
+                        }}
+                      >
+                        <Link
+                          to={`/enzyme/${family.centroid_enzyme_id}`}
+                          style={{
+                            color: "#2c3e50",
+                            textDecoration: "none",
+                            borderBottom: "2px solid #3b82f6",
+                          }}
+                        >
+                          {family.centroid_accession}
+                        </Link>
+                      </div>
+                    </div>
+                    <div style={statBox}>
+                      <div style={statLabel}>Variants</div>
+                      <div style={statValue}>
+                        {parseInt(family.variant_count).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={statBox}>
+                      <div style={statLabel}>Components</div>
+                      <div style={statValue}>{family.component_count}</div>
+                    </div>
+                    {family.avg_identity && (
+                      <div style={statBox}>
+                        <div style={statLabel}>Avg Identity</div>
+                        <div style={statValue}>{family.avg_identity}%</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CATH badges */}
+                  {family.components && family.components.length > 0 && (
+                    <div
+                      style={{
+                        padding: "0.75rem 1rem",
+                        backgroundColor: "#f8fafc",
+                        borderRadius: "8px",
+                        border: "1px solid #e2e8f0",
+                        minWidth: "180px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: "0.8rem",
+                          color: "#64748b",
+                          marginBottom: "0.5rem",
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        CATH Domain
+                      </div>
+                      <CathBadge components={family.components} />
                     </div>
                   )}
                 </div>
+              </div>
 
-                {/* CATH badges */}
-                {family.components && family.components.length > 0 && (
-                  <div style={{
-                    padding: "0.75rem 1rem",
-                    backgroundColor: "#f8fafc",
-                    borderRadius: "8px",
-                    border: "1px solid #e2e8f0",
-                    minWidth: "180px",
-                  }}>
-                    <div style={{ fontSize: "0.8rem", color: "#64748b", marginBottom: "0.5rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                      CATH Domain
-                    </div>
-                    <CathBadge components={family.components} />
+              {/* ── 2. Sequence table ── */}
+              <Section title="Sequences">
+                <MembersTable familyId={familyId} centroid={family} />
+              </Section>
+
+              {/* ── 3. Centroid Metadata ── */}
+              <Section title="Centroid Metadata">
+                <FamilyMetadata familyId={familyId} />
+              </Section>
+
+              {/* ── 4. ESM Atlas ── */}
+              <Section title="ESM Atlas">
+                <AtlasMap familyId={familyId} />
+              </Section>
+
+              {/* ── 5. Phylogenetic tree ── */}
+              <Section title="Phylogenetic Tree">
+                {treeLoading && (
+                  <div
+                    style={{
+                      padding: "2rem",
+                      textAlign: "center",
+                      color: "#666",
+                    }}
+                  >
+                    Loading tree…
                   </div>
                 )}
-              </div>
-            </div>
-
-            {/* ── 2. Sequence table ── */}
-            <Section title="Sequences">
-              <MembersTable familyId={familyId} centroid={family} />
-            </Section>
-
-            {/* ── 3. Centroid Metadata ── */}
-            <Section title="Centroid Metadata">
-              <FamilyMetadata familyId={familyId} />
-            </Section>
-
-            {/* ── 4. ESM Atlas ── */}
-            <Section title="ESM Atlas">
-              <AtlasMap familyId={familyId} />
-            </Section>
-
-            {/* ── 5. Phylogenetic tree ── */}
-            <Section title="Phylogenetic Tree">
-              {treeLoading && (
-                <div style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
-                  Loading tree…
-                </div>
-              )}
-              {treeError && !treeLoading && (
-                <div style={{
-                  padding: "1.5rem",
-                  textAlign: "center",
-                  color: "#64748b",
-                  backgroundColor: "#f8fafc",
-                  borderRadius: "6px",
-                }}>
-                  No phylogenetic tree available for this family
-                </div>
-              )}
-              {parseError && (
-                <div style={{
-                  color: "#721c24",
-                  background: "#f8d7da",
-                  border: "1px solid #f5c6cb",
-                  borderRadius: 4,
-                  padding: "0.75rem 1rem",
-                }}>
-                  {parseError}
-                </div>
-              )}
-              {treeRoot && !parseError && (
-                <>
-                  <DendrogramSVG root={treeRoot} />
-                  <div style={{ marginTop: "0.75rem" }}>
-                    <a
-                      href={`${config.apiUrl}/family/${familyId}/tree`}
-                      download={`family_${familyId}.nwk`}
-                      style={{ fontSize: "0.85rem", color: "#3b82f6", textDecoration: "none" }}
-                    >
-                      Download .nwk file
-                    </a>
+                {treeError && !treeLoading && (
+                  <div
+                    style={{
+                      padding: "1.5rem",
+                      textAlign: "center",
+                      color: "#64748b",
+                      backgroundColor: "#f8fafc",
+                      borderRadius: "6px",
+                    }}
+                  >
+                    No phylogenetic tree available for this family
                   </div>
-                </>
-              )}
-            </Section>
-          </>
+                )}
+                {parseError && (
+                  <div
+                    style={{
+                      color: "#721c24",
+                      background: "#f8d7da",
+                      border: "1px solid #f5c6cb",
+                      borderRadius: 4,
+                      padding: "0.75rem 1rem",
+                    }}
+                  >
+                    {parseError}
+                  </div>
+                )}
+                {treeRoot && !parseError && (
+                  <>
+                    <DendrogramSVG root={treeRoot} />
+                    <div style={{ marginTop: "0.75rem" }}>
+                      <a
+                        href={`${config.apiUrl}/family/${familyId}/tree`}
+                        download={`family_${familyId}.nwk`}
+                        style={{
+                          fontSize: "0.85rem",
+                          color: "#3b82f6",
+                          textDecoration: "none",
+                        }}
+                      >
+                        Download .nwk file
+                      </a>
+                    </div>
+                  </>
+                )}
+              </Section>
+            </>
+          )
         )}
-
-        <footer style={{
-          marginTop: "3rem",
-          textAlign: "center",
-          color: "#666",
-          fontSize: "0.9rem",
-        }}>
-          &copy; {new Date().getFullYear()} PETadex.io
-        </footer>
-      </main>
+      </section>
     </>
   )
 }

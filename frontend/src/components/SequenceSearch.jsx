@@ -18,13 +18,9 @@ MNFPRASRLMQAAVLGGLMAVSAAATAQTNPYARGPNPTAASLEASAGPFTVRSFTVSRPSGYGAGTVYYPTNAGGTVGA
 };
 
 const SequenceSearch = () => {
-  // Read initial state from URL params (?seq=...&n=50)
-  const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-  const seqFromUrl = urlParams.get('seq') || '>';
-  const nFromUrl = parseInt(urlParams.get('n'), 10) || 50;
 
-  const [sequence, setSequence] = useState(seqFromUrl);
-  const [maxResults, setMaxResults] = useState(nFromUrl);
+  const [sequence, setSequence] = useState("");
+  const [maxResults, setMaxResults] = useState(50);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
@@ -44,7 +40,7 @@ const SequenceSearch = () => {
       const response = await fetch(`${searchApiUrl}/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sequence: clean, max_results: maxResults }),
+        body: JSON.stringify({ sequence: sequence, max_results: maxResults }),
       });
 
       const data = await response.json();
@@ -55,10 +51,9 @@ const SequenceSearch = () => {
 
       // session_id is the MD5 hash used for polling and the results page URL
       const sessionId = data.session_id;
-      const encodedSeq = encodeURIComponent(clean);
 
       // Navigate to results page — it handles polling from here
-      navigate(`/results?job=${sessionId}&seq=${encodedSeq}&n=${maxResults}`);
+      navigate(`/results?job=${sessionId}`);
 
     } catch (err) {
       setError(err.message || 'Failed to submit search. Please try again.');

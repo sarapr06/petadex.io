@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { Link } from "gatsby";
+import { useTheme } from "../context/ThemeContext"
 
 /**
  * Shared site header component with navigation
  * Used across all pages for consistent navigation
  */
 const SiteHeader = () => {
+  const { dark, toggle } = useTheme()
   const [isHidden, setIsHidden] = useState(false);
 
   // Navigation items configuration
@@ -69,20 +71,15 @@ const SiteHeader = () => {
               <Link
                 key={item.key}
                 to={item.path}
-                style={{
-                  textDecoration: 'none',
-                  color: '#64748b',
-                  fontWeight: '500',
-                  fontSize: '0.95rem',
-                  transition: 'color 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.color = '#2c3e50'}
-                onMouseLeave={(e) => e.currentTarget.style.color = '#64748b'}
+                className="nav-link"
+                activeClassName="nav-link--active"
+                partiallyActive={item.key === "enzymes" ? true : false}
               >
                 {item.label}
               </Link>
             ))}
           </nav>
+          <button onClick={toggle}>{dark ? '☀️' : '🌙'}</button>
         </div>
       </div>
       {/* Hide header button - hangs off the bottom */}

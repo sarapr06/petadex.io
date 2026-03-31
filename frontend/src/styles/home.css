@@ -39,29 +39,69 @@ TABLE OF CONTENT
   |
   ------------------------------------------------------------*/
 
-  --ui-color-brand: #353535;
 
   /* COLOR PALETTE */
 
-  --ui-color-n-000: #fff;
-  --ui-color-n-025: #fafafa;
-  --ui-color-n-050: #f5f5f5;
-  --ui-color-n-300: #aeaeae;
-  --ui-color-n-500: #353535;
-  --ui-color-n-900: #1a1a1a;
+    --ui-color-n-000: #ffffff;
+    --ui-color-n-025: #fafafa;
+    --ui-color-n-050: #f5f5f5;
+    --ui-color-n-100: #e9ecef;
+    --ui-color-n-200: #dee2e6;
+    --ui-color-n-300: #aeaeae;
+    --ui-color-n-400: #868e96;
+    --ui-color-n-500: #495057;
+    --ui-color-n-600: #353535;
+    --ui-color-n-900: #1a1a1a;
 
-  /* BACKGROUND COLOR */
-  
-  --ui-color-background-primary  : var(--ui-color-n-000);
-  --ui-color-background-secondary: var(--ui-color-n-050);
-  --ui-color-background-tertiary : var(--ui-color-n-025);
+    /* DARK SURFACE PALETTE */
 
-  /* TYPOGRAPHY COLOR */
+    --ui-color-d-000: #1a1a1a;
+    --ui-color-d-025: #1e1e1e;
+    --ui-color-d-050: #222222;
+    --ui-color-d-100: #2a2a2a;
+    --ui-color-d-200: #2d2d2d;
+    --ui-color-d-300: #3a3a3a;
 
-  --ui-color-typography-heading: var(--ui-color-n-500);
-  --ui-color-typography-body   : var(--ui-color-n-900);
-  --ui-color-typography-note   : var(--ui-color-n-300);
-  --ui-color-typography-button : var(--ui-color-n-000);
+    /* ACCENT PALETTE */
+
+    --ui-color-blue-light: #4dabf7;
+    --ui-color-blue-dark: #007bff;
+
+    --ui-color-green-light: #51cf66;
+    --ui-color-green-dark: #28a745;
+
+    --ui-color-red-light: #ff6b6b;
+    --ui-color-red-dark: #c0392b;
+
+    /* BACKGROUND COLOR */
+
+    --ui-color-background-primary: var(--ui-color-n-000);
+    --ui-color-background-secondary: var(--ui-color-n-050);
+    --ui-color-background-tertiary: var(--ui-color-n-025);
+
+    /* TYPOGRAPHY COLOR */
+
+    --ui-color-typography-heading: var(--ui-color-n-600);
+    --ui-color-typography-body: var(--ui-color-n-900);
+    --ui-color-typography-sub: var(--ui-color-n-500);
+    --ui-color-typography-muted: var(--ui-color-n-400);
+    --ui-color-typography-faint: var(--ui-color-n-300);
+    --ui-color-typography-note: var(--ui-color-n-300);
+    --ui-color-typography-button: var(--ui-color-n-000);
+
+    /* BORDER */
+
+    --ui-color-border: var(--ui-color-n-200);
+    --ui-color-border-light: var(--ui-color-n-100);
+    --ui-color-border-input: var(--ui-color-n-300);
+
+    /* BRAND / ACCENT */
+
+    --ui-color-brand: var(--ui-color-n-600);
+    --ui-color-accent: var(--ui-color-blue-dark);
+    --ui-color-success: var(--ui-color-green-dark);
+    --ui-color-danger: var(--ui-color-red-dark);
+
 
   /*------------------------------------------------------------
   |
@@ -94,13 +134,13 @@ TABLE OF CONTENT
   | 1.3 LAYOUT
   |
   ------------------------------------------------------------*/
-  
+
   --ui-layout-container: 1.25rem;
   --ui-layout-grid     : 3.625rem;
   --ui-layout-gutter   : 1rem;
 
   /* GAP */
-  
+
   --ui-gap-cta        : .75rem;
   --ui-gap-hero       : 2rem;
   --ui-gap-customer   : 2rem;
@@ -108,9 +148,41 @@ TABLE OF CONTENT
   --ui-gap-testimonial: 2rem;
 
   /* BORDER RADIUS */
-  
+
   --ui-radius-avatar: 5rem;
   --ui-radius-button: 5rem;
+
+}
+
+:root.dark {
+
+  /* BACKGROUND COLOR */
+
+    --ui-color-background-primary: var(--ui-color-d-000);
+    --ui-color-background-secondary: var(--ui-color-d-050);
+    --ui-color-background-tertiary: var(--ui-color-d-025);
+
+    /* TYPOGRAPHY COLOR */
+
+    --ui-color-typography-heading: var(--ui-color-n-025);
+    --ui-color-typography-body: var(--ui-color-n-100);
+    --ui-color-typography-sub: var(--ui-color-n-300);
+    --ui-color-typography-muted: var(--ui-color-n-400);
+    --ui-color-typography-faint: var(--ui-color-n-500);
+    --ui-color-typography-button: var(--ui-color-d-000);
+
+    /* BORDER */
+
+    --ui-color-border: var(--ui-color-d-200);
+    --ui-color-border-light: var(--ui-color-d-100);
+    --ui-color-border-input: var(--ui-color-d-300);
+
+    /* BRAND / ACCENT */
+
+    --ui-color-brand: var(--ui-color-n-025);
+    --ui-color-accent: var(--ui-color-blue-light);
+    --ui-color-success: var(--ui-color-green-light);
+    --ui-color-danger: var(--ui-color-red-light);
 
 }
 
@@ -318,6 +390,26 @@ main[role="main"] {
 
 .ui-section-header__layout { justify-content: space-between; }
 
+.nav-link {
+  color: var(--ui-color-typography-sub);
+  font-weight: 500;
+  font-size: 0.95rem;
+  transition: color 250ms ease;
+}
+
+.nav-link:hover {
+  color: var(--ui-color-typography-heading);
+}
+
+.nav-link--active {
+  color: var(--ui-color-typography-heading);
+  border-bottom: 2px solid var(--ui-color-accent);
+}
+
+.nav-link--active:hover {
+  color: var(--ui-color-typography-heading);
+}
+
 /*--------------------------------------------------------------
 |
 | 7.2 HERO
@@ -349,7 +441,7 @@ main[role="main"] {
 }
 
 .ui-section-customer--logo-str { height: 1.75rem; }
-  
+
 .ui-section-customer--logo-bhn { height: 1.375rem; }
 
 /*--------------------------------------------------------------
@@ -455,7 +547,7 @@ main[role="main"] {
   /*------------------------------------------------------------
   VARIABLE
   ------------------------------------------------------------*/
-  
+
   :root {
 
     /*----------------------------------------------------------
@@ -579,7 +671,7 @@ main[role="main"] {
     column-gap: var(--ui-gap-customer);
     flex-direction: row;
   }
-  
+
   .ui-section-customer--logo {
     margin-left: 0;
     margin-right: 0;
@@ -605,7 +697,7 @@ main[role="main"] {
     padding-bottom: 2rem;
     padding-top: 2rem;
   }
-  
+
   .ui-section-footer__layout {
     flex-direction: row;
     justify-content: space-between;
@@ -641,7 +733,7 @@ main[role="main"] {
     ----------------------------------------------------------*/
 
     --ui-layout-container: 0;
-  
+
   }
 
   /*------------------------------------------------------------
@@ -657,7 +749,7 @@ main[role="main"] {
   /*------------------------------------------------------------
   LAYOUT
   ------------------------------------------------------------*/
-  
+
   .ui-layout-container { width: 60rem; }
 
   .ui-layout-grid-3 { grid-template-columns: repeat(3, 1fr); }
@@ -710,7 +802,7 @@ main[role="main"] {
     --ui-gap-customer   : 4rem;
     --ui-gap-feature    : 4rem;
     --ui-gap-testimonial: 4rem;
-    
+
   }
 
   /*------------------------------------------------------------
@@ -782,9 +874,9 @@ main[role="main"] {
   ------------------------------------------------------------*/
 
   .ui-section-customer--logo { height: 2rem; }
-  
+
   .ui-section-customer--logo-str { height: 2.25rem; }
-  
+
   .ui-section-customer--logo-bhn { height: 1.75rem; }
 
   /*------------------------------------------------------------
@@ -828,7 +920,7 @@ main[role="main"] {
   ------------------------------------------------------------*/
 
   .ui-section-close { padding-top: 7.5rem; }
-  
+
   /*------------------------------------------------------------
   |
   | FOOTER

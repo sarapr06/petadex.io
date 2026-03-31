@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Link } from "gatsby";
-import "../styles/home.css";
-import SiteHeader from "../components/SiteHeader";
 import Seo from "../components/seo";
 import config from "../config";
 import { useScrollHeader } from "../hooks/useScrollHeader";
@@ -1485,9 +1483,8 @@ const SubstratePage = () => {
 
   return (
     <>
-      <SiteHeader />
 
-      <main style={{
+      <section style={{
         maxWidth: "1200px",
         margin: "0 auto",
         padding: "2rem",
@@ -1609,7 +1606,7 @@ const SubstratePage = () => {
             ))}
           </>
         )}
-      </main>
+      </section>
     </>
   );
 };

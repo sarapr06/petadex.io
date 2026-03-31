@@ -2,8 +2,6 @@
 
 import React, { useState, useEffect } from "react";
 import { Link } from "gatsby";
-import "../styles/home.css";
-import SiteHeader from "../components/SiteHeader";
 import Seo from "../components/seo";
 import config from "../config";
 import { useScrollHeader } from "../hooks/useScrollHeader";
@@ -255,15 +253,8 @@ const SearchResults = ({ familyResults, enzymeResults, query, loading, expandedF
   const totalCount = familyResults.length + enzymeResults.length;
 
   return (
-    <div>
-      <div style={{
-        padding: "1rem",
-        marginBottom: "1rem",
-        backgroundColor: "#f0f9ff",
-        border: "1px solid #bae6fd",
-        borderRadius: "8px",
-        color: "#0369a1"
-      }}>
+    <section className="">
+      <div className="ui-layout-container">
         {loading ? 'Searching...' : (
           <>
             Found {totalCount} result{totalCount !== 1 ? 's' : ''} for "{query}"
@@ -277,21 +268,15 @@ const SearchResults = ({ familyResults, enzymeResults, query, loading, expandedF
       </div>
 
       {!loading && totalCount === 0 ? (
-        <div style={{
-          padding: "2rem",
-          textAlign: "center",
-          color: "#666",
-          backgroundColor: "#f8fafc",
-          borderRadius: "8px"
-        }}>
+        <div className="ui-layout-container">
           No results found. Try a partial accession, enzyme ID, family number, or variant accession.
         </div>
       ) : !loading && (
         <>
           {/* Family results as FamilyCards */}
           {familyResults.length > 0 && (
-            <div style={{ marginBottom: '1.5rem' }}>
-              <h3 style={{ fontSize: '1rem', color: '#64748b', marginBottom: '0.75rem' }}>
+              <div className="ui-layout-container">
+              <h3>
                 Families ({familyResults.length})
               </h3>
               {familyResults.map(family => (
@@ -355,7 +340,7 @@ const SearchResults = ({ familyResults, enzymeResults, query, loading, expandedF
           )}
         </>
       )}
-    </div>
+    </section>
   );
 };
 
@@ -488,35 +473,19 @@ const EnzymesPage = () => {
 
   return (
     <>
-      <SiteHeader currentPage="enzymes" />
 
-      <main style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "2rem",
-        paddingTop: "2rem"
-      }}>
-        {/* Header Section */}
-        <div style={{ marginBottom: "2rem" }}>
-          <h1 style={{
-            fontSize: "2.5rem",
-            marginBottom: "0.5rem",
-            color: "#2c3e50"
-          }}>
+      <section className="ui-section-hero">
+        <div className="ui-layout-container">
+          <h1>
             BLAST-NR Enzyme Database
           </h1>
-          <p style={{
-            color: "#666",
-            fontSize: "1.1rem",
-            marginBottom: "1.5rem"
-          }}>
+          <p className="ui-text-intro">
             Browse plastic-degrading enzyme families
           </p>
 
           {/* Statistics */}
           {stats && (
-            <div style={{
-              display: 'grid',
+            <div className="ui-layout-grid" style={{
               gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
               gap: '1rem',
               marginBottom: '1.5rem',
@@ -627,7 +596,7 @@ const EnzymesPage = () => {
             Error loading data: {error}
           </div>
         ) : view === 'families' ? (
-          <>
+          <div className="ui-layout-container">
             <div style={{
               marginBottom: "1rem",
               fontSize: "0.9rem",
@@ -676,7 +645,7 @@ const EnzymesPage = () => {
                 </button>
               </div>
             )}
-          </>
+          </div>
         ) : (
           <SearchResults
             familyResults={searchFamilyResults}
@@ -687,7 +656,7 @@ const EnzymesPage = () => {
             onToggleFamily={toggleFamily}
           />
         )}
-      </main>
+      </section>
     </>
   );
 };
