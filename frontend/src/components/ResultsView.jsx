@@ -5,8 +5,11 @@ import { generateCSV, downloadCSV } from "../utils/csvDownload"
 import AtlasMap from "./AtlasMap"
 import { Scatterplot } from "./charts/Scatterplot"
 import { TaxonomyScatterChart } from "./charts/TaxonomyScatterChart"
-import * as s from "../styles/results.module.css"
-import AlignmentCoverageMap from "./charts/AlignmentCoverageMap"
+
+import * as s from '../styles/results.module.css';
+import AlignmentCoverageMap from './charts/AlignmentCoverageMap';
+import { FunctionalAnnotationChart } from './charts/FunctionalAnnotationChart';
+
 
 // Deterministic per-family color — must match enzymes.js
 function familyColor(familyId) {
@@ -183,7 +186,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
             className={s.queryPillToggle}
             onClick={() => setQueryOpen(o => !o)}
           >
-            <span className={s.queryPillLabel}>Query</span>
+            <span className={s.queryPillLabel}>Query{queryHeader ? `: ${queryHeader}` : ''}</span>
             <span className={s.queryPillSeqPreview}>
               {seq_header} {formatSeq(cleanSeq, 60)}
             </span>
@@ -197,7 +200,11 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
               ▼
             </span>
           </button>
-          {queryOpen && <pre className={s.queryPillSeqFull}>{cleanSeq}</pre>}
+          {queryOpen && (
+            <pre className={s.queryPillSeqFull}>
+              {queryHeader ? `>${queryHeader}\n` : ''}{cleanSeq}
+            </pre>
+          )}
         </div>
       )}
 
