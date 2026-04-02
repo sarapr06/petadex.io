@@ -27,7 +27,6 @@ export default function SequenceViewer({ nucleotideSequence, aminoAcidSequence }
 
   const currentSequence = sequenceType === "nucleotide" ? nucleotideSequence : aminoAcidSequence;
   const colorScheme = sequenceType === "nucleotide" ? nucleotideColors : aaColors;
-  console.log(currentSequence)
   const lines = wrapSequence(currentSequence);
 
   return (

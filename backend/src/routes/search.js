@@ -285,7 +285,6 @@ router.post('/', async (req, res, next) => {
     const cached = await resolveFromIndex(s3, sessionId);
     if (cached) {
       console.log(`Cache hit – sessionId=${sessionId} job=${cached.jobId}`);
-      console.log(cached.data)
       return res.json({
         job_id: cached.jobId,
         session_id: sessionId,
@@ -419,8 +418,6 @@ router.get('/results/:job_id', async (req, res, next) => {
       } catch (dbErr) {
         console.error('Family enrichment failed (non-fatal):', dbErr);
       }
-
-      console.log(result.data)
 
       return res.json({
         status: 'completed',

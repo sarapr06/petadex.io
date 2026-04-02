@@ -27,8 +27,6 @@ const ProteinViewer = ({
         setLoading(true);
         setError(null);
 
-        console.log('Loading Molstar for:', accession);
-
         // Import Molstar CSS first
         await import('molstar/lib/mol-plugin-ui/skin/light.scss');
 
@@ -42,11 +40,9 @@ const ProteinViewer = ({
           return;
         }
 
-        console.log('Molstar loaded, creating plugin...');
 
         // Ensure container has explicit pixel dimensions
         const rect = containerRef.current.getBoundingClientRect();
-        console.log('Container dimensions:', rect.width, rect.height);
 
         if (rect.width === 0 || rect.height === 0) {
           throw new Error('Container has no dimensions');
@@ -80,11 +76,9 @@ const ProteinViewer = ({
         });
 
         pluginRef.current = plugin;
-        console.log('Plugin created:', plugin);
 
         // Get PDB info from backend
         const pdbUrl = `${config.apiUrl}/pdb/accession/${accession}`;
-        console.log('Fetching PDB info from:', pdbUrl);
 
         const response = await fetch(pdbUrl);
 
@@ -93,7 +87,6 @@ const ProteinViewer = ({
         }
 
         const pdbInfo = await response.json();
-        console.log('PDB info received:', pdbInfo);
 
         if (!isMounted) {
           console.log('Component unmounted, aborting');
@@ -101,19 +94,16 @@ const ProteinViewer = ({
         }
 
         // Fetch PDB file
-        console.log('Fetching PDB file from:', pdbInfo.pdb_url);
         const pdbResponse = await fetch(pdbInfo.pdb_url);
         if (!pdbResponse.ok) {
           throw new Error(`Failed to load PDB file: ${pdbResponse.status}`);
         }
 
         const pdbData = await pdbResponse.text();
-        console.log('PDB data loaded, length:', pdbData.length);
 
         if (!isMounted) return;
 
         // Load structure into Molstar
-        console.log('Loading structure into Molstar...');
         const data = await plugin.builders.data.rawData({
           data: pdbData,
           label: `${accession} Structure`
@@ -178,7 +168,6 @@ const ProteinViewer = ({
           // Selection is enabled by default in Molstar
         }
 
-        console.log('Structure loaded successfully');
         setLoading(false);
       } catch (err) {
         console.error('Error loading structure:', err);
@@ -194,7 +183,6 @@ const ProteinViewer = ({
     return () => {
       isMounted = false;
       if (pluginRef.current) {
-        console.log('Disposing plugin');
         pluginRef.current.dispose();
         pluginRef.current = null;
       }
