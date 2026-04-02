@@ -11,7 +11,6 @@ export const FamilyPieChart = ({
   const [hovered, setHovered] = useState(null)
   const radius = Math.min(width, height) / 2 - 20
 
-  // Build pieData from pre-computed familyCounts
   const pieData = Object.entries(familyCounts)
     .map(([name, { count, family_num }]) => ({ name, count, family_num }))
     .sort((a, b) => b.count - a.count)
@@ -36,18 +35,10 @@ export const FamilyPieChart = ({
     .arc()
     .innerRadius(radius * 0.5)
     .outerRadius(radius + 8)
-
   const arcs = pie(pieData)
 
   return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "0.75rem",
-      }}
-    >
+    <div className="flex flex-col items-center gap-3">
       <svg width={width} height={height}>
         <g transform={`translate(${width / 2}, ${height / 2})`}>
           {arcs.map((d, i) => (
@@ -57,10 +48,16 @@ export const FamilyPieChart = ({
               fill={colorScale(d.data.name)}
               stroke="white"
               strokeWidth={1.5}
-              style={{ cursor: d.data.family_num != null ? "pointer" : "default", transition: "d 0.15s" }}
+              style={{
+                cursor: d.data.family_num != null ? "pointer" : "default",
+                transition: "d 0.15s",
+              }}
               onMouseEnter={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
-              onClick={() => d.data.family_num != null && window.open(`/family/${d.data.family_num}`, "_blank")}
+              onClick={() =>
+                d.data.family_num != null &&
+                window.open(`/family/${d.data.family_num}`, "_blank")
+              }
             />
           ))}
           {/* Center label */}
@@ -69,7 +66,7 @@ export const FamilyPieChart = ({
             dominantBaseline="middle"
             fontSize={20}
             fontWeight={600}
-            fill="#333"
+            fill="var(--foreground)"
             y={-8}
           >
             {pieData.length}
@@ -78,7 +75,7 @@ export const FamilyPieChart = ({
             textAnchor="middle"
             dominantBaseline="middle"
             fontSize={11}
-            fill="#999"
+            fill="var(--muted-foreground)"
             y={12}
           >
             families
@@ -87,48 +84,28 @@ export const FamilyPieChart = ({
       </svg>
 
       {/* Legend */}
-      <div
-        style={{
-          fontSize: 12,
-          display: "flex",
-          flexDirection: "column",
-          gap: 4,
-          width: "100%",
-        }}
-      >
+      <div className="flex flex-col gap-1 w-full text-xs">
         {pieData.map((d, i) => (
           <div
             key={i}
+            className="flex items-center gap-1.5 transition-opacity"
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
               opacity: hovered === null || hovered === i ? 1 : 0.4,
               cursor: d.family_num != null ? "pointer" : "default",
-              transition: "opacity 0.15s",
             }}
             onMouseEnter={() => setHovered(i)}
             onMouseLeave={() => setHovered(null)}
-            onClick={() => d.family_num != null && window.open(`/family/${d.family_num}`, "_blank")}
+            onClick={() =>
+              d.family_num != null &&
+              window.open(`/family/${d.family_num}`, "_blank")
+            }
           >
             <div
-              style={{
-                width: 12,
-                height: 12,
-                borderRadius: 2,
-                background: colorScale(d.name),
-                flexShrink: 0,
-              }}
+              className="w-3 h-3 rounded-sm shrink-0"
+              style={{ background: colorScale(d.name) }}
             />
-            <span>{d.name}</span>
-            <span
-              style={{
-                color: "#999",
-                marginLeft: "auto",
-                paddingLeft: 12,
-                whiteSpace: "nowrap",
-              }}
-            >
+            <span className="text-foreground">{d.name}</span>
+            <span className="text-muted-foreground ml-auto pl-3 whitespace-nowrap">
               {d.count} ({Math.round((d.count / total) * 100)}%)
             </span>
           </div>

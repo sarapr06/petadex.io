@@ -1,14 +1,15 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react"
 import * as d3 from "d3"
 import keywordMap from "../../utils/keyword_map.json"
-import * as s from "./functionalAnnotation.module.css"
 
-// ── Parse definition into functional category ─────────────────────────────────
+// ── Classifier ─────────────────────────────────────────────────────────────────
 
-const KEYWORD_ENTRIES = Object.entries(keywordMap).map(([parent, keywords]) => ({
-  parent,
-  patterns: keywords.map(kw => kw.toLowerCase()),
-}))
+const KEYWORD_ENTRIES = Object.entries(keywordMap).map(
+  ([parent, keywords]) => ({
+    parent,
+    patterns: keywords.map(kw => kw.toLowerCase()),
+  }),
+)
 
 function classifyDefinition(definition) {
   if (!definition) return "Other"
@@ -21,14 +22,62 @@ function classifyDefinition(definition) {
   return "Other"
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Tooltip ────────────────────────────────────────────────────────────────────
+
+const ChartTooltip = ({ tooltip, width }) => {
+  if (!tooltip) return null
+  return (
+    <div
+      className="absolute pointer-events-none bg-background border border-border rounded-lg shadow-lg max-w-[280px] z-10 overflow-hidden text-xs"
+      style={{
+        left: Math.min(tooltip.x + 14, width - 260),
+        top: Math.max(tooltip.y - 80, 4),
+      }}
+    >
+      {/* Header — indigo accent background */}
+      <div className="px-2.5 py-1.5 font-semibold text-xs text-white whitespace-nowrap overflow-hidden text-ellipsis bg-[#6366f1]">
+        {tooltip.category}
+      </div>
+      <div className="px-2.5 py-2 flex flex-col gap-1">
+        {[
+          ["Organism", <em key="o">{tooltip.organism}</em>],
+          ["Accession", tooltip.accession],
+          ["Identity", `${tooltip.identity?.toFixed(1)}%`],
+          ["Coverage", tooltip.coverage != null ? `${tooltip.coverage}%` : "—"],
+          [
+            "E-value",
+            tooltip.evalue === 0 ? "0" : tooltip.evalue?.toExponential(1),
+          ],
+        ].map(([label, value]) => (
+          <div
+            key={label}
+            className="flex justify-between gap-4 leading-[18px] text-muted-foreground"
+          >
+            <span>{label}</span>
+            <b className="text-right max-w-[160px] break-words text-foreground font-semibold">
+              {value}
+            </b>
+          </div>
+        ))}
+        {tooltip.definition && (
+          <div className="mt-0.5 text-[11px] text-muted-foreground break-words leading-snug border-t border-border pt-1">
+            {tooltip.definition.length > 120
+              ? tooltip.definition.slice(0, 119) + "…"
+              : tooltip.definition}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────────────────────
 
 export function FunctionalAnnotationChart({ data, height = 500 }) {
   const containerRef = useRef(null)
   const [tooltip, setTooltip] = useState(null)
   const [containerWidth, setContainerWidth] = useState(0)
 
-  // ── Responsive width ────────────────────────────────────────────────────────
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
@@ -42,7 +91,6 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
 
   const width = containerWidth || 700
 
-  // ── Classify hits ───────────────────────────────────────────────────────────
   const classified = useMemo(
     () =>
       data.map(hit => ({
@@ -58,10 +106,10 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
     [data],
   )
 
-  // ── Category tallies sorted by count desc ───────────────────────────────────
   const categories = useMemo(() => {
     const counts = {}
-    for (const c of classified) counts[c.category] = (counts[c.category] || 0) + 1
+    for (const c of classified)
+      counts[c.category] = (counts[c.category] || 0) + 1
     return Object.entries(counts)
       .sort((a, b) => {
         if (a[0] === "Other") return 1
@@ -73,32 +121,34 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
 
   const catNames = useMemo(() => categories.map(c => c.name), [categories])
 
-  // ── Layout ──────────────────────────────────────────────────────────────────
   const barAreaHeight = 48
   const margin = { top: 16, right: 20, bottom: 80, left: 50 }
   const innerW = width - margin.left - margin.right
   const dotAreaHeight = height - margin.top - margin.bottom - barAreaHeight - 8
   const innerH = dotAreaHeight
 
-  // ── Scales ──────────────────────────────────────────────────────────────────
-  const maxCount = useMemo(() => Math.max(...categories.map(c => c.count), 1), [categories])
+  const maxCount = useMemo(
+    () => Math.max(...categories.map(c => c.count), 1),
+    [categories],
+  )
 
   const xScale = useMemo(
     () => d3.scalePoint().domain(catNames).range([0, innerW]).padding(0.5),
     [catNames, innerW],
   )
-
   const yScale = useMemo(
     () => d3.scaleLinear().domain([0, 105]).range([innerH, 0]),
     [innerH],
   )
-
   const barScale = useMemo(
-    () => d3.scaleLinear().domain([0, maxCount]).range([0, barAreaHeight - 8]),
-    [maxCount, barAreaHeight],
+    () =>
+      d3
+        .scaleLinear()
+        .domain([0, maxCount])
+        .range([0, barAreaHeight - 8]),
+    [maxCount],
   )
 
-  // ── Jitter dots within each column ──────────────────────────────────────────
   const dots = useMemo(() => {
     if (innerW <= 0 || innerH <= 0) return []
     const byCategory = {}
@@ -108,45 +158,48 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
     }
     const result = []
     for (const cat of catNames) {
-      const items = byCategory[cat] || []
-      items.sort((a, b) => a.identity - b.identity)
+      const items = (byCategory[cat] || []).sort(
+        (a, b) => a.identity - b.identity,
+      )
       const baseX = xScale(cat)
-      for (let i = 0; i < items.length; i++) {
-        const jitter = ((i % 7) - 3) * 2.5
+      items.forEach((item, i) => {
         result.push({
-          ...items[i],
-          cx: baseX + jitter,
-          cy: yScale(items[i].identity),
+          ...item,
+          cx: baseX + ((i % 7) - 3) * 2.5,
+          cy: yScale(item.identity),
         })
-      }
+      })
     }
     return result
   }, [classified, catNames, xScale, yScale, innerW, innerH])
 
-  // ── Tooltip helpers ─────────────────────────────────────────────────────────
   const showTooltip = useCallback((e, d) => {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
-    setTooltip({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-      ...d,
-    })
+    setTooltip({ x: e.clientX - rect.left, y: e.clientY - rect.top, ...d })
   }, [])
 
   const hideTooltip = useCallback(() => setTooltip(null), [])
 
-  // ── Ticks ───────────────────────────────────────────────────────────────────
   const yTicks = yScale.ticks(6)
 
   if (!containerWidth) {
-    return <div ref={containerRef} style={{ width: "100%", minHeight: height }} />
+    return (
+      <div
+        ref={containerRef}
+        className="w-full"
+        style={{ minHeight: height }}
+      />
+    )
   }
 
   return (
-    <div ref={containerRef} className={s.container}>
-      <div className={s.svgWrap}>
-        <svg width={width} height={height} style={{ display: "block" }}>
+    <div
+      ref={containerRef}
+      className="relative w-full select-none flex flex-col flex-1"
+    >
+      <div className="relative border border-border rounded-lg overflow-hidden bg-surface-raised flex flex-col flex-1 justify-center">
+        <svg width={width} height={height} className="block">
           <defs>
             <clipPath id="fa-dot-clip">
               <rect x={0} y={0} width={innerW} height={innerH} />
@@ -154,9 +207,7 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
           </defs>
 
           <g transform={`translate(${margin.left},${margin.top})`}>
-            {/* ── Dot area ─────────────────────────────────────────────────────── */}
-
-            {/* Y grid lines */}
+            {/* Y grid */}
             {yTicks.map(t => (
               <line
                 key={t}
@@ -164,12 +215,12 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
                 x2={innerW}
                 y1={yScale(t)}
                 y2={yScale(t)}
-                stroke="#f0f0f0"
+                stroke="var(--border)"
                 strokeWidth={1}
               />
             ))}
 
-            {/* Vertical category lanes */}
+            {/* Category lane guides */}
             {catNames.map(cat => (
               <line
                 key={cat}
@@ -177,38 +228,50 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
                 x2={xScale(cat)}
                 y1={0}
                 y2={innerH}
-                stroke="#f0f0f0"
+                stroke="var(--border)"
                 strokeWidth={0.5}
                 strokeDasharray="2 4"
               />
             ))}
 
             {/* Axes */}
-            <line x1={0} x2={0} y1={0} y2={innerH} stroke="#d1d5db" />
-            <line x1={0} x2={innerW} y1={innerH} y2={innerH} stroke="#d1d5db" />
+            <line
+              x1={0}
+              x2={0}
+              y1={0}
+              y2={innerH}
+              stroke="var(--border-strong)"
+            />
+            <line
+              x1={0}
+              x2={innerW}
+              y1={innerH}
+              y2={innerH}
+              stroke="var(--border-strong)"
+            />
 
             {/* Y ticks */}
             {yTicks.map(t => (
               <g key={t} transform={`translate(0,${yScale(t)})`}>
-                <line x2={-4} stroke="#d1d5db" />
+                <line x2={-4} stroke="var(--border-strong)" />
                 <text
                   x={-8}
                   textAnchor="end"
                   dominantBaseline="middle"
                   fontSize={10}
-                  fill="#9ca3af"
+                  fill="var(--muted-foreground)"
                 >
                   {t}%
                 </text>
               </g>
             ))}
 
-            {/* Y axis label */}
+            {/* Y label */}
             <text
               transform={`translate(-36,${innerH / 2}) rotate(-90)`}
               textAnchor="middle"
               fontSize={11}
-              fill="#6b7280"
+              fill="var(--muted-foreground)"
               fontWeight={500}
             >
               % Identity
@@ -223,12 +286,13 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
                   cy={d.cy}
                   r={3.5}
                   fill="#6366f1"
-                  stroke="#fff"
+                  stroke="white"
                   strokeWidth={0.5}
                   opacity={0.85}
                   style={{ cursor: d.enzyme_id ? "pointer" : "default" }}
                   onClick={() => {
-                    if (d.enzyme_id) window.open(`/enzyme/${d.enzyme_id}`, "_blank")
+                    if (d.enzyme_id)
+                      window.open(`/enzyme/${d.enzyme_id}`, "_blank")
                   }}
                   onMouseEnter={e => showTooltip(e, d)}
                   onMouseMove={e => showTooltip(e, d)}
@@ -237,11 +301,11 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
               ))}
             </g>
 
-            {/* ── Bar area (below dot area) ────────────────────────────────────── */}
+            {/* Bar area */}
             <g transform={`translate(0,${innerH + 8})`}>
               {categories.map(({ name, count }) => {
                 const cx = xScale(name)
-                const bw = Math.max(innerW / catNames.length * 0.4, 8)
+                const bw = Math.max((innerW / catNames.length) * 0.4, 8)
                 const bh = barScale(count)
                 return (
                   <g key={`bar-${name}`}>
@@ -251,7 +315,9 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
                       width={bw}
                       height={bh}
                       rx={2}
-                      fill={name === "Other" ? "#d1d5db" : "#6366f1"}
+                      fill={
+                        name === "Other" ? "var(--border-strong)" : "#6366f1"
+                      }
                       opacity={0.7}
                     />
                     <text
@@ -259,7 +325,7 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
                       y={barAreaHeight - 8 - bh - 3}
                       textAnchor="middle"
                       fontSize={9}
-                      fill="#6b7280"
+                      fill="var(--muted-foreground)"
                     >
                       {count}
                     </text>
@@ -268,66 +334,31 @@ export function FunctionalAnnotationChart({ data, height = 500 }) {
               })}
             </g>
 
-            {/* X tick labels (below bars) */}
+            {/* X labels */}
             {catNames.map(cat => (
-              <g key={`xl-${cat}`} transform={`translate(${xScale(cat)},${innerH + barAreaHeight + 8})`}>
+              <g
+                key={`xl-${cat}`}
+                transform={`translate(${xScale(cat)},${innerH + barAreaHeight + 8})`}
+              >
                 <text
                   textAnchor="end"
                   dominantBaseline="hanging"
                   fontSize={10}
-                  fill={cat === "Other" ? "#9ca3af" : "#6b7280"}
+                  fill={
+                    cat === "Other"
+                      ? "var(--border-strong)"
+                      : "var(--muted-foreground)"
+                  }
                   transform="rotate(-40)"
                 >
-                  {cat.length > 22 ? cat.slice(0, 21) + "\u2026" : cat}
+                  {cat.length > 22 ? cat.slice(0, 21) + "…" : cat}
                 </text>
               </g>
             ))}
           </g>
         </svg>
 
-        {/* Tooltip */}
-        {tooltip && (
-          <div
-            className={s.tooltip}
-            style={{
-              left: Math.min(tooltip.x + 14, width - 260),
-              top: Math.max(tooltip.y - 80, 4),
-            }}
-          >
-            <div className={s.tooltipHeader}>
-              {tooltip.category}
-            </div>
-            <div className={s.tooltipBody}>
-              <div className={s.tooltipRow}>
-                <span>Organism</span>
-                <b><em>{tooltip.organism}</em></b>
-              </div>
-              <div className={s.tooltipRow}>
-                <span>Accession</span>
-                <b>{tooltip.accession}</b>
-              </div>
-              <div className={s.tooltipRow}>
-                <span>Identity</span>
-                <b>{tooltip.identity?.toFixed(1)}%</b>
-              </div>
-              <div className={s.tooltipRow}>
-                <span>Coverage</span>
-                <b>{tooltip.coverage != null ? `${tooltip.coverage}%` : "\u2014"}</b>
-              </div>
-              <div className={s.tooltipRow}>
-                <span>E-value</span>
-                <b>{tooltip.evalue === 0 ? "0" : tooltip.evalue?.toExponential(1)}</b>
-              </div>
-              {tooltip.definition && (
-                <div className={s.tooltipDef}>
-                  {tooltip.definition.length > 120
-                    ? tooltip.definition.slice(0, 119) + "\u2026"
-                    : tooltip.definition}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <ChartTooltip tooltip={tooltip} width={width} />
       </div>
     </div>
   )

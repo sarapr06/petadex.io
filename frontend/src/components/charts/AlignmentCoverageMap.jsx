@@ -1,16 +1,15 @@
 import React, { useState, useRef } from "react"
 import * as d3 from "d3"
 
-
 const QUERY_LENGTH = 290
 const BAR_HEIGHT = 10
 const BAR_GAP = 4
 
 const SORT_OPTIONS = [
-  { key: "bitscore",    label: "Bitscore" },
-  { key: "evalue",      label: "E-value" },
-  { key: "identity",    label: "% Identity" },
-  { key: "position",    label: "Position" },
+  { key: "bitscore", label: "Bitscore" },
+  { key: "evalue", label: "E-value" },
+  { key: "identity", label: "% Identity" },
+  { key: "position", label: "Position" },
 ]
 
 function formatEvalue(e) {
@@ -20,44 +19,47 @@ function formatEvalue(e) {
   return `${mantissa}e${exp}`
 }
 
-function Tooltip({ data }) {
+// ── Inline tooltip (lives inside the SVG overlay div) ─────────────────────────
+
+function HitTooltip({ data }) {
   if (!data) return null
-  const { xPos, yPos, target_id, query_start, query_end, target_start, target_end,
-          alignment_length, percent_identity, evalue, bitscore } = data
+  const {
+    xPos,
+    yPos,
+    target_id,
+    query_start,
+    query_end,
+    target_start,
+    target_end,
+    alignment_length,
+    percent_identity,
+    evalue,
+    bitscore,
+  } = data
 
   const rows = [
-    ["Query range",   `${query_start} – ${query_end}`],
-    ["Target range",  `${target_start} – ${target_end}`],
-    ["Aln length",    alignment_length],
-    ["% Identity",    `${percent_identity.toFixed(1)}%`],
-    ["E-value",       formatEvalue(evalue)],
-    ["Bitscore",      bitscore],
+    ["Query range", `${query_start} – ${query_end}`],
+    ["Target range", `${target_start} – ${target_end}`],
+    ["Aln length", alignment_length],
+    ["% Identity", `${percent_identity.toFixed(1)}%`],
+    ["E-value", formatEvalue(evalue)],
+    ["Bitscore", bitscore],
   ]
 
   return (
-    <div style={{
-      position: "absolute",
-      left: xPos + 12,
-      top: yPos - 20,
-      background: "white",
-      border: "1px solid #e0e0e0",
-      borderRadius: 6,
-      padding: "8px 11px",
-      fontSize: 12,
-      pointerEvents: "none",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-      zIndex: 10,
-      minWidth: 160,
-    }}>
-      <div style={{ fontWeight: 600, marginBottom: 5, fontSize: 12.5, color: "#1a1a1a" }}>
-        {target_id}
-      </div>
-      <table style={{ borderCollapse: "collapse", width: "100%" }}>
+    <div
+      className="absolute pointer-events-none bg-background border border-border rounded-lg px-3 py-2 shadow-md z-10 min-w-[160px] text-xs"
+      style={{ left: xPos + 12, top: yPos - 20 }}
+    >
+      <div className="font-semibold text-foreground mb-1.5">{target_id}</div>
+      <table className="w-full border-collapse">
         <tbody>
           {rows.map(([label, value]) => (
             <tr key={label}>
-              <td style={{ color: "#888", paddingRight: 10, paddingBottom: 2 }}>{label}</td>
-              <td style={{ color: "#222", fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{value}</td>
+              <td className="text-muted-foreground pr-3 pb-0.5">{label}</td>
+              <td className="text-foreground text-right tabular-nums">
+                {value}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -65,6 +67,8 @@ function Tooltip({ data }) {
     </div>
   )
 }
+
+// ── SVG color legend ───────────────────────────────────────────────────────────
 
 function ColorLegend({ colorScale, x, y, width, height }) {
   const steps = 50
@@ -86,14 +90,37 @@ function ColorLegend({ colorScale, x, y, width, height }) {
           />
         )
       })}
-      <rect x={x} y={y} width={width} height={height} fill="none" stroke="#ccc" strokeWidth={0.5} />
+      <rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill="none"
+        stroke="var(--border)"
+        strokeWidth={0.5}
+      />
       {[100, 75, 50, 35].map(pct => {
         const t = (pct - 35) / 65
         const yy = y + t * height
         return (
           <g key={pct}>
-            <line x1={x + width} y1={yy} x2={x + width + 4} y2={yy} stroke="#666" strokeWidth={0.5} />
-            <text x={x + width + 7} y={yy} fontSize={10} fill="#555" dominantBaseline="central">{pct}%</text>
+            <line
+              x1={x + width}
+              y1={yy}
+              x2={x + width + 4}
+              y2={yy}
+              stroke="var(--muted-foreground)"
+              strokeWidth={0.5}
+            />
+            <text
+              x={x + width + 7}
+              y={yy}
+              fontSize={10}
+              fill="var(--muted-foreground)"
+              dominantBaseline="central"
+            >
+              {pct}%
+            </text>
           </g>
         )
       })}
@@ -101,7 +128,7 @@ function ColorLegend({ colorScale, x, y, width, height }) {
         x={x + width / 2}
         y={y - 10}
         fontSize={10}
-        fill="#555"
+        fill="var(--muted-foreground)"
         textAnchor="middle"
       >
         % Identity
@@ -110,66 +137,55 @@ function ColorLegend({ colorScale, x, y, width, height }) {
   )
 }
 
+// ── Main component ─────────────────────────────────────────────────────────────
+
 export default function AlignmentCoverageMap({ width = 860, data }) {
   const [sortBy, setSortBy] = useState("bitscore")
   const [interactionData, setInteractionData] = useState(null)
-
   const svgRef = useRef(null)
 
   const margin = { top: 50, right: 150, bottom: 200, left: 148 }
-  const innerWidth  = width - margin.left - margin.right
+  const innerWidth = width - margin.left - margin.right
   const innerHeight = data.length * (BAR_HEIGHT + BAR_GAP)
-  const height      = innerHeight + margin.top + margin.bottom
+  const height = innerHeight + margin.top + margin.bottom
 
-  // Sort data
   const sortedData = [...data].sort((a, b) => {
-    if (sortBy === "bitscore")  return b.bitscore - a.bitscore
-    if (sortBy === "evalue")    return a.evalue - b.evalue
-    if (sortBy === "identity")  return b.percent_identity - a.percent_identity
-    if (sortBy === "position")  return a.query_start - b.query_start
+    if (sortBy === "bitscore") return b.bitscore - a.bitscore
+    if (sortBy === "evalue") return a.evalue - b.evalue
+    if (sortBy === "identity") return b.percent_identity - a.percent_identity
+    if (sortBy === "position") return a.query_start - b.query_start
     return 0
   })
 
-  const xScale = d3.scaleLinear().domain([1, QUERY_LENGTH]).range([0, innerWidth])
-
+  const xScale = d3
+    .scaleLinear()
+    .domain([1, QUERY_LENGTH])
+    .range([0, innerWidth])
   const colorScale = d3.scaleSequential(d3.interpolateRdYlGn).domain([35, 100])
-
   const xTicks = xScale.ticks(7)
 
-  const btnBase = {
-    padding: "4px 12px",
-    border: "1px solid #ccc",
-    borderRadius: 4,
-    cursor: "pointer",
-    fontSize: 13,
-  }
-
   return (
-    <div style={{ position: "relative" }}>
+    <div className="relative">
       {/* Controls */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <span style={{ fontSize: 13, color: "#666", marginRight: 2 }}>Sort by:</span>
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="text-xs text-muted-foreground">Sort by:</span>
         {SORT_OPTIONS.map(({ key, label }) => (
           <button
             key={key}
             onClick={() => setSortBy(key)}
-            style={{
-              ...btnBase,
-              background: sortBy === key ? "#1a73e8" : "#fff",
-              color:      sortBy === key ? "#fff"    : "#333",
-            }}
+            className={[
+              "px-3 py-1 text-xs border rounded transition-colors",
+              sortBy === key
+                ? "bg-accent text-accent-foreground border-accent"
+                : "bg-background text-foreground border-border hover:border-border-strong",
+            ].join(" ")}
           >
             {label}
           </button>
         ))}
       </div>
 
-      <svg
-        ref={svgRef}
-        width={width}
-        height={height}
-        style={{ display: "block" }}
-      >
+      <svg ref={svgRef} width={width} height={height} className="block">
         <defs>
           <clipPath id="coverage-clip">
             <rect x={0} y={0} width={innerWidth} height={innerHeight} />
@@ -177,10 +193,16 @@ export default function AlignmentCoverageMap({ width = 860, data }) {
         </defs>
 
         <g transform={`translate(${margin.left}, ${margin.top})`}>
-
-          {/* Query reference bar at top */}
+          {/* Query reference bar */}
           <g>
-            <text x={-6} y={-14} fontSize={11} fill="#888" textAnchor="end" dominantBaseline="central">
+            <text
+              x={-6}
+              y={-14}
+              fontSize={11}
+              fill="var(--muted-foreground)"
+              textAnchor="end"
+              dominantBaseline="central"
+            >
               Query
             </text>
             <rect
@@ -188,26 +210,33 @@ export default function AlignmentCoverageMap({ width = 860, data }) {
               y={-22}
               width={xScale(QUERY_LENGTH) - xScale(1)}
               height={10}
-              fill="#d0d0d0"
+              fill="var(--border-strong)"
               rx={2}
               clipPath="url(#coverage-clip)"
             />
-            <text x={xScale(QUERY_LENGTH / 2)} y={-14} fontSize={10} fill="#666" textAnchor="middle" dominantBaseline="central">
+            <text
+              x={xScale(QUERY_LENGTH / 2)}
+              y={-14}
+              fontSize={10}
+              fill="var(--muted-foreground)"
+              textAnchor="middle"
+              dominantBaseline="central"
+            >
               1 – {QUERY_LENGTH} aa
             </text>
           </g>
 
-          {/* Horizontal grid lines + bars */}
+          {/* Bars */}
           <g clipPath="url(#coverage-clip)">
             {sortedData.map((d, i) => {
-              const y   = i * (BAR_HEIGHT + BAR_GAP)
-              const x1  = xScale(d.query_start)
-              const x2  = xScale(d.query_end)
+              const y = i * (BAR_HEIGHT + BAR_GAP)
+              const x1 = xScale(d.query_start)
+              const x2 = xScale(d.query_end)
               const barW = Math.max(x2 - x1, 1)
               return (
                 <g
                   key={d.target_id + i}
-                  onMouseMove={(e) => {
+                  onMouseMove={e => {
                     const rect = svgRef.current.getBoundingClientRect()
                     setInteractionData({
                       xPos: e.clientX - rect.left,
@@ -218,7 +247,6 @@ export default function AlignmentCoverageMap({ width = 860, data }) {
                   onMouseLeave={() => setInteractionData(null)}
                   style={{ cursor: "pointer" }}
                 >
-                  {/* row stripe */}
                   <rect
                     x={0}
                     y={y}
@@ -226,7 +254,6 @@ export default function AlignmentCoverageMap({ width = 860, data }) {
                     height={BAR_HEIGHT + BAR_GAP}
                     fill={i % 2 === 0 ? "rgba(0,0,0,0.02)" : "transparent"}
                   />
-                  {/* alignment bar */}
                   <rect
                     x={x1}
                     y={y + BAR_GAP / 2}
@@ -241,32 +268,46 @@ export default function AlignmentCoverageMap({ width = 860, data }) {
             })}
           </g>
 
-          {/* Y-axis */}
-          {sortedData.map((d, i) => {
-            const y = i * (BAR_HEIGHT + BAR_GAP) + (BAR_HEIGHT + BAR_GAP) / 2
-            return (
-              <text
-                key={d.target_id + "-label-" + i}
-                x={-8}
-                y={y}
-                fontSize={10}
-                fill="#444"
-                textAnchor="end"
-                dominantBaseline="central"
-                style={{ fontFamily: "monospace" }}
-              >
-                {d.target_id}
-              </text>
-            )
-          })}
+          {/* Y-axis labels */}
+          {sortedData.map((d, i) => (
+            <text
+              key={d.target_id + "-label-" + i}
+              x={-8}
+              y={i * (BAR_HEIGHT + BAR_GAP) + (BAR_HEIGHT + BAR_GAP) / 2}
+              fontSize={10}
+              fill="var(--foreground)"
+              textAnchor="end"
+              dominantBaseline="central"
+              style={{ fontFamily: "var(--font-mono)" }}
+            >
+              {d.target_id}
+            </text>
+          ))}
 
           {/* X-axis */}
           <g transform={`translate(0, ${innerHeight})`}>
-            <line x1={0} x2={innerWidth} y1={0} y2={0} stroke="#ccc" strokeWidth={0.5} />
+            <line
+              x1={0}
+              x2={innerWidth}
+              y1={0}
+              y2={0}
+              stroke="var(--border)"
+              strokeWidth={0.5}
+            />
             {xTicks.map(tick => (
               <g key={tick} transform={`translate(${xScale(tick)}, 0)`}>
-                <line y1={0} y2={4} stroke="#999" strokeWidth={0.5} />
-                <text y={14} fontSize={10} fill="#666" textAnchor="middle">
+                <line
+                  y1={0}
+                  y2={4}
+                  stroke="var(--muted-foreground)"
+                  strokeWidth={0.5}
+                />
+                <text
+                  y={14}
+                  fontSize={10}
+                  fill="var(--muted-foreground)"
+                  textAnchor="middle"
+                >
                   {tick}
                 </text>
               </g>
@@ -275,14 +316,13 @@ export default function AlignmentCoverageMap({ width = 860, data }) {
               x={innerWidth / 2}
               y={36}
               fontSize={11}
-              fill="#666"
+              fill="var(--muted-foreground)"
               textAnchor="middle"
             >
               Query position (aa)
             </text>
           </g>
 
-          {/* Color legend */}
           <ColorLegend
             colorScale={colorScale}
             x={innerWidth + 24}
@@ -290,13 +330,15 @@ export default function AlignmentCoverageMap({ width = 860, data }) {
             width={14}
             height={Math.min(innerHeight, 200)}
           />
-
         </g>
       </svg>
 
-      {/* Tooltip */}
-      <div style={{ position: "absolute", top: 0, left: 0, width, height, pointerEvents: "none" }}>
-        <Tooltip data={interactionData} />
+      {/* Tooltip overlay */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{ width, height }}
+      >
+        <HitTooltip data={interactionData} />
       </div>
     </div>
   )

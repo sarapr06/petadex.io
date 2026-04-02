@@ -50,7 +50,7 @@ const ScatterTooltipContent = ({ active, payload, xKey, yKey, plotMode }) => {
   const valueLabel = isActivityMode ? "Activity" : "Intensity"
 
   return (
-    <div className="bg-surface border border rounded-xl px-4 py-3 shadow-lg text-sm max-w-[300px]">
+    <div className="bg-surface border rounded-xl px-4 py-3 shadow-lg text-sm max-w-[300px]">
       <div className="font-bold font-mono text-primary mb-1">{data.gene}</div>
       {data.nickname && (
         <div className="text-muted-foreground text-xs mb-1">{data.nickname}</div>
@@ -86,7 +86,7 @@ const SubstrateHero = ({ heroStats, activeSubstrates }) => {
   if (substrates.length === 0) return null
 
   return (
-    <div className="flex items-stretch mb-8 rounded-xl overflow-hidden border border shadow-md relative">
+    <div className="flex items-stretch mb-8 rounded-xl overflow-hidden border shadow-md relative">
       {substrates.map((substrate, i) => {
         const stats = heroStats[substrate]
         const color = mediaColors[substrate]
@@ -145,7 +145,7 @@ const SubstrateHero = ({ heroStats, activeSubstrates }) => {
 
 const PlotModeToggle = ({ plotMode, onModeChange }) => (
   <div className="flex items-center gap-2 mb-6 flex-wrap">
-    <span className="text-sm font-semibold text-secondary">Plot Mode:</span>
+    <span className="text-sm font-semibold text-secondary-foreground">Plot Mode:</span>
     {Object.entries(plotModes).map(([mode, { label, description }]) => {
       const isActive = plotMode === mode
       return (
@@ -171,7 +171,7 @@ const TimepointToggle = ({ availableTimepoints, activeTimepoint, onSelect }) => 
   if (availableTimepoints.length === 0) return null
   return (
     <div className="flex items-center gap-2 mb-8 flex-wrap">
-      <span className="text-sm font-semibold text-secondary">Timepoint:</span>
+      <span className="text-sm font-semibold text-secondary-foreground">Timepoint:</span>
       {[null, ...availableTimepoints].map(tp => {
         const isActive = activeTimepoint === tp
         const color = tp === null ? timepointColors.all : timepointColors[tp] || "#6b7280"
@@ -199,7 +199,7 @@ const TimepointToggle = ({ availableTimepoints, activeTimepoint, onSelect }) => 
 
 const SubstrateToggle = ({ activeSubstrates, onToggle }) => (
   <div className="flex items-center gap-3 mb-8 flex-wrap">
-    <span className="text-sm font-semibold text-secondary">Substrates:</span>
+    <span className="text-sm font-semibold text-secondary-foreground">Substrates:</span>
     {allSubstrates.map(substrate => {
       const isActive = activeSubstrates.has(substrate)
       const color = mediaColors[substrate]
@@ -272,7 +272,7 @@ const SubstrateScatter = ({
               </span>
             )}
           </h2>
-          <p className="text-sm text-secondary mt-1">
+          <p className="text-sm text-secondary-foreground mt-1">
             {isActivityMode
               ? "Each dot is one gene. Activity = peak intensity minus subsequent minimum"
               : `Each dot is one gene. Dots above the diagonal prefer the Y-axis substrate${activeTimepoint === null ? " (averaged across all timepoints)" : ""}`}
@@ -285,7 +285,7 @@ const SubstrateScatter = ({
               { label: "X", value: scatterXAxis, onChange: onXAxisChange },
               { label: "Y", value: scatterYAxis, onChange: onYAxisChange },
             ].map(({ label, value, onChange }) => (
-              <label key={label} className="flex items-center gap-1.5 text-sm text-secondary">
+              <label key={label} className="flex items-center gap-1.5 text-sm text-secondary-foreground">
                 {label}:
                 <select
                   value={value}
@@ -394,7 +394,7 @@ const SubstrateScatter = ({
         if (!gene) return null
         const valueLabel = isActivityMode ? "Activity" : "Intensity"
         return (
-          <div className="absolute top-16 right-8 bg-surface border border rounded-xl px-4 py-3 shadow-lg text-sm max-w-[280px] z-10 opacity-0 animate-[fadeIn_0.3s_ease_forwards]">
+          <div className="absolute top-16 right-8 bg-surface border rounded-xl px-4 py-3 shadow-lg text-sm max-w-[280px] z-10 opacity-0 animate-[fadeIn_0.3s_ease_forwards]">
             <style>{`@keyframes fadeIn { to { opacity: 1 } }`}</style>
             <div className="font-bold font-mono text-primary mb-1">{gene.gene}</div>
             {gene.nickname && <div className="text-muted-foreground text-xs mb-1">{gene.nickname}</div>}
@@ -409,7 +409,7 @@ const SubstrateScatter = ({
       })()}
 
       {/* Legend */}
-      <div className="flex justify-center gap-6 mt-2 text-xs text-secondary flex-wrap">
+      <div className="flex justify-center gap-6 mt-2 text-xs text-secondary-foreground flex-wrap">
         {[
           { color: mediaColors[scatterXAxis], label: `Prefers ${mediaLabels[scatterXAxis]}` },
           { color: mediaColors[scatterYAxis], label: `Prefers ${mediaLabels[scatterYAxis]}` },
@@ -454,7 +454,7 @@ const GeneSubstrateCard = ({
   return (
     <div
       id={`gene-${gene}`}
-      className="bg-surface border border rounded-xl mb-3 overflow-hidden transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-md"
+      className="bg-surface border rounded-xl mb-3 overflow-hidden transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-md"
     >
       {/* Header button */}
       <button
@@ -487,14 +487,14 @@ const GeneSubstrateCard = ({
           {nickname && (
             <div>
               <div className="label mb-0.5">Nickname</div>
-              <div className="text-lg text-secondary">{nickname}</div>
+              <div className="text-lg text-secondary-foreground">{nickname}</div>
             </div>
           )}
 
           {accession && (
             <div>
               <div className="label mb-0.5">Accession</div>
-              <div className="font-mono text-lg text-secondary">{accession}</div>
+              <div className="font-mono text-lg text-secondary-foreground">{accession}</div>
             </div>
           )}
 
@@ -601,7 +601,7 @@ const GeneSubstrateCard = ({
                           </div>
                         )}
 
-                        <div className="text-xs text-secondary space-y-0.5">
+                        <div className="text-xs text-secondary-foreground space-y-0.5">
                           <div>
                             Avg Intensity:{" "}
                             <strong className="text-success">{avg.toFixed(2)}</strong>
@@ -635,9 +635,9 @@ const DownloadControls = ({
   onDownloadIntensity, onDownloadActivity,
   disabled,
 }) => (
-  <div className="flex justify-between items-center p-4 bg-surface-raised border border rounded-xl mb-6 flex-wrap gap-4">
+  <div className="flex justify-between items-center p-4 bg-surface-raised border rounded-xl mb-6 flex-wrap gap-4">
     <div className="flex items-center gap-4">
-      <span className="text-sm text-secondary font-medium">
+      <span className="text-sm text-secondary-foreground font-medium">
         {selectedCount} of {totalCount} genes selected
       </span>
       <button
@@ -907,7 +907,7 @@ const SubstratePage = () => {
           <h1 className="text-4xl font-semibold text-primary mb-1">
             Substrate Activity Comparison
           </h1>
-          <p className="text-secondary text-lg">
+          <p className="text-secondary-foreground text-lg">
             Compare enzyme activity across BHET substrates at different concentrations
           </p>
         </div>
@@ -961,7 +961,7 @@ const SubstratePage = () => {
             />
 
             <div className="flex justify-between items-center mb-4">
-              <p className="text-sm text-secondary">
+              <p className="text-sm text-secondary-foreground">
                 Showing {geneEntries.length}{" "}
                 {geneEntries.length === 1 ? "gene" : "genes"} with substrate data
               </p>

@@ -90,11 +90,11 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
     <div className="py-10 px-6 flex flex-col items-center gap-6 max-w-lg mx-auto">
       {/* Header */}
       <div className="flex flex-col items-center gap-3 text-center">
-        <div className="w-10 h-10 rounded-full border-4 border border-t-accent animate-spin" />
+        <div className="w-10 h-10 rounded-full border border-t-accent animate-spin" />
         <h2 className="text-xl font-semibold text-primary">
           Searching the enzyme database…
         </h2>
-        <p className="text-sm text-secondary">
+        <p className="text-sm text-secondary-foreground">
           MMseqs2 is scanning millions of sequences for similar enzymes
         </p>
       </div>
@@ -141,7 +141,7 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
 
       {/* Query sequence */}
       {cleanSeq && (
-        <div className="w-full bg-surface-sunken border border rounded-lg p-3">
+        <div className="w-full bg-surface-sunken border rounded-lg p-3">
           <span className="label block mb-1">Query sequence ({cleanSeq.length} aa)</span>
           <span className="sequence text-2xs">{formatSeq(cleanSeq)}</span>
         </div>
@@ -168,7 +168,7 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
 const ErrorView = ({ error, onNewSearch }) => (
   <div className="py-10 px-6 flex flex-col items-center gap-4 text-center max-w-lg mx-auto">
     <h2 className="text-xl font-semibold text-destructive">Search failed</h2>
-    <p className="text-sm text-secondary">{error.message}</p>
+    <p className="text-sm text-secondary-foreground">{error.message}</p>
     {error.bugUrl && (
       <a
         href={error.bugUrl}
@@ -286,14 +286,14 @@ const ResultsPage = () => {
   }
 
   return (
-    <div className="max-w-[1100px] mx-auto px-4 py-6">
+    <div className="mx-auto px-4 py-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm text-secondary mb-4">
         <Link to="/" className="text-accent hover:text-accent-hover">
           PETadex
         </Link>
         <span className="text-border-strong">/</span>
-        <span>Search results</span>
+        <span className='text-secondary-foreground'>Search results</span>
       </nav>
 
       {/* Main card */}

@@ -6,9 +6,10 @@ import AtlasMap from "./AtlasMap"
 import { Scatterplot } from "./charts/Scatterplot"
 import { TaxonomyScatterChart } from "./charts/TaxonomyScatterChart"
 
-import * as s from '../styles/results.module.css';
 import AlignmentCoverageMap from './charts/AlignmentCoverageMap';
 import { FunctionalAnnotationChart } from './charts/FunctionalAnnotationChart';
+import Container from './Container'
+import SequenceViewer from "./sequence/SequenceViewer"
 
 
 // Deterministic per-family color — must match enzymes.js
@@ -39,10 +40,12 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
   )
 
   const handleCopyLink = () => {
-    navigator.clipboard?.writeText(
-      `${window.location.origin}/results?job=${sessionId}`,
-    )
-    setCopied(true)
+    if(!copied) {
+      navigator.clipboard?.writeText(
+        `${window.location.origin}/results?job=${sessionId}`,
+      )
+      setCopied(true)
+    }
     setTimeout(() => setCopied(false), 2000)
   }
 
@@ -76,7 +79,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
   const maxCount = sorted[0]?.[1].count || 1
 
   const cleanSeq = cleanSequence(metadata.query_sequence)
-  const seq_header = metadata.query_header
+  const queryHeader = metadata.query_header || null
 
   const scatterData = results.map(hit => ({
     x: hit.identity,
@@ -140,17 +143,17 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
   }
 
   return (
-    <div>
+    <div className="w-[1400px]  px-4 md:px-8">
       {/* Results header */}
-      <div className={s.resultsHeader}>
+      <div className="flex justify-between items-start mb-4 gap-2 py-4">
         <div>
-          <h2 className={s.resultsTitle}>
+          <h2 className="text-lg">
             {results.length === 0
               ? "No results found"
               : `${results.length} sequences found`}
           </h2>
           {metadata && (
-            <p className={s.resultsMeta}>
+            <p className="text-xs text-muted-foreground">
               {[
                 metadata.query_length && `Query: ${metadata.query_length} aa`,
                 metadata.database_size &&
@@ -163,67 +166,71 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
             </p>
           )}
         </div>
-        <div className={s.resultsHeaderActions}>
+        <div className="flex gap-1">
           {sessionId && (
             <button
-              className={copied ? s.copyBtnCopied : s.copyBtn}
+              className={
+                copied
+                  ? "btn btn-primary cursor-not-allowed"
+                  : "btn btn-secondary"
+              }
               onClick={handleCopyLink}
               title="Copy shareable link"
+              disabled={copied}
             >
               {copied ? "✓ Copied!" : "🔗 Copy link"}
             </button>
           )}
-          <button className={s.newSearchBtn} onClick={onNewSearch}>
+          <button className="btn btn-ghost" onClick={onNewSearch}>
             ← New search
           </button>
         </div>
       </div>
-
       {/* Query sequence pill */}
       {cleanSeq && (
-        <div className={s.queryPill}>
+        <div className="bg-surface-raised border border-border rounded-md mb-4 overflow-hidden">
           <button
-            className={s.queryPillToggle}
+            className="flex items-center gap-2 w-full px-4 py-2 cursor-pointer text-left bg-transparent hover:bg-border"
             onClick={() => setQueryOpen(o => !o)}
           >
-            <span className={s.queryPillLabel}>Query{queryHeader ? `: ${queryHeader}` : ''}</span>
-            <span className={s.queryPillSeqPreview}>
-              {seq_header} {formatSeq(cleanSeq, 60)}
+            <span className="text-xs font-bold uppercase tracking-tighter text-muted-foreground shrink-0">
+              Query{queryHeader ? `: ${queryHeader}` : ""}
+            </span>
+            <span className="font-mono text-sm text-secondary-foreground overflow-hidden text-ellipsis whitespace-nowrap flex min-w-0">
+              {formatSeq(cleanSeq, 60)}
             </span>
             <span
-              className={s.familySummaryChevron}
-              style={{
-                transform: queryOpen ? "rotate(180deg)" : "none",
-                marginLeft: "auto",
-              }}
+              className={`text-sm text-gray-400 inline-block transition-transform duration-200 ml-auto ${
+                queryOpen ? "rotate-180" : ""
+              }`}
             >
               ▼
             </span>
           </button>
           {queryOpen && (
-            <pre className={s.queryPillSeqFull}>
-              {queryHeader ? `>${queryHeader}\n` : ''}{cleanSeq}
-            </pre>
+            <SequenceViewer
+              aminoAcidSequence={cleanSeq}
+              nucleotideSequence={null}
+            />
           )}
         </div>
       )}
-
       {results.length === 0 ? (
-        <div className={s.noResults}>
+        <div className="p-3 text-center text-muted-foreground">
           <p>No similar sequences were found in the PETadex database.</p>
           <p>
             Try adjusting your search parameters or using a different sequence.
           </p>
-          <button className={s.newSearchBtn} onClick={onNewSearch}>
+          <button className="btn btn-primary mt-4" onClick={onNewSearch}>
             ← New search
           </button>
         </div>
       ) : (
         <>
           {/* Family summary — persists above tabs */}
-          <div className={s.familySummary}>
+          <div className="mb-5 py-3.5 px-4 bg-surface-raised border border-border rounded-sm">
             <div
-              className={s.familySummaryTitle}
+              className="flex justify-between items-center text-sm font-semibold text-muted-foreground uppercase tracking-tighter cursor-pointer select-none"
               onClick={() => setFamilySummaryOpen(o => !o)}
             >
               <span>
@@ -231,25 +238,26 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                 represented across {results.length} hits
               </span>
               <span
-                className={s.familySummaryChevron}
-                style={{
-                  transform: familySummaryOpen ? "rotate(180deg)" : "none",
-                }}
+                className={`text-sm text-gray-400 inline-block transition-transform duration-200 ${
+                  familySummaryOpen ? "rotate-180" : ""
+                }`}
               >
                 ▼
               </span>
             </div>
-
             {familySummaryOpen && (
-              <div className={s.familyBars}>
+              <div className="flex flex-col gap-1.5 mt-2.5">
                 {sorted.map(
                   ([label, { count, enzyme_id, family_num, has_tree }]) => (
-                    <div key={label} className={s.familyBarRow}>
-                      <div className={s.familyBarLabel}>
+                    <div
+                      key={label}
+                      className="flex items-center gap-0.5 text-sm"
+                    >
+                      <div className="w-28 shrink-0 whitespace-nowrap text-muted-foreground flex items-center gap-1.5">
                         {label !== "Unknown" && family_num != null ? (
                           <Link
                             to={familyUrl(family_num)}
-                            className={s.link}
+                            className="hover:underline"
                             style={{ color: familyColor(family_num) }}
                           >
                             {label}
@@ -258,9 +266,9 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                           label
                         )}
                       </div>
-                      <div className={s.familyBarTrack}>
+                      <div className="flex flex-1 mr-2 h-2 bg-surface-sunken rounded-xs overflow-hidden">
                         <div
-                          className={s.familyBarFill}
+                          className="h-full rounded-xs transition-width duration-300 "
                           style={{
                             width: `${(count / maxCount) * 100}%`,
                             background:
@@ -270,7 +278,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                           }}
                         />
                       </div>
-                      <div className={s.familyBarCount}>
+                      <div className="w-15 shrink-0 text-right text-gray-400">
                         {count} ({Math.round((count / results.length) * 100)}%)
                       </div>
                     </div>
@@ -279,34 +287,25 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
               </div>
             )}
           </div>
-
           {/* Tab navigation */}
-          <div className={s.tabsNav}>
+          <div className="flex border-b mt-2 mb-2 gap-0">
             {TABS.map(tab => (
               <button
                 key={tab.id}
-                className={`${s.tabBtn} ${activeTab === tab.id ? s.tabBtnActive : ""}`}
+                className={`btn btn-ghost ${activeTab === tab.id ? "text-accent font-semibold border-b-accent" : ""}`}
                 onClick={() => setActiveTab(tab.id)}
               >
                 {tab.label}
               </button>
             ))}
           </div>
-
           {/* Tab panels */}
-          <div className={s.tabPanel}>
+          <div className="px-6 py-4">
             {/* Graphic summary */}
             {activeTab === "graphic" && (
-              <div
-                style={{
-                  display: "grid",
-                  gap: "2rem",
-                  gridTemplateColumns: "1fr 1fr",
-                  alignItems: "stretch",
-                }}
-              >
-                <div className={s.chartSection}>
-                  <p className={s.chartTitle}>Identity vs. Query Coverage</p>
+              <div className="grid gap-8 auto-cols-fr">
+                <div className="flex flex-col gap-2">
+                  <p className="label">Identity vs. Query Coverage</p>
                   <Scatterplot
                     height={500}
                     data={scatterData}
@@ -315,36 +314,34 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                     total={results.length}
                   />
                 </div>
-                <div className={s.chartSection}>
-                  <p className={s.chartTitle}>Alignment Coverage Map</p>
+                <div className="flex flex-col gap-2">
+                  <p className="label">Alignment Coverage Map</p>
                   <AlignmentCoverageMap data={results} />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <p className="label">Functional Annotation</p>
+                  <FunctionalAnnotationChart data={results} height={500} />
                 </div>
               </div>
             )}
 
             {/* Taxonomy */}
             {activeTab === "taxonomy" && (
-              <div className={s.chartSection}>
-                <p className={s.chartTitle}>Taxonomy vs. Identity</p>
+              <div className="flex flex-col gap-2">
+                <p className="label">Taxonomy vs. Identity</p>
                 <TaxonomyScatterChart data={results} height={560} />
               </div>
             )}
 
             {/* Descriptions table */}
             {activeTab === "descriptions" && (
-              <div className={s.tableWrap}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  <button className={s.copyBtn} onClick={handleDownload}>
+              <div className="overflow-x-auto">
+                <div className="flex justify-end mb-2">
+                  <button className="btn btn-outline" onClick={handleDownload}>
                     ⬇ Download CSV
                   </button>
                 </div>
-                <table className={s.table}>
+                <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr>
                       {[
@@ -359,22 +356,15 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                       ].map(({ label, key, minWidth }) => (
                         <th
                           key={key}
-                          className={s.th}
-                          onClick={() => handleSort(key)}
+                          className="cursor-pointer select-none whitespace-nowrap bg-surface-raised text-left py-2 px-2.5 font-semibold"
                           style={{
-                            cursor: "pointer",
-                            userSelect: "none",
-                            whiteSpace: "nowrap",
                             minWidth: minWidth || undefined,
                           }}
+                          onClick={() => handleSort(key)}
                         >
                           {label}
                           <span
-                            style={{
-                              marginLeft: 4,
-                              opacity: sortKey === key ? 1 : 0.3,
-                              fontSize: "0.75em",
-                            }}
+                            className={`ml-1 ${sortKey === key ? "opacity-100" : "opacity-30"} text-xs`}
                           >
                             {sortKey === key
                               ? sortDir === "asc"
@@ -388,14 +378,17 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                   </thead>
                   <tbody>
                     {sortedResults.map(hit => (
-                      <tr key={`${hit.rank}-${hit.accession}`} className={s.tr}>
-                        <td className={s.td}>{hit.rank}</td>
-                        <td className={s.td}>
+                      <tr
+                        key={`${hit.rank}-${hit.accession}`}
+                        className="hover:bg-surface-raised"
+                      >
+                        <td className="py-2 px-2.5">{hit.rank}</td>
+                        <td className="py-2 px-2.5">
                           <a
                             href={`/sequence/${hit.accession}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className={s.link}
+                            className="hover:underline"
                             style={{
                               color:
                                 hit.family != null
@@ -406,33 +399,24 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                             {hit.accession}
                           </a>
                         </td>
-                        <td className={s.td}>{hit.name || "-"}</td>
-                        <td className={s.td}>
+                        <td className="py-2 px-2.5">{hit.name || "-"}</td>
+                        <td className="py-2 px-2.5">
                           <em>{hit.organism || "-"}</em>
                         </td>
-                        <td className={s.td}>
+                        <td className="py-2 px-2.5">
                           {hit.family != null ? (
-                            <span
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: "0.3rem",
-                              }}
-                            >
+                            <span className="inline-flex items-center gap-1.5">
                               <span
+                                className="w-2.5 h-2.5 rounded-[50%] shrink-0"
                                 style={{
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: "50%",
                                   backgroundColor: familyColor(hit.family),
-                                  flexShrink: 0,
                                 }}
                               />
                               <a
                                 href={familyUrl(hit.family)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className={s.link}
+                                className="hover:underline"
                                 style={{ color: familyColor(hit.family) }}
                               >
                                 Family {hit.family}
@@ -442,21 +426,23 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                             "-"
                           )}
                         </td>
-                        <td className={s.td}>
+                        <td className="py-2 px-2.5">
                           <span
-                            className={s.identityBar}
+                            className="inline-block h-1.5 bg-success rounded-md mr-1 align-middle"
                             style={{
                               width: `${Math.min(hit.identity ?? 0, 100) * 0.6}px`,
                             }}
                           />
                           {hit.identity?.toFixed(1) ?? "-"}%
                         </td>
-                        <td className={s.td}>
+                        <td className="py-2 px-2.5">
                           {hit.evalue === 0
                             ? "0"
                             : (hit.evalue?.toExponential(1) ?? "-")}
                         </td>
-                        <td className={s.td}>{hit.query_coverage ?? "-"}%</td>
+                        <td className="py-2 px-2.5">
+                          {hit.query_coverage ?? "-"}%
+                        </td>
                       </tr>
                     ))}
                   </tbody>

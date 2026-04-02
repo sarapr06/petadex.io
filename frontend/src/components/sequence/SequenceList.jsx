@@ -23,7 +23,7 @@ function SequenceList({ title, sequenceList }) {
         <summary
           className={`
             flex items-center justify-between gap-3 cursor-pointer select-none list-none w-full
-            text-xl font-semibold text-primary py-3 border-b border
+            text-xl font-semibold text-primary py-3 border-b
             hover:text-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ring-inset
             marker:hidden
             ${visibleCount > 0 ? "mb-4" : "mb-0"}

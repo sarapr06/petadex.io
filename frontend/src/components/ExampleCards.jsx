@@ -37,82 +37,32 @@ const ExampleCards = ({ onSelectExample, disabled }) => {
 
   return (
     <div className="mb-1.5 mt-1.5">
-      <style>{`
-
-        .example-cards-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 0.75rem;
-        }
-        .example-card {
-          background: white;
-          border: 1px solid #e9ecef;
-          border-radius: 8px;
-          padding: 1rem;
-          cursor: pointer;
-          transition: all 0.15s ease;
-          text-align: left;
-          display: flex;
-          flex-direction: column;
-          justify-content: flex-start;
-        }
-        .example-card:hover:not(:disabled) {
-          border-color: #007bff;
-          box-shadow: 0 2px 8px rgba(0, 123, 255, 0.15);
-          transform: translateY(-1px);
-        }
-        .example-card:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-        .example-card-name {
-          font-weight: 600;
-          color: #2c3e50;
-          margin-bottom: 0.25rem;
-          font-size: 0.95rem;
-        }
-        .example-card-organism {
-          font-size: 0.8rem;
-          color: #6c757d;
-          font-style: italic;
-          margin-bottom: 0.5rem;
-        }
-        .example-card-description {
-          font-size: 0.8rem;
-          color: #868e96;
-          line-height: 1.4;
-        }
-        .example-card-meta {
-          margin-top: 0.5rem;
-          font-size: 0.75rem;
-          color: #adb5bd;
-        }
-      `}</style>
 
       <div className="mb-2 text-muted-foreground text-sm">
         Try an example search:
       </div>
       <div className="grid gap-4 grid-cols-3">
         {examples.map((example) => (
-          <button
+          <div
             key={example.job_id}
             className="card text-left p-4 cursor-pointer"
             onClick={() => onSelectExample(example.job_id)}
             disabled={disabled}
           >
-            <div className="example-card-name">{example.name}</div>
+            <div className="font-semibold mb-1 text-sm text-accent">{example.name}</div>
             {example.organism && (
-              <div className="example-card-organism">{example.organism}</div>
+              <div className="text-sm italic mb-2">{example.organism}</div>
             )}
-            <div className="example-card-description">{example.description}</div>
+            <div className="text-sm leading-1.4 text-secondary-foreground">{example.description}</div>
             {example.query_length && (
-              <div className="example-card-meta">{example.query_length} aa</div>
+              <div className="text-xs mt-2 text-muted-foreground">{example.query_length} aa</div>
             )}
-          </button>
+          </div>
         ))}
       </div>
     </div>
   );
+
 };
 
 export default ExampleCards;

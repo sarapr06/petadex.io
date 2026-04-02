@@ -2,19 +2,21 @@ import React from "react"
 import Seo from "../components/seo"
 import AtlasMap from "../components/AtlasMap"
 import { useScrollHeader } from "../hooks/useScrollHeader"
+import Container from '../components/Container'
 
 const AtlasPage = () => {
   useScrollHeader()
 
   return (
-    <section className="max-w-[1400px] mx-auto px-8 py-8">
-      <div className="mb-6">
+    <section className="py-20 md:py-24">
+      <Container>
         <h1 className="text-4xl font-semibold text-primary mb-1">Family Atlas</h1>
-        <p className="text-secondary text-lg">
+        <p className="text-secondary-foreground text-lg">
           UMAP embedding of plastic-degrading enzyme families
         </p>
-      </div>
-      <AtlasMap />
+        <AtlasMap />
+      </Container>
+
     </section>
   )
 }

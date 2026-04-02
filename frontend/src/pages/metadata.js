@@ -10,7 +10,7 @@ const MetadataPage = () => {
     <section className="max-w-[1200px] mx-auto px-8 py-8">
       <div className="mb-8">
         <h1 className="text-4xl font-semibold text-primary mb-1">Sample Metadata</h1>
-        <p className="text-secondary text-lg">
+        <p className="text-secondary-foreground text-lg">
           Geographic distribution of plastic-degrading enzyme discovery sites
         </p>
       </div>

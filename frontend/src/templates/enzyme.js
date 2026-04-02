@@ -3,35 +3,43 @@ import { Link } from "gatsby"
 import SequenceViewer from "../components/sequence/SequenceViewer"
 import Seo from "../components/seo"
 import config from "../config"
+import Container from "../components/Container"
 import { useScrollHeader } from "../hooks/useScrollHeader"
 
 const getNCBILink = accession => {
   if (!accession) return null
-
-  // GenBank protein accessions (letters + 5-6 digits)
-  if (/^[A-Z]{3}\d{5}\.\d+$/.test(accession)) {
+  if (/^[A-Z]{3}\d{5}\.\d+$/.test(accession))
     return `https://www.ncbi.nlm.nih.gov/protein/${accession}`
-  }
-
-  // RefSeq protein (WP_)
-  if (accession.startsWith("WP_")) {
+  if (accession.startsWith("WP_"))
     return `https://www.ncbi.nlm.nih.gov/protein/${accession}`
-  }
-
-  // SRA accessions (SRR, DRR, ERR)
-  if (/^[SDE]RR\d+_\d+/.test(accession)) {
-    const sraId = accession.split("_")[0]
-    return `https://www.ncbi.nlm.nih.gov/sra/${sraId}`
-  }
-
-  // MGY (metagenomic) - use protein search
-  if (accession.startsWith("MGYP")) {
+  if (/^[SDE]RR\d+_\d+/.test(accession))
+    return `https://www.ncbi.nlm.nih.gov/sra/${accession.split("_")[0]}`
+  if (accession.startsWith("MGYP"))
     return `https://www.ncbi.nlm.nih.gov/protein?term=${accession}`
-  }
-
-  // Default protein search for others (removes suffix)
   return `https://www.ncbi.nlm.nih.gov/protein?term=${accession.split("_")[0]}`
 }
+
+// ── Shared full-page states ────────────────────────────────────────────────
+
+const PageState = ({ children, variant = "default" }) => (
+  <div
+    className={`flex items-center justify-center py-20 text-sm ${
+      variant === "error" ? "text-destructive" : "text-muted-foreground italic"
+    }`}
+  >
+    {children}
+  </div>
+)
+
+// ── Metadata pill ──────────────────────────────────────────────────────────
+
+const MetaPill = ({ label, children }) => (
+  <span className="text-sm text-muted-foreground">
+    <strong className="text-foreground font-medium">{label}:</strong> {children}
+  </span>
+)
+
+// ── Main template ──────────────────────────────────────────────────────────
 
 export default function EnzymeTemplate({ pageContext }) {
   useScrollHeader()
@@ -40,13 +48,12 @@ export default function EnzymeTemplate({ pageContext }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (pageContext.enzyme) {
-      return
-    }
+    if (pageContext.enzyme) return
 
     const enzymeId =
       pageContext.enzymeId ||
-      window.location.pathname.match(/\/enzyme\/([^/]+)/)?.[1]
+      (typeof window !== "undefined" &&
+        window.location.pathname.match(/\/enzyme\/([^/]+)/)?.[1])
 
     if (!enzymeId) {
       setError("Invalid enzyme URL")
@@ -58,8 +65,7 @@ export default function EnzymeTemplate({ pageContext }) {
       try {
         const res = await fetch(`${config.apiUrl}/enzymes/${enzymeId}`)
         if (!res.ok) throw new Error(`Enzyme not found: ${enzymeId}`)
-        const data = await res.json()
-        setEnzyme(data)
+        setEnzyme(await res.json())
       } catch (err) {
         setError(err.toString())
       } finally {
@@ -70,159 +76,109 @@ export default function EnzymeTemplate({ pageContext }) {
     fetchEnzyme()
   }, [pageContext.enzyme])
 
-  if (loading) {
-    return (
-      <div style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
-        Loading enzyme...
-      </div>
-    )
-  }
+  if (loading) return <PageState>Loading enzyme…</PageState>
+  if (error) return <PageState variant="error">Error: {error}</PageState>
+  if (!enzyme) return <PageState>Enzyme not found</PageState>
 
-  if (error) {
-    return (
-      <div style={{ padding: "2rem", textAlign: "center", color: "#dc2626" }}>
-        Error: {error}
-      </div>
-    )
-  }
-
-  if (!enzyme) {
-    return (
-      <div style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
-        Enzyme not found
-      </div>
-    )
-  }
-
-  const enzymeName = enzyme.genbank_accession_id || `Enzyme ${enzyme.enzyme_id}`
+  const ncbiLink = getNCBILink(enzyme.genbank_accession_id)
 
   return (
     <>
-      <section className="ui-section-hero">
-        <div className="ui-layout-container">
+      <section className="py-10 md:py-14">
+        <Container>
+          {/* Back link */}
           <Link
             to="/enzymes"
-            style={{
-              color: "#3b82f6",
-              textDecoration: "none",
-              fontSize: "0.9rem",
-            }}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
           >
-            &larr; Back to Enzymes
-          </Link>
-        </div>
-
-        <div className="ui-layout-container">
-          <h1
-            style={{
-              fontSize: "2.5rem",
-              marginBottom: "0.5rem",
-              color: "#2c3e50",
-              fontFamily: "monospace",
-            }}
-          >
-            {enzyme.genbank_accession_id ? (
-              <a
-                href={getNCBILink(enzyme.genbank_accession_id)}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  color: "#2c3e50",
-                  textDecoration: "none",
-                  borderBottom: "2px solid #3b82f6",
-                }}
-              >
-                {enzyme.genbank_accession_id}
-              </a>
-            ) : (
-              `Enzyme ${enzyme.enzyme_id}`
-            )}
-          </h1>
-
-          <div
-            className="ui-layout-flex"
-            style={{
-              gap: "1.5rem",
-              marginTop: "1rem",
-              marginBottom: "1rem",
-            }}
-          >
-            <span style={{ fontSize: "0.9rem", color: "#64748b" }}>
-              <strong>ID:</strong> {enzyme.enzyme_id}
-            </span>
-            {enzyme.family !== null && (
-              <span style={{ fontSize: "0.9rem", color: "#64748b" }}>
-                <strong>Family:</strong>{" "}
-                <Link
-                  to={`/family/${enzyme.family}`}
-                  style={{ color: "#3b82f6", textDecoration: "none" }}
-                >
-                  {enzyme.family}
-                </Link>
-                {enzyme.family_pid === null && (
-                  <span
-                    style={{
-                      marginLeft: "0.5rem",
-                      padding: "0.15rem 0.4rem",
-                      backgroundColor: "#3b82f6",
-                      color: "white",
-                      borderRadius: "3px",
-                      fontSize: "0.75rem",
-                      fontWeight: "600",
-                    }}
-                  >
-                    CENTROID
-                  </span>
-                )}
-                {enzyme.family_pid !== null && (
-                  <span style={{ marginLeft: "0.25rem", color: "#94a3b8" }}>
-                    ({enzyme.family_pid}% identity)
-                  </span>
-                )}
-              </span>
-            )}
-            {enzyme.component !== null && (
-              <span style={{ fontSize: "0.9rem", color: "#64748b" }}>
-                <strong>Component:</strong> {enzyme.component}
-              </span>
-            )}
-            {enzyme.variant !== null && (
-              <span style={{ fontSize: "0.9rem", color: "#64748b" }}>
-                <strong>Variant:</strong> {enzyme.variant}
-              </span>
-            )}
-          </div>
-
-          <p className="ui-text-note">
-            Plastic-degrading enzyme from BLAST-NR database
-          </p>
-        </div>
-
-        {enzyme.translated_sequence && (
-          <div
-            style={{
-              border: "1px solid #e2e8f0",
-              borderRadius: "8px",
-              padding: "1.5rem",
-              backgroundColor: "white",
-              boxShadow: "0 1px 3px 0 rgba(0,0,0,0.1)",
-            }}
-          >
-            <h2
-              style={{
-                fontSize: "1.25rem",
-                marginBottom: "1rem",
-                color: "#2c3e50",
-              }}
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              Amino Acid Sequence
-            </h2>
-            <SequenceViewer
-              aminoAcidSequence={enzyme.translated_sequence}
-              nucleotideSequence={null}
-            />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+            Back to Enzymes
+          </Link>
+
+          {/* Header */}
+          <div className="mb-6">
+            <h1 className="font-mono text-3xl md:text-4xl font-bold text-foreground mb-3">
+              {enzyme.genbank_accession_id ? (
+                ncbiLink ? (
+                  <a
+                    href={ncbiLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-foreground border-b-2 border-info hover:border-accent transition-colors"
+                  >
+                    {enzyme.genbank_accession_id}
+                  </a>
+                ) : (
+                  enzyme.genbank_accession_id
+                )
+              ) : (
+                `Enzyme ${enzyme.enzyme_id}`
+              )}
+            </h1>
+
+            {/* Meta row */}
+            <div className="flex flex-wrap gap-x-6 gap-y-2 mb-3">
+              <MetaPill label="ID">{enzyme.enzyme_id}</MetaPill>
+
+              {enzyme.family !== null && (
+                <MetaPill label="Family">
+                  <Link
+                    to={`/family/${enzyme.family}`}
+                    className="text-accent hover:text-accent-hover"
+                  >
+                    {enzyme.family}
+                  </Link>
+                  {enzyme.family_pid === null ? (
+                    <span className="ml-2 px-1.5 py-0.5 bg-info text-info-foreground rounded text-2xs font-bold uppercase tracking-wide">
+                      Centroid
+                    </span>
+                  ) : (
+                    <span className="ml-1.5 text-muted-foreground">
+                      ({enzyme.family_pid}% identity)
+                    </span>
+                  )}
+                </MetaPill>
+              )}
+
+              {enzyme.component !== null && (
+                <MetaPill label="Component">{enzyme.component}</MetaPill>
+              )}
+
+              {enzyme.variant !== null && (
+                <MetaPill label="Variant">{enzyme.variant}</MetaPill>
+              )}
+            </div>
+
+            <p className="text-sm text-muted-foreground">
+              Plastic-degrading enzyme from BLAST-NR database
+            </p>
           </div>
-        )}
+
+          {/* Sequence card */}
+          {enzyme.translated_sequence && (
+            <div className="card p-4">
+              <h2 className="text-lg font-semibold text-foreground mb-4">
+                Amino Acid Sequence
+              </h2>
+              <SequenceViewer
+                aminoAcidSequence={enzyme.translated_sequence}
+                nucleotideSequence={null}
+              />
+            </div>
+          )}
+        </Container>
       </section>
     </>
   )
@@ -230,12 +186,12 @@ export default function EnzymeTemplate({ pageContext }) {
 
 export const Head = ({ pageContext }) => {
   const enzyme = pageContext?.enzyme
-  const enzymeName =
+  const name =
     enzyme?.genbank_accession_id || `Enzyme ${enzyme?.enzyme_id || ""}`
   return (
     <Seo
-      title={enzymeName}
-      description={`View details for plastic-degrading enzyme ${enzymeName} including sequence data and classification.`}
+      title={name}
+      description={`View details for plastic-degrading enzyme ${name} including sequence data and classification.`}
     />
   )
 }
