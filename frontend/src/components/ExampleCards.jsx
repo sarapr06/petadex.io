@@ -36,17 +36,9 @@ const ExampleCards = ({ onSelectExample, disabled }) => {
   }
 
   return (
-    <div className="example-cards">
+    <div className="mb-1.5 mt-1.5">
       <style>{`
-        .example-cards {
-          margin-bottom: 1.5rem;
-        }
-        .example-cards-header {
-          font-size: 0.9rem;
-          color: #495057;
-          margin-bottom: 0.75rem;
-          font-weight: 500;
-        }
+
         .example-cards-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -97,14 +89,14 @@ const ExampleCards = ({ onSelectExample, disabled }) => {
         }
       `}</style>
 
-      <div className="example-cards-header">
+      <div className="mb-2 text-muted-foreground text-sm">
         Try an example search:
       </div>
-      <div className="example-cards-grid">
+      <div className="grid gap-4 grid-cols-3">
         {examples.map((example) => (
           <button
             key={example.job_id}
-            className="example-card"
+            className="card text-left p-4 cursor-pointer"
             onClick={() => onSelectExample(example.job_id)}
             disabled={disabled}
           >

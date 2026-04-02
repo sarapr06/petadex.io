@@ -1,215 +1,148 @@
-// frontend/src/pages/enzymes.js
-
-import React, { useState, useEffect } from "react";
-import { Link } from "gatsby";
-import Seo from "../components/seo";
-import config from "../config";
-import { useScrollHeader } from "../hooks/useScrollHeader";
-
+// src/pages/enzymes.js
+import React, { useState, useEffect } from "react"
+import { Link } from "gatsby"
+import Seo from "../components/seo"
+import Container from "../components/Container"
+import ScrollableArea from "../components/ScrollableArea"
+import config from "../config"
+import { useScrollHeader } from "../hooks/useScrollHeader"
 
 // Deterministic per-family color from family_id using golden-ratio hue spread
 function familyColor(familyId) {
-  const hue = (familyId * 137.508) % 360;
-  return `hsl(${hue}, 60%, 45%)`;
+  const hue = (familyId * 137.508) % 360
+  return `hsl(${hue}, 60%, 45%)`
 }
 
+// ── EnzymeRow ──────────────────────────────────────────────────────────────
+
 const EnzymeRow = ({ enzyme, isCentroid }) => (
-  <div style={{
-    padding: "0.75rem 1rem",
-    borderLeft: isCentroid ? "4px solid #f59e0b" : "4px solid #e2e8f0",
-    backgroundColor: isCentroid ? "#fffbeb" : "white",
-    marginBottom: "0.5rem",
-    borderRadius: "4px",
-    display: "flex",
-    alignItems: "center",
-    gap: "1rem",
-    flexWrap: "wrap"
-  }}>
+  <div
+    className={[
+      "flex items-center gap-4 flex-wrap px-4 py-3 mb-2 rounded",
+      isCentroid
+        ? "border-l-4 border-warning bg-warning/5"
+        : "border-l-4 border-border bg-surface shadow-sm",
+    ].join(" ")}
+  >
     <Link
       to={`/enzyme/${enzyme.enzyme_id}`}
-      style={{
-        fontFamily: "monospace",
-        fontSize: "0.95rem",
-        color: "#2c3e50",
-        textDecoration: "none",
-        borderBottom: "2px solid transparent",
-        transition: "border-color 0.2s",
-        fontWeight: isCentroid ? "600" : "normal"
-      }}
-      onMouseEnter={(e) => e.currentTarget.style.borderColor = "#3b82f6"}
-      onMouseLeave={(e) => e.currentTarget.style.borderColor = "transparent"}
+      className={[
+        "font-mono text-sm no-underline border-b-2 border-transparent transition-colors",
+        "hover:border-info",
+        isCentroid ? "font-semibold text-primary" : "font-normal text-primary",
+      ].join(" ")}
     >
       {enzyme.genbank_accession_id || `Enzyme ${enzyme.enzyme_id}`}
     </Link>
 
     {isCentroid ? (
-      <span style={{
-        padding: '0.2rem 0.5rem',
-        backgroundColor: '#f59e0b',
-        color: 'white',
-        borderRadius: '4px',
-        fontSize: '0.7rem',
-        fontWeight: '700',
-        letterSpacing: '0.5px'
-      }}>
-        CENTROID
+      <span className="px-2 py-0.5 bg-warning text-white rounded text-2xs font-bold tracking-wide uppercase">
+        Centroid
       </span>
-    ) : enzyme.family_pid !== null && (
-      <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-        {enzyme.family_pid}% identity
-      </span>
+    ) : (
+      enzyme.family_pid !== null && (
+        <span className="text-sm text-secondary-foreground">{enzyme.family_pid}% identity</span>
+      )
     )}
 
     {enzyme.component !== null && (
-      <span style={{
-        padding: '0.2rem 0.5rem',
-        backgroundColor: '#e0e7ff',
-        color: '#4338ca',
-        borderRadius: '4px',
-        fontSize: '0.75rem',
-        fontWeight: '600'
-      }}>
+      <span className="px-2 py-0.5 bg-info/10 text-info rounded text-xs font-semibold">
         Component {enzyme.component}
       </span>
     )}
   </div>
-);
+)
 
-// FamilyCard Component - Displays family with expand/collapse
+// ── FamilyCard ─────────────────────────────────────────────────────────────
+
 const FamilyCard = ({ family, isExpanded, onToggle }) => {
-  const [variants, setVariants] = useState([]);
-  const [loading, setLoading] = useState(false);
-
-  const color = familyColor(family.family_id);
+  const [variants, setVariants] = useState([])
+  const [loading, setLoading] = useState(false)
+  const color = familyColor(family.family_id)
 
   const loadVariants = async () => {
-    if (variants.length) return; // Already loaded
-
-    setLoading(true);
+    if (variants.length) return
+    setLoading(true)
     try {
-      const res = await fetch(`${config.apiUrl}/enzymes/family/${family.family_id}?limit=50`);
+      const res = await fetch(`${config.apiUrl}/enzymes/family/${family.family_id}?limit=50`)
       if (res.ok) {
-        const data = await res.json();
-        setVariants(Array.isArray(data) ? data : data.data || []);
+        const data = await res.json()
+        setVariants(Array.isArray(data) ? data : data.data || [])
       }
     } catch (err) {
-      console.error('Error loading variants:', err);
+      console.error("Error loading variants:", err)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const handleToggle = () => {
-    onToggle();
-    if (!isExpanded && variants.length === 0) {
-      loadVariants();
-    }
-  };
+    onToggle()
+    if (!isExpanded && variants.length === 0) loadVariants()
+  }
 
   return (
-    <div style={{
-      border: "1px solid #e2e8f0",
-      borderLeft: `4px solid ${color}`,
-      borderRadius: "8px",
-      marginBottom: "1rem",
-      backgroundColor: "white",
-      boxShadow: "0 1px 3px 0 rgba(0,0,0,0.1)",
-      overflow: "hidden"
-    }}>
-      {/* Family Header (Collapsed View) */}
+    <div
+      className="card mb-4"
+      style={{ borderLeft: `4px solid ${color}` }}
+    >
+      {/* Header */}
       <div
         onClick={handleToggle}
-        style={{
-          padding: "1.25rem 1.5rem",
-          cursor: "pointer",
-          backgroundColor: isExpanded ? "#f8fafc" : "white",
-          transition: "background-color 0.2s"
-        }}
-        onMouseEnter={(e) => {
-          if (!isExpanded) e.currentTarget.style.backgroundColor = "#f8fafc";
-        }}
-        onMouseLeave={(e) => {
-          if (!isExpanded) e.currentTarget.style.backgroundColor = "white";
-        }}
+        className={[
+          "px-6 py-5 cursor-pointer transition-colors",
+          isExpanded ? "border-b-2" : "bg-surfaced",
+        ].join(" ")}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ flex: 1 }}>
-            <h3 style={{
-              margin: "0 0 0.5rem 0",
-              fontSize: "1.25rem",
-              color: "#2c3e50"
-            }}>
+        <div className="flex justify-between items-center">
+          <div className="flex flex-col items-start">
+            <h3 className="text-lg font-semibold text-primary mb-1.5">
               <a
                 href={`/family/${family.family_id}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{
-                  color: "#2c3e50",
-                  textDecoration: "none",
-                  borderBottom: "2px solid transparent",
-                  transition: "border-color 0.2s"
-                }}
-                onClick={(e) => e.stopPropagation()}
-                onMouseEnter={(e) => e.currentTarget.style.borderColor = "#3b82f6"}
-                onMouseLeave={(e) => e.currentTarget.style.borderColor = "transparent"}
+                className="text-primary no-underline border-b-2 border-transparent transition-colors hover:border-info"
+                onClick={e => e.stopPropagation()}
               >
                 Family {family.family_id}
               </a>
             </h3>
-            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{
-                fontFamily: "monospace",
-                fontSize: "0.9rem",
-                color: "#64748b"
-              }}>
+            <div className="flex gap-6 flex-wrap items-center">
+              <span className="font-mono text-sm text-secondary-foreground">
                 {family.centroid_accession}
               </span>
-              <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                <strong>{parseInt(family.variant_count).toLocaleString()}</strong> variants
+              <span className="text-sm text-secondary-foreground">
+                <strong className="text-primary">
+                  {parseInt(family.variant_count).toLocaleString()}
+                </strong>{" "}
+                variants
               </span>
               {family.component_count > 0 && (
-                <span style={{ fontSize: '0.85rem', color: '#64748b' }}>
-                  <strong>{family.component_count}</strong> component{family.component_count !== 1 ? 's' : ''}
+                <span className="text-sm text-secondary-foreground">
+                  <strong className="text-primary">{family.component_count}</strong>{" "}
+                  component{family.component_count !== 1 ? "s" : ""}
                 </span>
               )}
               {family.avg_identity && (
-                <span style={{ fontSize: '0.85rem', color: '#94a3b8' }}>
+                <span className="text-sm text-muted-foreground">
                   avg {family.avg_identity}% identity
                 </span>
               )}
             </div>
           </div>
-          <button
-            style={{
-              padding: "0.5rem 1rem",
-              fontSize: "0.85rem",
-              color: "#2563eb",
-              backgroundColor: "white",
-              border: "1px solid #cbd5e1",
-              borderRadius: "4px",
-              cursor: "pointer",
-              fontWeight: "500",
-              whiteSpace: "nowrap"
-            }}
-          >
-            {isExpanded ? '▲ Collapse' : '▼ Expand Variants'}
+          <button className="btn btn-secondary text-sm whitespace-nowrap ml-4">
+            {isExpanded ? "▲ Collapse" : "▼ Expand Variants"}
           </button>
         </div>
       </div>
 
-      {/* Expanded View - Variants List */}
+      {/* Variants */}
       {isExpanded && (
-        <div style={{
-          padding: "1rem 1.5rem",
-          backgroundColor: "#fafafa",
-          borderTop: "1px solid #e2e8f0"
-        }}>
+        <div className="px-6 py-4  border-t border">
           {loading ? (
-            <div style={{ padding: "1rem", textAlign: "center", color: "#64748b" }}>
-              Loading variants...
-            </div>
+            <p className="text-center text-muted-foreground italic py-4">Loading variants…</p>
           ) : variants.length > 0 ? (
-            <>
+             <ScrollableArea>
               {variants.map(enzyme => (
                 <EnzymeRow
                   key={enzyme.enzyme_id}
@@ -218,454 +151,343 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
                 />
               ))}
               {variants.length >= 50 && (
-                <div style={{
-                  padding: "0.75rem",
-                  textAlign: "center",
-                  color: "#64748b",
-                  fontSize: "0.85rem",
-                  fontStyle: "italic"
-                }}>
+                <p className="text-center text-muted-foreground text-sm italic py-3">
                   Showing first 50 variants
-                </div>
+                </p>
               )}
-            </>
+              </ScrollableArea>
           ) : (
-            <div style={{ padding: "1rem", textAlign: "center", color: "#64748b" }}>
-              No variants found
-            </div>
+            <p className="text-center text-muted-foreground italic py-4">No variants found</p>
           )}
         </div>
       )}
     </div>
-  );
-};
+  )
+}
 
-// Match type badge colors
+// ── Match type badges ──────────────────────────────────────────────────────
+
 const matchTypeBadge = {
-  accession: { bg: '#dbeafe', color: '#1e40af', label: 'Accession match' },
-  variant: { bg: '#fce7f3', color: '#9d174d', label: 'Variant match' },
-  family: { bg: '#fef3c7', color: '#92400e', label: 'Family match' },
-  enzyme_id: { bg: '#d1fae5', color: '#065f46', label: 'Enzyme ID match' },
-};
+  accession: { className: "bg-info/10 text-info", label: "Accession match" },
+  variant: { className: "bg-brand-100 text-brand-700", label: "Variant match" },
+  family: { className: "bg-warning/10 text-warning", label: "Family match" },
+  enzyme_id: { className: "bg-success/10 text-success", label: "Enzyme ID match" },
+}
 
-// SearchResults Component
-const SearchResults = ({ familyResults, enzymeResults, query, loading, expandedFamilies, onToggleFamily }) => {
-  const totalCount = familyResults.length + enzymeResults.length;
+// ── SearchResults ──────────────────────────────────────────────────────────
+
+const SearchResults = ({
+  familyResults,
+  enzymeResults,
+  query,
+  loading,
+  expandedFamilies,
+  onToggleFamily,
+}) => {
+  const totalCount = familyResults.length + enzymeResults.length
 
   return (
-    <section className="">
-      <div className="ui-layout-container">
-        {loading ? 'Searching...' : (
-          <>
-            Found {totalCount} result{totalCount !== 1 ? 's' : ''} for "{query}"
-            {familyResults.length > 0 && enzymeResults.length > 0 && (
-              <span style={{ marginLeft: '0.5rem', fontSize: '0.85rem' }}>
-                ({familyResults.length} {familyResults.length === 1 ? 'family' : 'families'}, {enzymeResults.length} {enzymeResults.length === 1 ? 'enzyme' : 'enzymes'})
-              </span>
-            )}
-          </>
-        )}
-      </div>
-
-      {!loading && totalCount === 0 ? (
-        <div className="ui-layout-container">
-          No results found. Try a partial accession, enzyme ID, family number, or variant accession.
-        </div>
-      ) : !loading && (
-        <>
-          {/* Family results as FamilyCards */}
-          {familyResults.length > 0 && (
-              <div className="ui-layout-container">
-              <h3>
-                Families ({familyResults.length})
-              </h3>
-              {familyResults.map(family => (
-                <FamilyCard
-                  key={family.family_id}
-                  family={family}
-                  isExpanded={expandedFamilies.has(family.family_id)}
-                  onToggle={() => onToggleFamily(family.family_id)}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Enzyme results as rows */}
-          {enzymeResults.length > 0 && (
-            <div>
-              {familyResults.length > 0 && (
-                <h3 style={{ fontSize: '1rem', color: '#64748b', marginBottom: '0.75rem' }}>
-                  Enzymes ({enzymeResults.length})
-                </h3>
+    <section>
+      <Container>
+        <p className="text-sm text-secondary-foreground mb-4">
+          {loading ? (
+            "Searching…"
+          ) : (
+            <>
+              Found {totalCount} result{totalCount !== 1 ? "s" : ""} for &quot;{query}&quot;
+              {familyResults.length > 0 && enzymeResults.length > 0 && (
+                <span className="ml-2 text-muted-foreground">
+                  ({familyResults.length} {familyResults.length === 1 ? "family" : "families"},{" "}
+                  {enzymeResults.length} {enzymeResults.length === 1 ? "enzyme" : "enzymes"})
+                </span>
               )}
-              <div style={{
-                border: "1px solid #e2e8f0",
-                borderRadius: "8px",
-                backgroundColor: "white",
-                boxShadow: "0 1px 3px 0 rgba(0,0,0,0.1)",
-                padding: "1rem"
-              }}>
-                {enzymeResults.map(enzyme => (
-                  <div key={enzyme.enzyme_id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ flex: 1 }}>
-                      <EnzymeRow
-                        enzyme={enzyme}
-                        isCentroid={enzyme.family_pid === null}
-                      />
-                    </div>
-                    {enzyme.match_type && matchTypeBadge[enzyme.match_type] && (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem', minWidth: '120px' }}>
-                        <span style={{
-                          padding: '0.15rem 0.5rem',
-                          backgroundColor: matchTypeBadge[enzyme.match_type].bg,
-                          color: matchTypeBadge[enzyme.match_type].color,
-                          borderRadius: '4px',
-                          fontSize: '0.7rem',
-                          fontWeight: '600',
-                          whiteSpace: 'nowrap'
-                        }}>
-                          {matchTypeBadge[enzyme.match_type].label}
-                        </span>
-                        {enzyme.matched_variant_accession && (
-                          <span style={{ fontSize: '0.75rem', color: '#64748b', fontFamily: 'monospace' }}>
-                            via {enzyme.matched_variant_accession}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
+            </>
           )}
-        </>
-      )}
-    </section>
-  );
-};
+        </p>
 
-// Main EnzymesPage Component
-const EnzymesPage = () => {
-  useScrollHeader();
-
-  // State management
-  const [view, setView] = useState('families'); // 'families' | 'search'
-  const [families, setFamilies] = useState([]);
-  const [expandedFamilies, setExpandedFamilies] = useState(new Set());
-  const [searchFamilyResults, setSearchFamilyResults] = useState([]);
-  const [searchEnzymeResults, setSearchEnzymeResults] = useState([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [stats, setStats] = useState(null);
-  const [loadingFamilies, setLoadingFamilies] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState(null);
-  const [sortBy, setSortBy] = useState('variant_count');
-  const [hasMore, setHasMore] = useState(false);
-  const [offset, setOffset] = useState(0);
-  const FAMILIES_PER_PAGE = 10;
-  const FAMILIES_INITIAL = 20;
-
-  // Load families and stats in parallel — families render as soon as they arrive
-  useEffect(() => {
-    setLoadingFamilies(true);
-    setFamilies([]);
-    setOffset(0);
-    setHasMore(false);
-
-    // Stats: fire and forget — updates when ready, doesn't block families
-    fetch(`${config.apiUrl}/enzymes/stats/overview`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setStats(data); })
-      .catch(err => console.error('Error loading stats:', err));
-
-    // Families: show as soon as resolved
-    fetch(`${config.apiUrl}/enzymes/families/summary?limit=${FAMILIES_INITIAL}&offset=0&sort=${sortBy}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data) {
-          setFamilies(data.data || []);
-          setHasMore(data.pagination?.hasMore || false);
-          setOffset(data.data?.length || 0);
-        }
-      })
-      .catch(err => {
-        console.error('Error loading families:', err);
-        setError(err.toString());
-      })
-      .finally(() => setLoadingFamilies(false));
-  }, [sortBy]);
-
-  // Load more families
-  const loadMoreFamilies = async () => {
-    setLoadingMore(true);
-    try {
-      const res = await fetch(`${config.apiUrl}/enzymes/families/summary?limit=${FAMILIES_PER_PAGE}&offset=${offset}&sort=${sortBy}`);
-      if (res.ok) {
-        const data = await res.json();
-        setFamilies(prev => [...prev, ...(data.data || [])]);
-        setHasMore(data.pagination?.hasMore || false);
-        setOffset(prev => prev + (data.data?.length || 0));
-      }
-    } catch (err) {
-      console.error('Error loading more families:', err);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  // Debounced search using the unified search endpoint
-  const searchTimerRef = React.useRef(null);
-
-  const handleSearchInput = (query) => {
-    setSearchQuery(query);
-
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-
-    if (!query.trim()) {
-      setView('families');
-      setSearchFamilyResults([]);
-      setSearchEnzymeResults([]);
-      return;
-    }
-
-    searchTimerRef.current = setTimeout(() => {
-      performSearch(query.trim());
-    }, 300);
-  };
-
-  const [loadingSearch, setLoadingSearch] = useState(false);
-
-  const performSearch = async (query) => {
-    setView('search');
-    setLoadingSearch(true);
-
-    try {
-      const res = await fetch(`${config.apiUrl}/enzymes/search?q=${encodeURIComponent(query)}&limit=100`);
-      if (res.ok) {
-        const data = await res.json();
-        setSearchFamilyResults(data.families || []);
-        setSearchEnzymeResults(data.enzymes || []);
-      } else {
-        setSearchFamilyResults([]);
-        setSearchEnzymeResults([]);
-      }
-    } catch (err) {
-      console.error('Search error:', err);
-      setSearchFamilyResults([]);
-      setSearchEnzymeResults([]);
-    } finally {
-      setLoadingSearch(false);
-    }
-  };
-
-  // Toggle family expansion
-  const toggleFamily = (familyId) => {
-    setExpandedFamilies(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(familyId)) {
-        newSet.delete(familyId);
-      } else {
-        newSet.add(familyId);
-      }
-      return newSet;
-    });
-  };
-
-  return (
-    <>
-
-      <section className="ui-section-hero">
-        <div className="ui-layout-container">
-          <h1>
-            BLAST-NR Enzyme Database
-          </h1>
-          <p className="ui-text-intro">
-            Browse plastic-degrading enzyme families
+        {!loading && totalCount === 0 && (
+          <p className="text-muted-foreground">
+            No results found. Try a partial accession, enzyme ID, family number, or variant accession.
           </p>
+        )}
 
-          {/* Statistics */}
-          {stats && (
-            <div className="ui-layout-grid" style={{
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-              gap: '1rem',
-              marginBottom: '1.5rem',
-              padding: '1rem',
-              backgroundColor: '#f8fafc',
-              borderRadius: '8px',
-              border: '1px solid #e2e8f0'
-            }}>
-              <div>
-                <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.25rem' }}>
-                  Total Families
-                </div>
-                <div style={{ fontSize: '1.5rem', fontWeight: '600', color: '#2c3e50' }}>
-                  {parseInt(stats.total_families).toLocaleString()}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.25rem' }}>
-                  Total Enzymes
-                </div>
-                <div style={{ fontSize: '1.5rem', fontWeight: '600', color: '#2c3e50' }}>
-                  {parseInt(stats.total_enzymes).toLocaleString()}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.25rem' }}>
-                  Components
-                </div>
-                <div style={{ fontSize: '1.5rem', fontWeight: '600', color: '#2c3e50' }}>
-                  {parseInt(stats.total_components).toLocaleString()}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.85rem', color: '#64748b', marginBottom: '0.25rem' }}>
-                  Variants
-                </div>
-                <div style={{ fontSize: '1.5rem', fontWeight: '600', color: '#2c3e50' }}>
-                  {parseInt(stats.total_variants).toLocaleString()}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Search Bar */}
-          <div style={{ marginBottom: '1rem' }}>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => handleSearchInput(e.target.value)}
-              placeholder="Search by accession, enzyme ID, family, or variant..."
-              style={{
-                width: "100%",
-                padding: "0.75rem",
-                fontSize: "1rem",
-                borderRadius: "4px",
-                border: "1px solid #cbd5e1",
-                outline: "none"
-              }}
-              onFocus={(e) => e.currentTarget.style.borderColor = "#3b82f6"}
-              onBlur={(e) => e.currentTarget.style.borderColor = "#cbd5e1"}
-            />
-          </div>
-
-          {/* Sort Controls (only in families view) */}
-          {view === 'families' && (
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <label style={{ fontSize: '0.9rem', color: '#64748b' }}>Sort by:</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                style={{
-                  padding: "0.5rem",
-                  fontSize: "0.9rem",
-                  borderRadius: "4px",
-                  border: "1px solid #cbd5e1",
-                  outline: "none",
-                  backgroundColor: "white"
-                }}
-              >
-                <option value="variant_count">Variant Count</option>
-                <option value="component_count">Component Count</option>
-                <option value="avg_identity">Average Identity</option>
-                <option value="family">Family ID</option>
-              </select>
-            </div>
-          )}
-        </div>
-
-        {/* Main Content */}
-        {loadingFamilies && view === 'families' ? (
-          <div style={{
-            padding: "2rem",
-            textAlign: "center",
-            color: "#666",
-            fontStyle: "italic"
-          }}>
-            Loading families...
-          </div>
-        ) : error ? (
-          <div style={{
-            padding: "2rem",
-            textAlign: "center",
-            color: "#dc2626",
-            backgroundColor: "#fef2f2",
-            borderRadius: "8px",
-            border: "1px solid #fecaca"
-          }}>
-            Error loading data: {error}
-          </div>
-        ) : view === 'families' ? (
-          <div className="ui-layout-container">
-            <div style={{
-              marginBottom: "1rem",
-              fontSize: "0.9rem",
-              color: "#666"
-            }}>
-              Showing {families.length} families
-            </div>
-            {families.map(family => (
+        {!loading && familyResults.length > 0 && (
+          <div className="mb-6">
+            <h3 className="text-base font-semibold text-secondary-foreground mb-3">
+              Families ({familyResults.length})
+            </h3>
+            {familyResults.map(family => (
               <FamilyCard
                 key={family.family_id}
                 family={family}
                 isExpanded={expandedFamilies.has(family.family_id)}
-                onToggle={() => toggleFamily(family.family_id)}
+                onToggle={() => onToggleFamily(family.family_id)}
               />
             ))}
-            {hasMore && (
-              <div style={{ textAlign: 'center', marginTop: '1.5rem' }}>
-                <button
-                  onClick={loadMoreFamilies}
-                  disabled={loadingMore}
-                  style={{
-                    padding: '0.75rem 2rem',
-                    fontSize: '1rem',
-                    color: loadingMore ? '#94a3b8' : '#2563eb',
-                    backgroundColor: 'white',
-                    border: `1px solid ${loadingMore ? '#e2e8f0' : '#2563eb'}`,
-                    borderRadius: '6px',
-                    cursor: loadingMore ? 'default' : 'pointer',
-                    fontWeight: '500',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!loadingMore) {
-                      e.currentTarget.style.backgroundColor = '#2563eb';
-                      e.currentTarget.style.color = 'white';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!loadingMore) {
-                      e.currentTarget.style.backgroundColor = 'white';
-                      e.currentTarget.style.color = '#2563eb';
-                    }
-                  }}
-                >
-                  {loadingMore ? 'Loading...' : 'Read More'}
-                </button>
-              </div>
-            )}
           </div>
-        ) : (
-          <SearchResults
-            familyResults={searchFamilyResults}
-            enzymeResults={searchEnzymeResults}
-            query={searchQuery}
-            loading={loadingSearch}
-            expandedFamilies={expandedFamilies}
-            onToggleFamily={toggleFamily}
-          />
         )}
-      </section>
-    </>
-  );
-};
 
-export default EnzymesPage;
+        {!loading && enzymeResults.length > 0 && (
+          <div>
+            {familyResults.length > 0 && (
+              <h3 className="text-base font-semibold text-secondary-foreground mb-3">
+                Enzymes ({enzymeResults.length})
+              </h3>
+            )}
+            <div className="card space-y-1">
+              {enzymeResults.map(enzyme => (
+                <div key={enzyme.enzyme_id} className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <EnzymeRow
+                      enzyme={enzyme}
+                      isCentroid={enzyme.family_pid === null}
+                    />
+                  </div>
+                  {enzyme.match_type && matchTypeBadge[enzyme.match_type] && (
+                    <div className="flex flex-col items-end gap-1 min-w-[120px]">
+                      <span
+                        className={`px-2 py-0.5 rounded text-2xs font-semibold whitespace-nowrap ${matchTypeBadge[enzyme.match_type].className}`}
+                      >
+                        {matchTypeBadge[enzyme.match_type].label}
+                      </span>
+                      {enzyme.matched_variant_accession && (
+                        <span className="text-2xs text-muted-foreground font-mono">
+                          via {enzyme.matched_variant_accession}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Container>
+    </section>
+  )
+}
+
+// ── EnzymesPage ────────────────────────────────────────────────────────────
+
+const EnzymesPage = () => {
+  useScrollHeader()
+
+  const [view, setView] = useState("families")
+  const [families, setFamilies] = useState([])
+  const [expandedFamilies, setExpandedFamilies] = useState(new Set())
+  const [searchFamilyResults, setSearchFamilyResults] = useState([])
+  const [searchEnzymeResults, setSearchEnzymeResults] = useState([])
+  const [searchQuery, setSearchQuery] = useState("")
+  const [stats, setStats] = useState(null)
+  const [loadingFamilies, setLoadingFamilies] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError] = useState(null)
+  const [sortBy, setSortBy] = useState("variant_count")
+  const [hasMore, setHasMore] = useState(false)
+  const [offset, setOffset] = useState(0)
+  const FAMILIES_PER_PAGE = 10
+  const FAMILIES_INITIAL = 20
+
+  useEffect(() => {
+    setLoadingFamilies(true)
+    setFamilies([])
+    setOffset(0)
+    setHasMore(false)
+
+    fetch(`${config.apiUrl}/enzymes/stats/overview`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setStats(data) })
+      .catch(err => console.error("Error loading stats:", err))
+
+    fetch(
+      `${config.apiUrl}/enzymes/families/summary?limit=${FAMILIES_INITIAL}&offset=0&sort=${sortBy}`
+    )
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setFamilies(data.data || [])
+          setHasMore(data.pagination?.hasMore || false)
+          setOffset(data.data?.length || 0)
+        }
+      })
+      .catch(err => {
+        console.error("Error loading families:", err)
+        setError(err.toString())
+      })
+      .finally(() => setLoadingFamilies(false))
+  }, [sortBy])
+
+  const loadMoreFamilies = async () => {
+    setLoadingMore(true)
+    try {
+      const res = await fetch(
+        `${config.apiUrl}/enzymes/families/summary?limit=${FAMILIES_PER_PAGE}&offset=${offset}&sort=${sortBy}`
+      )
+      if (res.ok) {
+        const data = await res.json()
+        setFamilies(prev => [...prev, ...(data.data || [])])
+        setHasMore(data.pagination?.hasMore || false)
+        setOffset(prev => prev + (data.data?.length || 0))
+      }
+    } catch (err) {
+      console.error("Error loading more families:", err)
+    } finally {
+      setLoadingMore(false)
+    }
+  }
+
+  const searchTimerRef = React.useRef(null)
+  const [loadingSearch, setLoadingSearch] = useState(false)
+
+  const handleSearchInput = query => {
+    setSearchQuery(query)
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
+    if (!query.trim()) {
+      setView("families")
+      setSearchFamilyResults([])
+      setSearchEnzymeResults([])
+      return
+    }
+    searchTimerRef.current = setTimeout(() => performSearch(query.trim()), 300)
+  }
+
+  const performSearch = async query => {
+    setView("search")
+    setLoadingSearch(true)
+    try {
+      const res = await fetch(
+        `${config.apiUrl}/enzymes/search?q=${encodeURIComponent(query)}&limit=100`
+      )
+      if (res.ok) {
+        const data = await res.json()
+        setSearchFamilyResults(data.families || [])
+        setSearchEnzymeResults(data.enzymes || [])
+      } else {
+        setSearchFamilyResults([])
+        setSearchEnzymeResults([])
+      }
+    } catch (err) {
+      console.error("Search error:", err)
+      setSearchFamilyResults([])
+      setSearchEnzymeResults([])
+    } finally {
+      setLoadingSearch(false)
+    }
+  }
+
+  const toggleFamily = familyId => {
+    setExpandedFamilies(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(familyId)) newSet.delete(familyId)
+      else newSet.add(familyId)
+      return newSet
+    })
+  }
+
+  return (
+    <section className="py-20 md:py-24 text-center">
+      <Container>
+        <h1 className='text-3xl font-bold tracking-tight text-primary md:text-4xl'>BLAST-NR Enzyme Database</h1>
+        <p className="mt-4 text-lg text-secondary-foreground">Browse plastic-degrading enzyme families</p>
+
+        {/* Stats grid */}
+        {stats && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 mt-6 p-4 bg-surface-raised rounded-xl border border">
+            {[
+              { label: "Total Families", value: stats.total_families },
+              { label: "Total Enzymes", value: stats.total_enzymes },
+              { label: "Components", value: stats.total_components },
+              { label: "Variants", value: stats.total_variants },
+            ].map(({ label, value }) => (
+              <div key={label}>
+                <div className="label mb-1">{label}</div>
+                <div className="text-2xl font-semibold text-primary">
+                  {parseInt(value).toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Search */}
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => handleSearchInput(e.target.value)}
+          placeholder="Search by accession, enzyme ID, family, or variant…"
+          className="input mb-4"
+        />
+
+        {/* Sort (families view only) */}
+        {view === "families" && (
+          <div className="flex items-center gap-2 mb-2">
+            <label className="text-sm text-secondary-foreground">Sort by:</label>
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value)}
+              className="input w-auto text-sm py-1.5"
+            >
+              <option value="variant_count">Variant Count</option>
+              <option value="component_count">Component Count</option>
+              <option value="avg_identity">Average Identity</option>
+              <option value="family">Family ID</option>
+            </select>
+          </div>
+        )}
+      </Container>
+
+      {/* Content */}
+      {loadingFamilies && view === "families" ? (
+        <p className="text-center text-muted-foreground italic py-8">Loading families…</p>
+      ) : error ? (
+        <div className="mx-auto max-w-2xl mt-4 p-4 bg-error/5 border border-error/20 rounded-xl text-destructive text-center">
+          Error loading data: {error}
+        </div>
+      ) : view === "families" ? (
+        <Container>
+          <p className="text-sm text-muted-foreground mb-4">
+            Showing {families.length} families
+          </p>
+          {families.map(family => (
+            <FamilyCard
+              key={family.family_id}
+              family={family}
+              isExpanded={expandedFamilies.has(family.family_id)}
+              onToggle={() => toggleFamily(family.family_id)}
+            />
+          ))}
+          {hasMore && (
+            <div className="text-center mt-6">
+              <button
+                onClick={loadMoreFamilies}
+                disabled={loadingMore}
+                className={`btn ${loadingMore ? "btn-ghost text-muted-foreground cursor-default" : "btn-secondary"}`}
+              >
+                {loadingMore ? "Loading…" : "Load More"}
+              </button>
+            </div>
+          )}
+        </Container>
+      ) : (
+        <SearchResults
+          familyResults={searchFamilyResults}
+          enzymeResults={searchEnzymeResults}
+          query={searchQuery}
+          loading={loadingSearch}
+          expandedFamilies={expandedFamilies}
+          onToggleFamily={toggleFamily}
+        />
+      )}
+    </section>
+
+  )
+}
+
+export default EnzymesPage
 
 export const Head = () => (
   <Seo
     title="BLAST-NR Enzyme Database"
     description="Browse plastic-degrading enzyme families from BLAST-NR clustering"
   />
-);
+)

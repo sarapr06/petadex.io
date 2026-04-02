@@ -1,13 +1,13 @@
 // frontend/src/components/SequencePanel.js
 import React from "react";
-import SequenceViewer from "./SequenceViewer";
+import SequenceViewer from "./sequence/SequenceViewer";
 import SummaryStatistics from "./SummaryStatistics";
 
 export default function SequencePanel({ sequence, accession, summaryStats, statsLoading }) {
   if (!sequence) {
     return (
-      <div style={{ 
-        padding: "2rem", 
+      <div style={{
+        padding: "2rem",
         textAlign: "center",
         color: "#666"
       }}>
@@ -18,20 +18,20 @@ export default function SequencePanel({ sequence, accession, summaryStats, stats
 
   return (
     <div>
-      <SummaryStatistics 
+      <SummaryStatistics
         stats={summaryStats}
         loading={statsLoading}
       />
-      
-      <div style={{ 
+
+      <div style={{
         marginBottom: "1rem",
         color: "#6b7280",
         fontSize: "0.9rem"
       }}>
         <strong>Length:</strong> {sequence.length} amino acids
       </div>
-      
-      <SequenceViewer 
+
+      <SequenceViewer
         aminoAcidSequence={sequence}
         nucleotideSequence={null}
       />
