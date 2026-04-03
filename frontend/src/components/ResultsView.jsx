@@ -96,6 +96,16 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
     downloadCSV(generateCSV(headers, rows), `petadex-results-${sessionId || 'search'}`)
   }
 
+  const handleDownloadJSON = () => {
+    const blob = new Blob([JSON.stringify({ metadata, results }, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `petadex-results-${sessionId || 'search'}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
 
   return (
     <div>
@@ -291,7 +301,8 @@ const ResultsView = ({ results, metadata, sessionId, sequence, onNewSearch }) =>
 
           {/* Results table */}
           <div className={s.tableWrap} style={{ marginTop: "2.5rem" }}>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginBottom: '0.5rem' }}>
+              <button className={s.copyBtn} onClick={handleDownloadJSON}>⬇ Download JSON</button>
               <button className={s.copyBtn} onClick={handleDownload}>⬇ Download CSV</button>
             </div>
             <table className={s.table}>
