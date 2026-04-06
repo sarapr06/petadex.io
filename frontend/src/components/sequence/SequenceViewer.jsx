@@ -131,7 +131,7 @@ export default function SequenceViewer({
   }
 
   return (
-    <div className={`card ${className} p-6`}>
+    <div className={` ${className} p-6`}>
       {/* ── Toggle ────────────────────────────────────────────────────────────── */}
       <div className="flex gap-2 items-center justify-between py-2 px-2.5">
         <label className="flex gap-2">
@@ -195,7 +195,12 @@ export default function SequenceViewer({
 
                 {/* AA spans */}
                 <div className="mb-1.5">
-                  <div className="grid grid-cols-[repeat(var(--slots-per-line,50),1fr)] gap-0.5 px-1.5">
+                  <div
+                    className={`grid gap-0.5 px-1.5`}
+                    style={{
+                      "grid-template-columns": `repeat(${slotsPerLine}, 1fr)`,
+                    }}
+                  >
                     {row.slice.split("").map((char, i) => {
                       const pos = row.startIdx + i
                       return (

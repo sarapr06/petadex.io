@@ -51,7 +51,7 @@ export const RulerRow = React.memo(({ startIdx, count, slotsPerLine }) => {
   }
 
   return (
-    <div className="grid grid-cols-[repeat(var(--slots-per-line,50),1fr)] gap-0.5 px-1.5 justify-items-center">
+    <div className={`grid gap-0.5 px-1.5 justify-items-center`} style={{"grid-template-columns": `repeat(${slotsPerLine}, 1fr)`}} >
       {ticks.map((tick, i) => (
         <span
           key={i}
@@ -80,12 +80,12 @@ export const AASpan = React.memo(
         className={[
           "inline-flex items-center justify-center h-6",
           "font-mono text-sm font-semibold rounded-xs shrink-0 cursor-pointer",
-          "transition-all select-none",
+          "transition-all select-none text-gray-800",
           isSelected
             ? "outline-2 outline-info outline-offset-1 brightness-90"
             : "hover:brightness-90 hover:outline hover:outline-accent/50",
         ].join(" ")}
-        style={{ backgroundColor: bg, color: "rgba(0,0,0,0.75)" }}
+        style={{ backgroundColor: bg }}
         onMouseDown={onMouseDown}
         onMouseEnter={onMouseEnter}
         title={`${char} @ ${position}`}
