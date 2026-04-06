@@ -1,0 +1,32 @@
+// ── Color schemes ──────────────────────────────────────────────────────────────
+
+export const AACOLORS = {
+  A: "#ccff00",
+  V: "#99ff00",
+  I: "#66ff00",
+  L: "#33ff00",
+  M: "#00ff00",
+  F: "#00ff66",
+  Y: "#00ffcc",
+  W: "#00ccff",
+  H: "#0066ff",
+  R: "#0000ff",
+  K: "#6600ff",
+  N: "#cc00ff",
+  Q: "#ff00cc",
+  E: "#ff0066",
+  D: "#ff0000",
+  S: "#ff3300",
+  T: "#ff6600",
+  G: "#ff9900",
+  P: "#ffcc00",
+  C: "#ffff00",
+}
+
+export const NUCLEOTIDECOLORS = {
+  A: "#00ff00",
+  T: "#ff0000",
+  G: "#ffff00",
+  C: "#0000ff",
+  U: "#ff00ff",
+}

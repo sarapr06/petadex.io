@@ -8,6 +8,7 @@ import config from "../config"
 import { addJobId } from "../utils/session"
 import SearchHistory from "../components/SearchHistory"
 import ResultsView from "../components/ResultsView"
+import Container from "../components/Container"
 import { formatSeq } from "../utils/lib"
 
 const GITHUB_REPO = "ababaian/petadex.io"
@@ -286,7 +287,8 @@ const ResultsPage = () => {
   }
 
   return (
-    <div className="mx-auto px-4 py-6">
+    <section className="px-4 py-6">
+      <Container>
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm text-secondary mb-4">
         <Link to="/" className="text-accent hover:text-accent-hover">
@@ -319,7 +321,8 @@ const ResultsPage = () => {
         currentJobId={status === "completed" ? sessionId : null}
         newSearchCount={newSearchCount}
       />
-    </div>
+      </Container>
+    </section>
   )
 }
 

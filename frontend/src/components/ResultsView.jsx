@@ -143,7 +143,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
   }
 
   return (
-    <div className="w-[1400px]  px-4 md:px-8">
+    <div className="w-full px-4 md:px-8">
       {/* Results header */}
       <div className="flex justify-between items-start mb-4 gap-2 py-4">
         <div>
