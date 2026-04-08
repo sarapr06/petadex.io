@@ -222,7 +222,10 @@ async function enrichWithFamilyData(accessions) {
        JOIN enzyme_fastaa e ON e.enzyme_id = v.enzyme_id
        LEFT JOIN enzyme_taxonomy t ON t.enzyme_id = v.enzyme_id
        WHERE v.genbank_accession_id = ANY($1)
-         AND v.genbank_accession_id NOT IN (SELECT accession FROM direct)
+         AND NOT EXISTS (
+          SELECT 1 FROM enzyme_fastaa e2
+          WHERE e2.genbank_accession_id = v.genbank_accession_id
+        )
      )
      SELECT * FROM direct
      UNION ALL

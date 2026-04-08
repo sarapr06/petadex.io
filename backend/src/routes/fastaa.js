@@ -12,7 +12,7 @@ router.get('/', async (req, res, next) => {
     const { rows } = await pool.query(
       `SELECT
         f.accession,
-        f.aa_sequence as sequence,
+        f.aa_sequence AS sequence,
         f.source,
         f.synonyms,
         f.date_entered,
@@ -22,12 +22,12 @@ router.get('/', async (req, res, next) => {
         f.parent_accessions,
         f.parent_genes,
         f.in_gene_metadata,
-        EXISTS(
-          SELECT 1
-          FROM with_sra_and_biosample_loc_metadata m
-          WHERE m.accession = f.accession
-        ) as in_sra_metadata
+        (m.accession IS NOT NULL) AS in_sra_metadata
       FROM fastaa f
+      LEFT JOIN (
+        SELECT DISTINCT accession
+        FROM with_sra_and_biosample_loc_metadata
+      ) m ON m.accession = f.accession
       ORDER BY f.accession ASC`
     );
     res.json(rows);

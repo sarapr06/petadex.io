@@ -113,3 +113,25 @@ See interactive docs at `` (Swagger UI).
 1. CI pushes to `main` trigger **backend-deploy.yml**.
 2. GitHub Actions SSH to EC2 (`appleboy/ssh-action`) -> `git pull && npm ci && pm2 restart`.
 3. NGINX (port 443) proxies `/api/` → `http://localhost:3001/api/`.
+
+
+## Check for bottlenecks in DB
+
+-- Slow queries currently running
+SELECT pid, now() - query_start AS duration, query, state
+FROM pg_stat_activity
+WHERE state != 'idle'
+  AND query_start IS NOT NULL
+ORDER BY duration DESC;
+
+-- Tables doing the most sequential scans (index candidates)
+SELECT relname, seq_scan, seq_tup_read, idx_scan
+FROM pg_stat_user_tables
+ORDER BY seq_scan DESC
+LIMIT 20;
+
+-- Existing indexes that are never used
+SELECT schemaname, tablename, indexname, idx_scan
+FROM pg_stat_user_indexes
+WHERE idx_scan = 0
+ORDER BY schemaname, tablename;
