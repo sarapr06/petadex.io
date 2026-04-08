@@ -59,7 +59,7 @@ function familyIdToRGBA(familyId) {
 
 function getPointColor(point, colorBy, hidden, highlightFamilyId, highlightFamilyIds) {
   if (highlightFamilyId != null && point.family_id === highlightFamilyId) return HIGHLIGHT_COLOR
-  if (highlightFamilyIds != null) {
+  if (highlightFamilyIds != null && colorBy === "none") {
     return highlightFamilyIds.has(point.family_id)
       ? familyIdToRGBA(point.family_id)
       : [100, 116, 139, 100]
@@ -245,6 +245,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
   const [error,                setError]                = useState(null)
   const [pointCount,           setPointCount]           = useState(0)
   const [colorBy,              setColorBy]              = useState("none")
+  const colorByRef = useRef("none")
   const [legend,               setLegend]               = useState([])
   const [hidden,               setHidden]               = useState(new Set())
   const [ripplePos,            setRipplePos]            = useState(null)
@@ -299,7 +300,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       setHighlightFamilyId(propHighlightId)
       if (deckRef.current && pointsRef.current.length && LayerRef.current) {
         deckRef.current.setProps({
-          layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, propHighlightId, highlightFamilyIds)],
+          layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorByRef.current, hidden, propHighlightId, highlightFamilyIds)],
         })
       }
       return
@@ -318,13 +319,13 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       zoomToPoint(matches[0])
       if (deckRef.current && LayerRef.current) {
         deckRef.current.setProps({
-          layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, matches[0].family_id, highlightFamilyIds)],
+          layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorByRef.current, hidden, matches[0].family_id, highlightFamilyIds)],
         })
       }
     } else {
       setSearchPanel(null)
     }
-  }, [zoomToPoint, colorBy, hidden, propHighlightId])
+  }, [zoomToPoint, hidden, propHighlightId])
 
   const cycleMatch = useCallback((dir) => {
     if (!searchMatches.length) return
@@ -337,10 +338,10 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
     zoomToPoint(point)
     if (deckRef.current && LayerRef.current) {
       deckRef.current.setProps({
-        layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, hidden, point.family_id, highlightFamilyIds)],
+        layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorByRef.current, hidden, point.family_id, highlightFamilyIds)],
       })
     }
-  }, [searchMatches, searchMatchIdx, zoomToPoint, colorBy, hidden])
+  }, [searchMatches, searchMatchIdx, zoomToPoint, hidden])
 
   const projectHighlight = useCallback(() => {
     if (!deckRef.current) return
@@ -366,9 +367,9 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
   const updateLayer = useCallback((h) => {
     if (!deckRef.current || !pointsRef.current.length || !LayerRef.current) return
     deckRef.current.setProps({
-      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, h, highlightFamilyId, highlightFamilyIds)],
+      layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorByRef.current, h, highlightFamilyId, highlightFamilyIds)],
     })
-  }, [colorBy, highlightFamilyId, highlightFamilyIds])
+  }, [highlightFamilyId, highlightFamilyIds])
 
   const toggleKey = useCallback((key) => {
     setHidden(prev => {
@@ -395,7 +396,16 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
 
   // ── initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
+    let initialized = false
+
     async function init() {
+      if (initialized) return
+      if (!containerRef.current) return
+      const { clientWidth, clientHeight } = containerRef.current
+      if (clientWidth === 0 || clientHeight === 0) return
+      initialized = true
+      ro.disconnect()
+
       try {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 30000)
@@ -434,7 +444,6 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
         maxSizeRef.current  = maxSize
         pointsRef.current   = points
 
-        // Store highlighted point's world position for ripple overlay
         if (highlightFamilyId != null) {
           const hp = points.find(p => p.family_id === highlightFamilyId)
           if (hp) highlightPosRef.current = [hp.umap_x, hp.umap_y, 0]
@@ -460,7 +469,6 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
         setPointCount(points.length)
         setLoading(false)
 
-        // Initial projection after first render
         requestAnimationFrame(projectHighlight)
       } catch (err) {
         console.error("AtlasMap error:", err)
@@ -469,11 +477,15 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       }
     }
 
+    const ro = new ResizeObserver(() => { init() })
+    if (containerRef.current) ro.observe(containerRef.current)
     init()
+
     return () => {
+      ro.disconnect()
       if (deckRef.current) { deckRef.current.finalize(); deckRef.current = null }
     }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── sync controller enabled/disabled ─────────────────────────────────────
   useEffect(() => {
@@ -483,6 +495,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
 
   // ── react to colorBy changes ──────────────────────────────────────────────
   useEffect(() => {
+    colorByRef.current = colorBy
     if (!deckRef.current || !pointsRef.current.length || !LayerRef.current) return
     const fresh = new Set()
     setHidden(fresh)

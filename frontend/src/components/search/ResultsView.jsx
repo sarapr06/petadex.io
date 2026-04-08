@@ -140,6 +140,17 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
       `petadex-results-${sessionId || "search"}`,
     )
   }
+  const handleDownloadJSON = () => {
+    const blob = new Blob([JSON.stringify({ metadata, results }, null, 2)], {
+      type: "application/json",
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `petadex-results-${sessionId || "search"}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="w-full px-4 md:px-8">
@@ -335,7 +346,13 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
             {/* Descriptions table */}
             {activeTab === "descriptions" && (
               <div className="overflow-x-auto">
-                <div className="flex justify-end mb-2">
+                <div className="flex justify-end mb-2 gap-2">
+                  <button
+                    className="btn btn-outline"
+                    onClick={handleDownloadJSON}
+                  >
+                    ⬇ Download JSON
+                  </button>
                   <button className="btn btn-outline" onClick={handleDownload}>
                     ⬇ Download CSV
                   </button>
