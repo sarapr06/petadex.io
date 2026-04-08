@@ -1,6 +1,6 @@
 import React from "react"
-import SequenceSearch from "../components/SequenceSearch"
-import Container from "../components/Container"
+import SequenceSearch from "../components/search/SequenceSearch"
+import Container from "../components/common/Container"
 import Seo from "../components/seo"
 import { useScrollHeader } from "../hooks/useScrollHeader"
 

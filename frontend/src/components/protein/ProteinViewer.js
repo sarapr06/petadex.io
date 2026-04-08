@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import config from "../config";
-import "../styles/molstar-custom.css";
+import config from "../../config";
+import "../../styles/molstar-custom.css";
 
 const ProteinViewer = ({
   accession,

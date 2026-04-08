@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react"
-import config from "../config"
-import { getStoredJobIds } from "../utils/session"
+import config from "../../config"
+import { getStoredJobIds } from "../../utils/session"
 
 const formatDate = timestamp => {
   const diffMs = Date.now() - new Date(timestamp)

@@ -1,7 +1,7 @@
 // frontend/src/components/SequencePanel.js
 import React from "react";
-import SequenceViewer from "./sequence/SequenceViewer";
-import SummaryStatistics from "./SummaryStatistics";
+import SequenceViewer from "./SequenceViewer";
+import SummaryStatistics from "../SummaryStatistics";
 
 export default function SequencePanel({ sequence, accession, summaryStats, statsLoading }) {
   if (!sequence) {

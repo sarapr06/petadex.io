@@ -1,6 +1,6 @@
 // src/components/SynthesizedGenePanel.js
 import React, { useState } from "react"
-import ActivityLineChart, { mediaColors } from "./ActivityLineChart"
+import ActivityLineChart, { mediaColors } from "./charts/ActivityLineChart"
 
 export default function SynthesizedGenePanel({ geneMetadata, plateData }) {
   const [expandedGenes, setExpandedGenes] = useState({})

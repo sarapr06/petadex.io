@@ -4,7 +4,7 @@ import SequenceList from "../components/sequence/SequenceList"
 import Seo from "../components/seo"
 import config from "../config"
 import { useScrollHeader } from "../hooks/useScrollHeader"
-import Container from "../components/Container"
+import Container from "../components/common/Container"
 
 const FastaaPage = () => {
   useScrollHeader()

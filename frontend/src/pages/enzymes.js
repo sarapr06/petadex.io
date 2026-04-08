@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from "react"
 import { Link } from "gatsby"
 import Seo from "../components/seo"
-import Container from "../components/Container"
-import ScrollableArea from "../components/ScrollableArea"
+import Container from "../components/common/Container"
+import ScrollableArea from "../components/common/ScrollableArea"
 import config from "../config"
 import { useScrollHeader } from "../hooks/useScrollHeader"
 

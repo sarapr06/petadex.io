@@ -1,15 +1,14 @@
 import React, { useState, useMemo } from "react"
 import { Link } from "gatsby"
-import { formatSeq, cleanSequence } from "../utils/lib"
-import { generateCSV, downloadCSV } from "../utils/csvDownload"
-import AtlasMap from "./AtlasMap"
-import { Scatterplot } from "./charts/Scatterplot"
-import { TaxonomyScatterChart } from "./charts/TaxonomyScatterChart"
+import { formatSeq, cleanSequence } from "../../utils/lib"
+import { generateCSV, downloadCSV } from "../../utils/csvDownload"
+import AtlasMap from "../charts/AtlasMap"
+import { Scatterplot } from "../charts/Scatterplot"
+import { TaxonomyScatterChart } from "../charts/TaxonomyScatterChart"
 
-import AlignmentCoverageMap from './charts/AlignmentCoverageMap';
-import { FunctionalAnnotationChart } from './charts/FunctionalAnnotationChart';
-import Container from './Container'
-import SequenceViewer from "./sequence/SequenceViewer"
+import AlignmentCoverageMap from '../charts/AlignmentCoverageMap';
+import { FunctionalAnnotationChart } from '../charts/FunctionalAnnotationChart';
+import SequenceViewer from "../sequence/SequenceViewer"
 
 
 // Deterministic per-family color — must match enzymes.js

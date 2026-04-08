@@ -1,5 +1,5 @@
 import React from "react";
-import ProteinViewer from "./ProteinViewer";
+import ProteinViewer from "./protein/ProteinViewer";
 
 export default function StructurePanel({ accession }) {
   return (

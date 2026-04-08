@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
-import config from "../config"
+import config from "../../config"
 import {
   COMPONENT_SHADE_RGBA,
   COMPONENT_TO_CATH,
   CATH_GROUPS,
   CATH_BASE_CSS,
-} from "../utils/cathColors"
+} from "../../utils/cathColors"
 
 // ── colour helpers ──────────────────────────────────────────────────────────
 

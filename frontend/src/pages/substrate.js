@@ -5,7 +5,7 @@ import Seo from "../components/seo"
 import config from "../config"
 import { useScrollHeader } from "../hooks/useScrollHeader"
 import { generateCSV, downloadCSV } from "../utils/csvDownload"
-import ActivityLineChart, { mediaColors, mediaLabels } from "../components/ActivityLineChart"
+import ActivityLineChart, { mediaColors, mediaLabels } from "../components/charts/ActivityLineChart"
 import {
   ScatterChart, Scatter, ZAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,

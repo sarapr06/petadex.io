@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import config from "../config";
+import config from "../../config";
 
 /**
  * Lightweight 3D protein viewer using 3Dmol.js

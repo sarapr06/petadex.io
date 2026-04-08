@@ -1,8 +1,8 @@
 import React from "react"
 import Seo from "../components/seo"
-import AtlasMap from "../components/AtlasMap"
+import AtlasMap from "../components/charts/AtlasMap"
 import { useScrollHeader } from "../hooks/useScrollHeader"
-import Container from '../components/Container'
+import Container from '../components/common/Container'
 
 const AtlasPage = () => {
   useScrollHeader()

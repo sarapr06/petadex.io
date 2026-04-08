@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { Link } from "gatsby";
-import Protein3DMolViewer from "./Protein3DMolViewer";
+import Protein3DMolViewer from "./protein/Protein3DMolViewer";
 
 const FeaturedPETases = ({ sequences, loading }) => {
   const [currentSlide, setCurrentSlide] = useState(0);

@@ -3,7 +3,7 @@ import { Link } from "gatsby"
 import SequenceViewer from "../components/sequence/SequenceViewer"
 import Seo from "../components/seo"
 import config from "../config"
-import Container from "../components/Container"
+import Container from "../components/common/Container"
 import { useScrollHeader } from "../hooks/useScrollHeader"
 
 const getNCBILink = accession => {

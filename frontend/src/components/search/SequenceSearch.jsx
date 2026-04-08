@@ -6,10 +6,10 @@
  */
 import React, { useState } from "react"
 import { navigate } from "gatsby"
-import config from "../config"
+import config from "../../config"
 import ExampleCards from "./ExampleCards"
 import SearchHistory from "./SearchHistory"
-import { cleanSequence } from "../utils/lib"
+import { cleanSequence } from "../../utils/lib"
 
 const EXAMPLE_SEQUENCES = {
   isPETase: `>IsPETase (WP_054022242.1)

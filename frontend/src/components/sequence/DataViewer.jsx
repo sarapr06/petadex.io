@@ -1,8 +1,8 @@
 // frontend/src/components/DataViewer.js
 import React, { useState } from "react"
 import SequencePanel from "./SequencePanel"
-import StructurePanel from "./StructurePanel"
-import MetadataPanel from "./MetadataPanel"
+import StructurePanel from "../StructurePanel"
+import MetadataPanel from "../MetadataPanel"
 
 export default function DataViewer({
   sequence,

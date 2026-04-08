@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from "react"
 import { Link } from "gatsby"
 import { useScrollHeader } from "../hooks/useScrollHeader"
-import SequencePanel from "../components/SequencePanel"
+import SequencePanel from "../components/sequence/SequencePanel"
 import StructurePanel from "../components/StructurePanel"
 import MetadataPanel from "../components/MetadataPanel"
-import Container from "../components/Container"
+import Container from "../components/common/Container"
 import config from "../config"
 
 const CheckIcon = () => (

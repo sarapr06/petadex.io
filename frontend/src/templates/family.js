@@ -3,7 +3,7 @@ import { Link } from "gatsby"
 import { hierarchy } from "d3-hierarchy"
 import Seo from "../components/seo"
 import SequenceViewer from "../components/sequence/SequenceViewer"
-import AtlasMap from "../components/AtlasMap"
+import AtlasMap from "../components/charts/AtlasMap"
 import config from "../config"
 import { useScrollHeader } from "../hooks/useScrollHeader"
 import {

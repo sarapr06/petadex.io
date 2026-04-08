@@ -2,7 +2,7 @@ import React from "react"
 import Seo from "../components/seo"
 import MetadataMap from "../components/MetadataMap"
 import { useScrollHeader } from "../hooks/useScrollHeader"
-import Container from '../components/Container'
+import Container from '../components/common/Container'
 
 const MetadataPage = () => {
   useScrollHeader()
