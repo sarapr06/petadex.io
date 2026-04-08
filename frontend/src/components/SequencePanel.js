@@ -6,11 +6,7 @@ import SummaryStatistics from "./SummaryStatistics";
 export default function SequencePanel({ sequence, accession, summaryStats, statsLoading }) {
   if (!sequence) {
     return (
-      <div style={{
-        padding: "2rem",
-        textAlign: "center",
-        color: "#666"
-      }}>
+      <div className='p-8 text-center text-primary'>
         No sequence data available
       </div>
     );
@@ -23,11 +19,7 @@ export default function SequencePanel({ sequence, accession, summaryStats, stats
         loading={statsLoading}
       />
 
-      <div style={{
-        marginBottom: "1rem",
-        color: "#6b7280",
-        fontSize: "0.9rem"
-      }}>
+      <div className='mb-4 text-sm text-slate-500'>
         <strong>Length:</strong> {sequence.length} amino acids
       </div>
 

@@ -4,6 +4,7 @@ import { Link } from "gatsby"
 import DataViewer from "../components/DataViewer"
 import SynthesizedGenePanel from "../components/SynthesizedGenePanel"
 import Seo from "../components/seo"
+import Container from "../components/Container"
 import config from "../config"
 import { useScrollHeader } from "../hooks/useScrollHeader"
 
@@ -19,12 +20,8 @@ export default function SequenceTemplate({ pageContext }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    // If we already have data from pageContext, don't fetch
-    if (pageContext.sequence) {
-      return
-    }
+    if (pageContext.sequence) return
 
-    // Otherwise, get accession from URL and fetch from API
     const path = window.location.pathname
     const match = path.match(/\/sequence\/([^/]+)/)
 
@@ -52,7 +49,6 @@ export default function SequenceTemplate({ pageContext }) {
     fetchSequence()
   }, [pageContext.sequence])
 
-  // Fetch gene metadata and header data
   useEffect(() => {
     if (!sequence?.accession) return
 
@@ -60,7 +56,6 @@ export default function SequenceTemplate({ pageContext }) {
 
     async function fetchData() {
       try {
-        // Fetch gene metadata (existing)
         const metadataRes = await fetch(
           `${config.apiUrl}/gene-metadata/by-accession/${accession}`,
         )
@@ -69,7 +64,6 @@ export default function SequenceTemplate({ pageContext }) {
           setGeneMetadata(Array.isArray(data) ? data : [data])
         }
 
-        // Fetch header data for quick stats
         const headerRes = await fetch(
           `${config.apiUrl}/gene-details/${accession}/header`,
         )
@@ -85,7 +79,6 @@ export default function SequenceTemplate({ pageContext }) {
     fetchData()
   }, [sequence?.accession])
 
-  // Fetch summary statistics
   useEffect(() => {
     if (!sequence?.accession) return
 
@@ -97,16 +90,9 @@ export default function SequenceTemplate({ pageContext }) {
         const response = await fetch(
           `${config.apiUrl}/aa-seq-features/${accession}`,
         )
-
-        if (!response.ok) {
-          throw new Error("Features not found")
-        }
-
+        if (!response.ok) throw new Error("Features not found")
         const data = await response.json()
-
-        // Calculate statistics from the arrays
-        const calculatedStats = calculateStats(data)
-        setSummaryStats(calculatedStats)
+        setSummaryStats(calculateStats(data))
       } catch (err) {
         console.error("Error fetching summary stats:", err)
         setSummaryStats(null)
@@ -118,14 +104,12 @@ export default function SequenceTemplate({ pageContext }) {
     fetchSummaryStats()
   }, [sequence?.accession])
 
-  // Fetch plate data when geneMetadata changes
   useEffect(() => {
     if (!geneMetadata || geneMetadata.length === 0) return
 
     async function fetchPlateData() {
       const dataPromises = geneMetadata.map(async gene => {
         if (!gene.gene) return null
-
         try {
           const res = await fetch(
             `${config.apiUrl}/plate-data/gene/${gene.gene}/average`,
@@ -143,9 +127,7 @@ export default function SequenceTemplate({ pageContext }) {
       const results = await Promise.all(dataPromises)
       const dataMap = {}
       results.forEach(result => {
-        if (result) {
-          dataMap[result.geneId] = result.data
-        }
+        if (result) dataMap[result.geneId] = result.data
       })
       setPlateData(dataMap)
     }
@@ -155,21 +137,14 @@ export default function SequenceTemplate({ pageContext }) {
 
   const calculateStats = data => {
     const { mass, pi, hpath, sequence_length } = data
-
-    // Total mass: sum of all residue masses
     const totalMass = mass ? mass.reduce((sum, val) => sum + val, 0) : 0
-
-    // Average pI: mean of all pI values
     const avgPI =
       pi && pi.length > 0
         ? pi.reduce((sum, val) => sum + val, 0) / pi.length
         : 0
-
-    // % Hydrophobic residues: count residues with hpath > threshold (e.g., 0.5)
     const hydrophobicCount = hpath ? hpath.filter(val => val > 0.5).length : 0
     const percentHydrophobic =
       sequence_length > 0 ? (hydrophobicCount / sequence_length) * 100 : 0
-
     return {
       totalMass: totalMass.toFixed(2),
       avgPI: avgPI.toFixed(2),
@@ -180,13 +155,7 @@ export default function SequenceTemplate({ pageContext }) {
 
   if (loading) {
     return (
-      <div
-        style={{
-          padding: "2rem",
-          textAlign: "center",
-          color: "#666",
-        }}
-      >
+      <div className="py-8 text-center text-muted-foreground">
         Loading sequence...
       </div>
     )
@@ -194,27 +163,13 @@ export default function SequenceTemplate({ pageContext }) {
 
   if (error) {
     return (
-      <div
-        style={{
-          padding: "2rem",
-          textAlign: "center",
-          color: "#dc2626",
-        }}
-      >
-        Error: {error}
-      </div>
+      <div className="py-8 text-center text-destructive">Error: {error}</div>
     )
   }
 
   if (!sequence) {
     return (
-      <div
-        style={{
-          padding: "2rem",
-          textAlign: "center",
-          color: "#666",
-        }}
-      >
+      <div className="py-8 text-center text-muted-foreground">
         Sequence not found
       </div>
     )
@@ -222,65 +177,42 @@ export default function SequenceTemplate({ pageContext }) {
 
   return (
     <>
-      <div
-        style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "2rem",
-        }}
-      >
-        <div style={{ marginBottom: "2rem" }}>
-          <h1
-            style={{
-              fontSize: "2.5rem",
-              marginBottom: "0.5rem",
-              color: "#2c3e50",
-            }}
-          >
+      <Container className="p-8">
+        {/* ── Header ── */}
+        <div className="mb-8">
+          <h1 className="text-5xl font-semibold text-foreground mb-2">
             <a
               href={`https://www.ncbi.nlm.nih.gov/protein/${sequence.accession}`}
               target="_blank"
               rel="noopener noreferrer"
-              style={{
-                color: "#2c3e50",
-                textDecoration: "none",
-                borderBottom: "2px solid #3b82f6",
-              }}
+              className="text-foreground border-b-2 border-accent hover:text-accent"
             >
               {sequence.accession}
             </a>
           </h1>
 
           {headerData && (
-            <div
-              style={{
-                display: "flex",
-                gap: "1.5rem",
-                color: "#6b7280",
-                fontSize: "0.95rem",
-                marginTop: "1rem",
-              }}
-            >
+            <div className="flex gap-6 text-muted-foreground text-sm mt-4">
               {headerData.origin_country && (
                 <span>
-                  Origin: <strong>{headerData.origin_country}</strong>
+                  Origin:{" "}
+                  <strong className="text-foreground">
+                    {headerData.origin_country}
+                  </strong>
                 </span>
               )}
               {headerData.temperature && (
                 <span>
-                  Temperature: <strong>{headerData.temperature}°C</strong>
+                  Temperature:{" "}
+                  <strong className="text-foreground">
+                    {headerData.temperature}°C
+                  </strong>
                 </span>
               )}
             </div>
           )}
 
-          <p
-            style={{
-              color: "#6b7280",
-              fontSize: "1rem",
-              marginTop: "0.5rem",
-            }}
-          >
+          <p className="text-muted-foreground text-base mt-2">
             Plastic-degrading enzyme sequence
           </p>
         </div>
@@ -297,18 +229,7 @@ export default function SequenceTemplate({ pageContext }) {
           summaryStats={summaryStats}
           statsLoading={statsLoading}
         />
-
-        <footer
-          style={{
-            marginTop: "3rem",
-            textAlign: "center",
-            color: "#666",
-            fontSize: "0.9rem",
-          }}
-        >
-          © {new Date().getFullYear()} PETadex.io
-        </footer>
-      </div>
+      </Container>
     </>
   )
 }

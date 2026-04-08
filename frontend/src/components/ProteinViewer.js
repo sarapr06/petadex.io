@@ -215,33 +215,13 @@ const ProteinViewer = ({
       {/* Molstar plugin container */}
       <div
         ref={containerRef}
-        style={{
-          width: '100%',
-          height: '100%',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          overflow: 'hidden' // Ensure nothing escapes
-        }}
+        className='w-full h-full absolute top-0 left-0 overflow-hidden'
       />
 
       {/* Loading overlay */}
       {loading && (
         <div
-          style={{
-            width: '100%',
-            height: '100%',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#f1f5f9',
-            color: '#64748b',
-            fontSize: '0.875rem',
-            zIndex: 10
-          }}
+          className='w-full h-full absolute top-0 left-0 flex items-center justify-center bg-surface text-primary text-sm z-10'
         >
           Loading structure...
         </div>
@@ -250,22 +230,7 @@ const ProteinViewer = ({
       {/* Error overlay */}
       {error && !loading && (
         <div
-          style={{
-            width: '100%',
-            height: '100%',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#f1f5f9',
-            color: '#94a3b8',
-            fontSize: '0.75rem',
-            textAlign: 'center',
-            padding: '0.5rem',
-            zIndex: 10
-          }}
+          className='w-full h-full absolute top-0 left-0 flex items-center justify-center bg-surface text-primary text-xs z-10 text-center p-2'
         >
           Structure unavailable
         </div>

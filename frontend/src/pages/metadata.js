@@ -2,19 +2,20 @@ import React from "react"
 import Seo from "../components/seo"
 import MetadataMap from "../components/MetadataMap"
 import { useScrollHeader } from "../hooks/useScrollHeader"
+import Container from '../components/Container'
 
 const MetadataPage = () => {
   useScrollHeader()
 
   return (
-    <section className="max-w-[1200px] mx-auto px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-4xl font-semibold text-primary mb-1">Sample Metadata</h1>
-        <p className="text-secondary-foreground text-lg">
+    <section className="py-16 md:py-20">
+      <Container>
+        <h1 className="text-4xl font-semibold text-primary mb-2">Sample Metadata</h1>
+        <p className="text-secondary-foreground text-lg mb-4">
           Geographic distribution of plastic-degrading enzyme discovery sites
         </p>
-      </div>
-      <MetadataMap />
+        <MetadataMap />
+      </Container>
     </section>
   )
 }

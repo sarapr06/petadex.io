@@ -56,7 +56,7 @@ function SequenceList({ title, sequenceList }) {
                 {visibleSequences.map(seq => (
                   <li
                     key={seq.accession}
-                    className="card hover:shadow-md transition-shadow"
+                    className="card hover:shadow-md transition-shadow p-4"
                   >
                     <Link
                       to={`/sequence/${seq.accession}`}

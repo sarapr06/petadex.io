@@ -4,32 +4,14 @@ import ProteinViewer from "./ProteinViewer";
 export default function StructurePanel({ accession }) {
   return (
     <div>
-      <div style={{
-        backgroundColor: "#f9fafb",
-        borderRadius: "8px",
-        border: "1px solid #e5e7eb",
-        overflow: "hidden"
-      }}>
-        <div style={{
-          padding: "1rem",
-          backgroundColor: "#ffffff",
-          borderBottom: "1px solid #e5e7eb"
-        }}>
-          <h3 style={{
-            fontSize: "1.1rem",
-            margin: 0,
-            color: "#374151",
-            fontWeight: "600"
-          }}>
+      <div className='rounded-2xl border-border overflow-hidden bg-surface-overlay'>
+        <div  className='p-4 bg-surface-raised border-b-border-strong'>
+          <h3 className='text-lg m-0 text-muted-foreground font-semibold'>
             3D Structure Viewer
           </h3>
         </div>
 
-        <div style={{
-          width: "100%",
-          height: "500px",
-          backgroundColor: "#ffffff"
-        }}>
+        <div className='w-full h-[500px] bg-secondary'>
           <ProteinViewer
             accession={accession}
             width="100%"
@@ -41,18 +23,8 @@ export default function StructurePanel({ accession }) {
         </div>
       </div>
 
-      <div style={{
-        marginTop: "1.5rem",
-        padding: "1rem",
-        backgroundColor: "#eff6ff",
-        borderRadius: "6px",
-        borderLeft: "4px solid #3b82f6"
-      }}>
-        <p style={{
-          margin: 0,
-          color: "#1e40af",
-          fontSize: "0.9rem"
-        }}>
+      <div className='mt-6 p-4 bg-blue-300 rounded-lg border-l-info border-l-4'>
+        <p className='m-0 text-sm text-primary dark:text-secondary'>
           <strong>Tip:</strong> Click and drag to rotate the structure. Scroll to zoom in/out.
         </p>
       </div>

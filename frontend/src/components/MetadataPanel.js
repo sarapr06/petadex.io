@@ -35,11 +35,7 @@ export default function MetadataPanel({ metadata, accession }) {
 
   if (!metadata) {
     return (
-      <div style={{ 
-        padding: "2rem", 
-        textAlign: "center",
-        color: "#666"
-      }}>
+      <div className='p-8 text-center text-primary'>
         No metadata available
       </div>
     );
@@ -60,42 +56,21 @@ export default function MetadataPanel({ metadata, accession }) {
   return (
     <div>
       {/* Basic Sequence Information */}
-      <h3 style={{
-        fontSize: "1.25rem",
-        marginBottom: "1.5rem",
-        color: "#374151"
-      }}>
+      <h3  className='text-xl mb-6 text-primary'>
         Sequence Information
       </h3>
 
-      <div style={{
-        display: "grid",
-        gap: "1rem",
-        marginBottom: "2rem"
-      }}>
+      <div  className='grid gap-4 mb-8'>
         {metadataItems.map((item, index) => (
-          <div 
+          <div
             key={index}
-            style={{
-              display: "grid",
-              gridTemplateColumns: "200px 1fr",
-              gap: "1rem",
-              padding: "1rem",
-              backgroundColor: "#f9fafb",
-              borderRadius: "6px",
-              borderLeft: "3px solid #e5e7eb"
-            }}
+            className='grid grid-cols-2 gap-4 p-4 bg-surface-raised rounded-lg border-l-3 border-l-border items-center'
+
           >
-            <div style={{
-              fontWeight: "600",
-              color: "#374151"
-            }}>
+            <div  className='label'>
               {item.label}
             </div>
-            <div style={{
-              color: "#6b7280",
-              wordBreak: "break-word"
-            }}>
+            <div  className='text-muted-foreground wrap-break-word'>
               {item.value}
             </div>
           </div>
@@ -104,12 +79,8 @@ export default function MetadataPanel({ metadata, accession }) {
 
       {/* Origin & Discovery Section */}
       {originData && (
-        <div style={{ marginBottom: "2rem" }}>
-          <h3 style={{
-            fontSize: "1.25rem",
-            marginBottom: "1.5rem",
-            color: "#374151"
-          }}>
+        <div className='mb-8'>
+          <h3  className='text-xl mb-6 text-primary'>
             Origin & Discovery
           </h3>
 
@@ -307,7 +278,7 @@ export default function MetadataPanel({ metadata, accession }) {
                 }}>
                   <div style={{ fontWeight: "600", color: "#374151" }}>BioProject</div>
                   <div>
-                    <a 
+                    <a
                       href={`https://www.ncbi.nlm.nih.gov/bioproject/${researchData.bioproject}`}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -331,7 +302,7 @@ export default function MetadataPanel({ metadata, accession }) {
                 }}>
                   <div style={{ fontWeight: "600", color: "#374151" }}>BioSample</div>
                   <div>
-                    <a 
+                    <a
                       href={`https://www.ncbi.nlm.nih.gov/biosample/${researchData.biosample}`}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -355,7 +326,7 @@ export default function MetadataPanel({ metadata, accession }) {
                 }}>
                   <div style={{ fontWeight: "600", color: "#374151" }}>SRA</div>
                   <div>
-                    <a 
+                    <a
                       href={`https://www.ncbi.nlm.nih.gov/sra/${researchData.sra_accession}`}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -379,7 +350,7 @@ export default function MetadataPanel({ metadata, accession }) {
                 }}>
                   <div style={{ fontWeight: "600", color: "#374151" }}>SRA Study</div>
                   <div>
-                    <a 
+                    <a
                       href={`https://www.ncbi.nlm.nih.gov/sra/${researchData.sra_study}`}
                       target="_blank"
                       rel="noopener noreferrer"
@@ -445,25 +416,11 @@ export default function MetadataPanel({ metadata, accession }) {
       )}
 
       {/* Additional Properties Info */}
-      <div style={{
-        marginTop: "2rem",
-        padding: "1rem",
-        backgroundColor: "#f0fdf4",
-        borderRadius: "6px",
-        borderLeft: "4px solid #22c55e"
-      }}>
-        <h4 style={{
-          margin: "0 0 0.5rem 0",
-          color: "#166534",
-          fontSize: "1rem"
-        }}>
+      <div  className='mt-8 p-4 bg-success/60 rounded-lg border-l-4 border-l-success'>
+        <h4  className='mb-2 text-lg text-primary'>
           Additional Properties
         </h4>
-        <p style={{
-          margin: 0,
-          color: "#15803d",
-          fontSize: "0.9rem"
-        }}>
+        <p  className='m-0 text-primary text-sm'>
           Future: Enzyme classification, catalytic activity, optimal conditions, related sequences
         </p>
       </div>

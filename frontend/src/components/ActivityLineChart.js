@@ -67,7 +67,7 @@ export default function ActivityLineChart({ data, height = 300 }) {
   if (chartData.length === 0) return null;
 
   return (
-    <div style={{ backgroundColor: "white", borderRadius: "4px", padding: "1rem", marginBottom: "-2rem" }}>
+    <div className="bg-surface rounded-lg p-4 -mb-8">
       <ResponsiveContainer width="100%" height={height}>
         <LineChart data={chartData} margin={{ top: 10, right: 30, left: 10, bottom: 20 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />

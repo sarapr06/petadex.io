@@ -11,7 +11,7 @@ RUN npm install
 FROM base AS dev
 COPY . .
 EXPOSE 8000
-#CMD ["npm", "run", "develop", "--", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["npm", "run", "develop", "--", "--host", "0.0.0.0", "--port", "8000"]
 
 # ── production build ──────────────────────────────────────────────
 FROM base AS build

@@ -17,7 +17,6 @@ import {
 function CathBadge({ components }) {
   if (!components || components.length === 0) return null
 
-  // Group components by CATH domain
   const cathMap = {}
   for (const comp of components) {
     const cath = COMPONENT_TO_CATH[comp] || "Unknown"
@@ -26,61 +25,30 @@ function CathBadge({ components }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+    <div className="flex flex-col gap-2">
       {Object.entries(cathMap).map(([cath, comps]) => (
         <div key={cath}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-            }}
-          >
+          <div className="flex items-center gap-2">
             <span
-              style={{
-                display: "inline-block",
-                width: "10px",
-                height: "10px",
-                borderRadius: "3px",
-                backgroundColor: CATH_BASE_CSS[cath] || "#475569",
-                flexShrink: 0,
-              }}
+              className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+              style={{ backgroundColor: CATH_BASE_CSS[cath] || "#475569" }}
             />
-            <span
-              style={{
-                fontSize: "0.85rem",
-                fontWeight: 600,
-                color: "#2c3e50",
-                fontFamily: "monospace",
-              }}
-            >
+            <span className="text-sm font-semibold text-foreground font-mono">
               {cath}
             </span>
           </div>
-          <div style={{ paddingLeft: "20px", marginTop: "0.25rem" }}>
+          <div className="pl-5 mt-1">
             {comps
               .sort((a, b) => a - b)
               .map(comp => (
-                <div
-                  key={comp}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    marginBottom: "0.15rem",
-                  }}
-                >
+                <div key={comp} className="flex items-center gap-2 mb-0.5">
                   <span
+                    className="inline-block w-2 h-2 rounded-full shrink-0"
                     style={{
-                      display: "inline-block",
-                      width: "8px",
-                      height: "8px",
-                      borderRadius: "50%",
                       backgroundColor: COMPONENT_SHADE_CSS[comp] || "#94a3b8",
-                      flexShrink: 0,
                     }}
                   />
-                  <span style={{ fontSize: "0.8rem", color: "#64748b" }}>
+                  <span className="text-xs text-muted-foreground">
                     Component {comp}
                   </span>
                 </div>
@@ -92,7 +60,7 @@ function CathBadge({ components }) {
   )
 }
 
-// ── Newick parser (same as tree/[familyId].js) ─────────────────────────────
+// ── Newick parser ──────────────────────────────────────────────────────────
 
 function parseNewick(s) {
   const ancestors = []
@@ -177,15 +145,6 @@ const LEAF_H = 14
 const TREE_W = 580
 const LABEL_W = 220
 const MARGIN = { top: 10, right: 10, bottom: 10, left: 20 }
-const treeBtnStyle = {
-  padding: "0.2rem 0.55rem",
-  fontSize: "0.85rem",
-  background: "white",
-  border: "1px solid #dee2e6",
-  borderRadius: 4,
-  cursor: "pointer",
-  lineHeight: 1.4,
-}
 
 function DendrogramSVG({ root }) {
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 })
@@ -237,52 +196,41 @@ function DendrogramSVG({ root }) {
   const onMouseUp = useCallback(() => {
     drag.current = null
   }, [])
+
   const resetView = () => setTransform({ x: 0, y: 0, k: 1 })
   const MAX_LABEL = 32
 
   return (
-    <div style={{ position: "relative" }}>
-      <div
-        style={{
-          position: "absolute",
-          top: 8,
-          right: 8,
-          zIndex: 10,
-          display: "flex",
-          gap: "0.4rem",
-        }}
-      >
-        <button
-          onClick={() =>
-            setTransform(t => ({ ...t, k: Math.min(t.k * 1.3, 8) }))
-          }
-          style={treeBtnStyle}
-        >
-          +
-        </button>
-        <button
-          onClick={() =>
-            setTransform(t => ({ ...t, k: Math.max(t.k * 0.77, 0.2) }))
-          }
-          style={treeBtnStyle}
-        >
-          −
-        </button>
-        <button onClick={resetView} style={treeBtnStyle}>
-          Reset
-        </button>
+    <div className="relative">
+      {/* Zoom controls */}
+      <div className="absolute top-2 right-2 z-10 flex gap-1.5">
+        {[
+          {
+            label: "+",
+            action: () =>
+              setTransform(t => ({ ...t, k: Math.min(t.k * 1.3, 8) })),
+          },
+          {
+            label: "−",
+            action: () =>
+              setTransform(t => ({ ...t, k: Math.max(t.k * 0.77, 0.2) })),
+          },
+          { label: "Reset", action: resetView },
+        ].map(({ label, action }) => (
+          <button
+            key={label}
+            onClick={action}
+            className="btn btn-secondary px-2 py-0.5 text-sm rounded"
+          >
+            {label}
+          </button>
+        ))}
       </div>
+
+      {/* Canvas */}
       <div
-        style={{
-          width: "100%",
-          height: "60vh",
-          minHeight: 300,
-          overflow: "hidden",
-          background: "#fafafa",
-          border: "1px solid #e9ecef",
-          borderRadius: 6,
-          cursor: drag.current ? "grabbing" : "grab",
-        }}
+        className="w-full overflow-hidden bg-surface-raised border border-border rounded-md cursor-grab"
+        style={{ height: "60vh", minHeight: 300 }}
         onWheel={onWheel}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
@@ -298,7 +246,7 @@ function DendrogramSVG({ root }) {
             transform: `translate(${transform.x}px,${transform.y}px) scale(${transform.k})`,
           }}
         >
-          <g stroke="#adb5bd" fill="none" strokeWidth={0.8}>
+          <g stroke="var(--border-strong)" fill="none" strokeWidth={0.8}>
             {links.map((link, i) => (
               <path key={i} d={linkPath(link)} />
             ))}
@@ -312,7 +260,7 @@ function DendrogramSVG({ root }) {
               <g key={i} transform={`translate(${sx(node)},${sy(node)})`}>
                 <circle
                   r={isLeaf ? 2.5 : 2}
-                  fill={isLeaf ? "#007bff" : "#6c757d"}
+                  fill={isLeaf ? "var(--accent)" : "var(--muted-foreground)"}
                 />
                 {isLeaf && displayLabel && (
                   <text
@@ -320,7 +268,7 @@ function DendrogramSVG({ root }) {
                     dy="0.32em"
                     fontSize={11}
                     fontFamily="monospace"
-                    fill="#343a40"
+                    fill="var(--foreground)"
                     style={{ userSelect: "none" }}
                   >
                     {displayLabel}
@@ -331,19 +279,18 @@ function DendrogramSVG({ root }) {
           })}
         </svg>
       </div>
-      <div
-        style={{ marginTop: "0.4rem", fontSize: "0.78rem", color: "#868e96" }}
-      >
+
+      <p className="mt-1.5 text-xs text-muted-foreground">
         {numLeaves} leaves · scroll to zoom · drag to pan
-      </div>
+      </p>
     </div>
   )
 }
 
-// ── Sequence table ─────────────────────────────────────────────────────────
+// ── Members Table ──────────────────────────────────────────────────────────
 
 function MembersTable({ familyId, centroid }) {
-  const [viewMode, setViewMode] = useState("centroid") // "centroid" | "members"
+  const [viewMode, setViewMode] = useState("centroid")
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
@@ -372,16 +319,12 @@ function MembersTable({ familyId, centroid }) {
   )
 
   useEffect(() => {
-    if (viewMode === "members") {
-      loadMembers(page)
-    }
+    if (viewMode === "members") loadMembers(page)
   }, [viewMode, page, loadMembers])
 
   const handleToggle = mode => {
     setViewMode(mode)
-    if (mode === "members") {
-      setPage(1)
-    }
+    if (mode === "members") setPage(1)
     setExpandedSeq(null)
   }
 
@@ -401,66 +344,41 @@ function MembersTable({ familyId, centroid }) {
   return (
     <div>
       {/* Toggle */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
-        <button
-          onClick={() => handleToggle("centroid")}
-          style={{
-            padding: "0.4rem 1rem",
-            fontSize: "0.85rem",
-            borderRadius: "4px",
-            border: "1px solid",
-            borderColor: viewMode === "centroid" ? "#3b82f6" : "#cbd5e1",
-            backgroundColor: viewMode === "centroid" ? "#3b82f6" : "white",
-            color: viewMode === "centroid" ? "white" : "#64748b",
-            cursor: "pointer",
-            fontWeight: 500,
-          }}
-        >
-          Centroid
-        </button>
-        <button
-          onClick={() => handleToggle("members")}
-          style={{
-            padding: "0.4rem 1rem",
-            fontSize: "0.85rem",
-            borderRadius: "4px",
-            border: "1px solid",
-            borderColor: viewMode === "members" ? "#3b82f6" : "#cbd5e1",
-            backgroundColor: viewMode === "members" ? "#3b82f6" : "white",
-            color: viewMode === "members" ? "white" : "#64748b",
-            cursor: "pointer",
-            fontWeight: 500,
-          }}
-        >
-          All Members
-        </button>
+      <div className="flex gap-2 mb-4">
+        {["centroid", "members"].map(mode => (
+          <button
+            key={mode}
+            onClick={() => handleToggle(mode)}
+            className={`btn text-sm px-4 py-1.5 rounded ${
+              viewMode === mode
+                ? "bg-accent text-accent-foreground border-accent"
+                : "btn-secondary"
+            }`}
+          >
+            {mode === "centroid" ? "Centroid" : "All Members"}
+          </button>
+        ))}
       </div>
 
-      {/* Table */}
       {loading ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>
+        <div className="py-8 text-center text-muted-foreground">
           Loading members…
         </div>
       ) : rows.length === 0 ? (
-        <div style={{ padding: "2rem", textAlign: "center", color: "#64748b" }}>
+        <div className="py-8 text-center text-muted-foreground">
           No members found
         </div>
       ) : (
         <>
-          <div style={{ overflowX: "auto" }}>
-            <table
-              style={{
-                width: "100%",
-                borderCollapse: "collapse",
-                fontSize: "0.85rem",
-              }}
-            >
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
               <thead>
-                <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
-                  <th style={thStyle}>Accession</th>
-                  <th style={thStyle}>Identity</th>
-                  <th style={thStyle}>Component</th>
-                  <th style={thStyle}>Sequence</th>
+                <tr className="border-b-2 border-border-strong">
+                  {["Accession", "Identity", "Component", "Sequence"].map(h => (
+                    <th key={h} className="text-left px-3 py-2 label">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -471,67 +389,48 @@ function MembersTable({ familyId, centroid }) {
                   return (
                     <React.Fragment key={row.enzyme_id}>
                       <tr
-                        style={{
-                          borderBottom: "1px solid #f1f5f9",
-                          backgroundColor: isCentroid ? "#fffbeb" : "white",
-                        }}
+                        className={`border-b border-border ${
+                          isCentroid ? "bg-warning/10" : "bg-card"
+                        }`}
                       >
-                        <td style={tdStyle}>
+                        <td className="px-3 py-2">
                           <Link
                             to={`/enzyme/${row.enzyme_id}`}
-                            style={{
-                              fontFamily: "monospace",
-                              color: "#2c3e50",
-                              textDecoration: "none",
-                            }}
+                            className="font-mono text-foreground hover:text-accent"
                           >
                             {row.genbank_accession_id ||
                               `Enzyme ${row.enzyme_id}`}
                           </Link>
                           {isCentroid && (
-                            <span
-                              style={{
-                                marginLeft: "0.5rem",
-                                padding: "0.1rem 0.35rem",
-                                backgroundColor: "#f59e0b",
-                                color: "white",
-                                borderRadius: "3px",
-                                fontSize: "0.65rem",
-                                fontWeight: 700,
-                              }}
-                            >
-                              CENTROID
+                            <span className="ml-2 badge bg-warning text-warning-foreground border-warning/30 text-2xs font-bold uppercase">
+                              Centroid
                             </span>
                           )}
                         </td>
-                        <td style={tdStyle}>
+                        <td className="px-3 py-2 text-muted-foreground">
                           {isCentroid
                             ? "—"
                             : row.family_pid != null
                               ? `${row.family_pid}%`
                               : "—"}
                         </td>
-                        <td style={tdStyle}>
+                        <td className="px-3 py-2">
                           {row.component != null ? (
                             <span
+                              className="inline-block px-1.5 py-0.5 rounded text-xs font-semibold text-white"
                               style={{
-                                padding: "0.15rem 0.4rem",
                                 backgroundColor:
                                   COMPONENT_SHADE_CSS[row.component] ||
                                   "#e0e7ff",
-                                color: "white",
-                                borderRadius: "4px",
-                                fontSize: "0.75rem",
-                                fontWeight: 600,
                               }}
                             >
                               {row.component}
                             </span>
                           ) : (
-                            <span style={{ color: "#94a3b8" }}>—</span>
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </td>
-                        <td style={tdStyle}>
+                        <td className="px-3 py-2">
                           {row.translated_sequence ? (
                             <button
                               onClick={() =>
@@ -539,21 +438,14 @@ function MembersTable({ familyId, centroid }) {
                                   isExpanded ? null : row.enzyme_id,
                                 )
                               }
-                              style={{
-                                background: "none",
-                                border: "none",
-                                color: "#3b82f6",
-                                cursor: "pointer",
-                                fontSize: "0.8rem",
-                                padding: 0,
-                              }}
+                              className="text-accent text-xs hover:text-accent-hover bg-transparent border-none cursor-pointer p-0"
                             >
                               {isExpanded
                                 ? "Hide"
                                 : `${row.translated_sequence.length} aa`}
                             </button>
                           ) : (
-                            <span style={{ color: "#94a3b8" }}>—</span>
+                            <span className="text-muted-foreground">—</span>
                           )}
                         </td>
                       </tr>
@@ -561,10 +453,7 @@ function MembersTable({ familyId, centroid }) {
                         <tr>
                           <td
                             colSpan={4}
-                            style={{
-                              padding: "0.75rem 1rem",
-                              backgroundColor: "#f8fafc",
-                            }}
+                            className="px-4 py-3 bg-surface-sunken"
                           >
                             <SequenceViewer
                               aminoAcidSequence={row.translated_sequence}
@@ -584,30 +473,30 @@ function MembersTable({ familyId, centroid }) {
           {viewMode === "members" &&
             pagination &&
             pagination.totalPages > 1 && (
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  alignItems: "center",
-                  gap: "1rem",
-                  marginTop: "1rem",
-                }}
-              >
+              <div className="flex justify-center items-center gap-4 mt-4">
                 <button
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  style={pageBtnStyle(page <= 1)}
+                  className={`btn text-sm px-3 py-1.5 rounded ${
+                    page <= 1
+                      ? "btn-secondary opacity-50 cursor-default"
+                      : "btn-secondary"
+                  }`}
                 >
                   Previous
                 </button>
-                <span style={{ fontSize: "0.85rem", color: "#64748b" }}>
+                <span className="text-sm text-muted-foreground">
                   Page {page} of {pagination.totalPages} ({pagination.total}{" "}
                   total)
                 </span>
                 <button
                   onClick={() => setPage(p => p + 1)}
                   disabled={!pagination.hasMore}
-                  style={pageBtnStyle(!pagination.hasMore)}
+                  className={`btn text-sm px-3 py-1.5 rounded ${
+                    !pagination.hasMore
+                      ? "btn-secondary opacity-50 cursor-default"
+                      : "btn-secondary"
+                  }`}
                 >
                   Next
                 </button>
@@ -617,34 +506,6 @@ function MembersTable({ familyId, centroid }) {
       )}
     </div>
   )
-}
-
-const thStyle = {
-  textAlign: "left",
-  padding: "0.6rem 0.75rem",
-  color: "#64748b",
-  fontWeight: 600,
-  fontSize: "0.8rem",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-}
-
-const tdStyle = {
-  padding: "0.5rem 0.75rem",
-  verticalAlign: "middle",
-}
-
-function pageBtnStyle(disabled) {
-  return {
-    padding: "0.4rem 0.75rem",
-    fontSize: "0.85rem",
-    borderRadius: "4px",
-    border: "1px solid #cbd5e1",
-    backgroundColor: disabled ? "#f1f5f9" : "white",
-    color: disabled ? "#94a3b8" : "#3b82f6",
-    cursor: disabled ? "default" : "pointer",
-    fontWeight: 500,
-  }
 }
 
 // ── Family Metadata ────────────────────────────────────────────────────────
@@ -662,7 +523,7 @@ function FamilyMetadata({ familyId }) {
 
   if (!meta)
     return (
-      <div style={{ color: "#94a3b8", fontSize: "0.9rem" }}>
+      <div className="text-muted-foreground text-sm">
         No atlas metadata available
       </div>
     )
@@ -671,23 +532,16 @@ function FamilyMetadata({ familyId }) {
     value ? (
       <div
         key={label}
-        style={{
-          display: "grid",
-          gridTemplateColumns: "200px 1fr",
-          gap: "1rem",
-          padding: "0.75rem 1rem",
-          backgroundColor: "#f9fafb",
-          borderRadius: "6px",
-          borderLeft: "3px solid #e5e7eb",
-        }}
+        className="grid gap-4 px-4 py-3 bg-surface-raised rounded-md border-l-4 border-border-strong"
+        style={{ gridTemplateColumns: "200px 1fr" }}
       >
-        <div style={{ fontWeight: 600, color: "#374151" }}>{label}</div>
-        <div style={{ color: "#6b7280", wordBreak: "break-word" }}>{value}</div>
+        <div className="font-semibold text-foreground">{label}</div>
+        <div className="text-muted-foreground break-words">{value}</div>
       </div>
     ) : null
 
   return (
-    <div style={{ display: "grid", gap: "0.75rem" }}>
+    <div className="grid gap-3">
       {row("Accession", meta.genbank_accession_id)}
       {row("Definition", meta.definition)}
       {row("Organism", meta.organism)}
@@ -704,24 +558,8 @@ function FamilyMetadata({ familyId }) {
 
 function Section({ title, children }) {
   return (
-    <div
-      style={{
-        border: "1px solid #e2e8f0",
-        borderRadius: "8px",
-        padding: "1.5rem",
-        backgroundColor: "white",
-        boxShadow: "0 1px 3px 0 rgba(0,0,0,0.1)",
-        marginBottom: "1.5rem",
-      }}
-    >
-      <h2
-        style={{
-          fontSize: "1.25rem",
-          marginBottom: "1rem",
-          color: "#2c3e50",
-          marginTop: 0,
-        }}
-      >
+    <div className="card p-6 mb-6">
+      <h2 className="text-xl font-semibold text-foreground mb-4 mt-0">
         {title}
       </h2>
       {children}
@@ -743,12 +581,10 @@ export default function FamilyTemplate({ pageContext }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  // Tree state
   const [treeNwk, setTreeNwk] = useState(null)
   const [treeLoading, setTreeLoading] = useState(true)
   const [treeError, setTreeError] = useState(null)
 
-  // Fetch family summary
   useEffect(() => {
     if (!familyId) return
     setLoading(true)
@@ -767,7 +603,6 @@ export default function FamilyTemplate({ pageContext }) {
       })
   }, [familyId])
 
-  // Fetch tree independently
   useEffect(() => {
     if (!familyId) return
     setTreeLoading(true)
@@ -798,7 +633,7 @@ export default function FamilyTemplate({ pageContext }) {
 
   if (!familyId) {
     return (
-      <div style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
+      <div className="py-8 text-center text-muted-foreground">
         Invalid family URL
       </div>
     )
@@ -806,205 +641,117 @@ export default function FamilyTemplate({ pageContext }) {
 
   return (
     <>
-      <section
-        style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "2rem",
-          paddingTop: "2rem",
-        }}
-      >
-        <div style={{ marginBottom: "1rem" }}>
+      <section className="max-w-6xl mx-auto px-8 py-8">
+        <div className="mb-4">
           <Link
             to="/enzymes"
-            style={{
-              color: "#3b82f6",
-              textDecoration: "none",
-              fontSize: "0.9rem",
-            }}
+            className="text-accent text-sm hover:text-accent-hover"
           >
             &larr; Back to Enzymes
           </Link>
         </div>
 
-        {/* ── 1. Header ── */}
         {loading ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
+          <div className="py-8 text-center text-muted-foreground">
             Loading family…
           </div>
         ) : error ? (
-          <div
-            style={{ padding: "2rem", textAlign: "center", color: "#dc2626" }}
-          >
-            {error}
-          </div>
+          <div className="py-8 text-center text-destructive">{error}</div>
         ) : (
           family && (
             <>
-              <div style={{ marginBottom: "2rem" }}>
-                <h1
-                  style={{
-                    fontSize: "2.5rem",
-                    marginBottom: "0.5rem",
-                    color: "#2c3e50",
-                  }}
-                >
+              {/* ── Header ── */}
+              <div className="mb-8">
+                <h1 className="text-5xl font-semibold text-foreground mb-2">
                   Family {family.family_id}
                 </h1>
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "2rem",
-                    flexWrap: "wrap",
-                    alignItems: "flex-start",
-                    marginTop: "1rem",
-                  }}
-                >
+                <div className="flex gap-8 flex-wrap items-start mt-4">
                   {/* Stats */}
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: "1.5rem",
-                      flexWrap: "wrap",
-                      flex: 1,
-                      minWidth: "300px",
-                    }}
-                  >
-                    <div style={statBox}>
-                      <div style={statLabel}>Centroid</div>
-                      <div
-                        style={{
-                          fontFamily: "monospace",
-                          fontSize: "1rem",
-                          color: "#2c3e50",
-                        }}
-                      >
+                  <div className="flex gap-6 flex-wrap flex-1 min-w-[300px]">
+                    {/* Centroid */}
+                    <div className="flex flex-col gap-1">
+                      <div className="label">Centroid</div>
+                      <div className="font-mono text-base text-foreground">
                         <Link
                           to={`/enzyme/${family.centroid_enzyme_id}`}
-                          style={{
-                            color: "#2c3e50",
-                            textDecoration: "none",
-                            borderBottom: "2px solid #3b82f6",
-                          }}
+                          className="text-foreground border-b-2 border-accent hover:text-accent"
                         >
                           {family.centroid_accession}
                         </Link>
                       </div>
                     </div>
-                    <div style={statBox}>
-                      <div style={statLabel}>Variants</div>
-                      <div style={statValue}>
-                        {parseInt(family.variant_count).toLocaleString()}
+
+                    {[
+                      {
+                        label: "Variants",
+                        value: parseInt(family.variant_count).toLocaleString(),
+                      },
+                      { label: "Components", value: family.component_count },
+                      ...(family.avg_identity
+                        ? [
+                            {
+                              label: "Avg Identity",
+                              value: `${family.avg_identity}%`,
+                            },
+                          ]
+                        : []),
+                    ].map(({ label, value }) => (
+                      <div key={label} className="flex flex-col gap-1">
+                        <div className="label">{label}</div>
+                        <div className="text-2xl font-semibold text-foreground">
+                          {value}
+                        </div>
                       </div>
-                    </div>
-                    <div style={statBox}>
-                      <div style={statLabel}>Components</div>
-                      <div style={statValue}>{family.component_count}</div>
-                    </div>
-                    {family.avg_identity && (
-                      <div style={statBox}>
-                        <div style={statLabel}>Avg Identity</div>
-                        <div style={statValue}>{family.avg_identity}%</div>
-                      </div>
-                    )}
+                    ))}
                   </div>
 
                   {/* CATH badges */}
                   {family.components && family.components.length > 0 && (
-                    <div
-                      style={{
-                        padding: "0.75rem 1rem",
-                        backgroundColor: "#f8fafc",
-                        borderRadius: "8px",
-                        border: "1px solid #e2e8f0",
-                        minWidth: "180px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "0.8rem",
-                          color: "#64748b",
-                          marginBottom: "0.5rem",
-                          fontWeight: 600,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.5px",
-                        }}
-                      >
-                        CATH Domain
-                      </div>
+                    <div className="px-4 py-3 bg-surface-raised rounded-lg border border-border min-w-[180px]">
+                      <div className="label mb-2">CATH Domain</div>
                       <CathBadge components={family.components} />
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* ── 2. Sequence table ── */}
               <Section title="Sequences">
                 <MembersTable familyId={familyId} centroid={family} />
               </Section>
 
-              {/* ── 3. Centroid Metadata ── */}
               <Section title="Centroid Metadata">
                 <FamilyMetadata familyId={familyId} />
               </Section>
 
-              {/* ── 4. ESM Atlas ── */}
               <Section title="ESM Atlas">
                 <AtlasMap familyId={familyId} />
               </Section>
 
-              {/* ── 5. Phylogenetic tree ── */}
               <Section title="Phylogenetic Tree">
                 {treeLoading && (
-                  <div
-                    style={{
-                      padding: "2rem",
-                      textAlign: "center",
-                      color: "#666",
-                    }}
-                  >
+                  <div className="py-8 text-center text-muted-foreground">
                     Loading tree…
                   </div>
                 )}
                 {treeError && !treeLoading && (
-                  <div
-                    style={{
-                      padding: "1.5rem",
-                      textAlign: "center",
-                      color: "#64748b",
-                      backgroundColor: "#f8fafc",
-                      borderRadius: "6px",
-                    }}
-                  >
+                  <div className="py-6 text-center text-muted-foreground bg-surface-raised rounded-md">
                     No phylogenetic tree available for this family
                   </div>
                 )}
                 {parseError && (
-                  <div
-                    style={{
-                      color: "#721c24",
-                      background: "#f8d7da",
-                      border: "1px solid #f5c6cb",
-                      borderRadius: 4,
-                      padding: "0.75rem 1rem",
-                    }}
-                  >
+                  <div className="px-4 py-3 bg-destructive/10 text-destructive border border-destructive/30 rounded">
                     {parseError}
                   </div>
                 )}
                 {treeRoot && !parseError && (
                   <>
                     <DendrogramSVG root={treeRoot} />
-                    <div style={{ marginTop: "0.75rem" }}>
+                    <div className="mt-3">
                       <a
                         href={`${config.apiUrl}/family/${familyId}/tree`}
                         download={`family_${familyId}.nwk`}
-                        style={{
-                          fontSize: "0.85rem",
-                          color: "#3b82f6",
-                          textDecoration: "none",
-                        }}
+                        className="text-sm text-accent hover:text-accent-hover"
                       >
                         Download .nwk file
                       </a>
@@ -1018,26 +765,6 @@ export default function FamilyTemplate({ pageContext }) {
       </section>
     </>
   )
-}
-
-const statBox = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "0.25rem",
-}
-
-const statLabel = {
-  fontSize: "0.8rem",
-  color: "#64748b",
-  textTransform: "uppercase",
-  letterSpacing: "0.5px",
-  fontWeight: 600,
-}
-
-const statValue = {
-  fontSize: "1.5rem",
-  fontWeight: 600,
-  color: "#2c3e50",
 }
 
 export const Head = ({ pageContext, params }) => {
