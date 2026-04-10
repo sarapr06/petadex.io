@@ -9,33 +9,34 @@
  */
 module.exports = {
   siteMetadata: {
-    title: `PETadex - Plastic-Degrading Enzyme Database`,
-    description: `Explore and analyze plastic-degrading enzymes (PETases). Search sequences, view 3D structures, and access experimental data.`,
-    author: `@ababaian`,
-    siteUrl: `https://petadex.net/`,
+    title: 'PETadex - Plastic-Degrading Enzyme Database',
+    description: 'Explore and analyze plastic-degrading enzymes (PETases). Search sequences, view 3D structures, and access experimental data.',
+    author: '@ababaian',
+    siteUrl: 'https://petadex.net/',
   },
   plugins: [
-    `gatsby-plugin-sass`,
-    `gatsby-plugin-image`,
+    'gatsby-plugin-postcss',
+    'gatsby-plugin-sass',
+    'gatsby-plugin-image',
     {
-      resolve: `gatsby-source-filesystem`,
+      resolve: 'gatsby-source-filesystem',
       options: {
-        name: `images`,
+        name: 'images',
         path: `${__dirname}/src/images`,
       },
     },
-    `gatsby-transformer-sharp`,
-    `gatsby-plugin-sharp`,
+    'gatsby-transformer-sharp',
+    'gatsby-plugin-sharp',
     {
-      resolve: `gatsby-plugin-manifest`,
+      resolve: 'gatsby-plugin-manifest',
       options: {
-        name: `PETadex`,
-        short_name: `PETadex`,
-        start_url: `/`,
-        background_color: `#ffffff`,
-        theme_color: `#c94141`,
-        display: `minimal-ui`,
-        icon: `src/images/petadex-icon.png`, // This path is relative to the root of the site.
+        name: 'PETadex',
+        short_name: 'PETadex',
+        start_url: '/',
+        background_color: '#ffffff',
+        theme_color: '#c94141',
+        display: 'minimal-ui',
+        icon: 'src/images/petadex-icon.png', // This path is relative to the root of the site.
       },
     },
   ],

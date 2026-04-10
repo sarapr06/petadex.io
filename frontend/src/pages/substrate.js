@@ -1,393 +1,232 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Link } from "gatsby";
-import "../styles/home.css";
-import SiteHeader from "../components/SiteHeader";
-import Seo from "../components/seo";
-import config from "../config";
-import { useScrollHeader } from "../hooks/useScrollHeader";
-import { generateCSV, downloadCSV } from "../utils/csvDownload";
-import ActivityLineChart, { mediaColors, mediaLabels } from "../components/ActivityLineChart";
+// src/pages/substrate.js
+import React, { useState, useEffect, useMemo, useCallback } from "react"
+import { Link } from "gatsby"
+import Seo from "../components/seo"
+import config from "../config"
+import { useScrollHeader } from "../hooks/useScrollHeader"
+import { generateCSV, downloadCSV } from "../utils/csvDownload"
+import ActivityLineChart, { mediaColors, mediaLabels } from "../components/charts/ActivityLineChart"
 import {
   ScatterChart, Scatter, ZAxis,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine,
-} from "recharts";
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts"
 
-const allSubstrates = ["BHET12.5", "BHET25", "BHET50"];
+const allSubstrates = ["BHET12.5", "BHET25", "BHET50"]
 
 const timepointColors = {
-  "all": "#6b7280",
+  all: "#6b7280",
   24: "#10b981",
   48: "#3b82f6",
   72: "#8b5cf6",
   96: "#f59e0b",
   120: "#ef4444",
-};
+}
 
 const plotModes = {
-  intensity: { label: "Raw Intensity", description: "Average pixel intensity at each timepoint" },
-  activity: { label: "Activity", description: "Peak intensity minus subsequent minimum (degradation signal)" },
-};
+  intensity: {
+    label: "Raw Intensity",
+    description: "Average pixel intensity at each timepoint",
+  },
+  activity: {
+    label: "Activity",
+    description: "Peak intensity minus subsequent minimum (degradation signal)",
+  },
+}
 
 const benchmarkEnzymes = {
   "WP_054022242.1": "IsPETase",
   "WP_054022242.1_M1": "Fast-PETase",
-};
+}
 
 const diamondPoints = (cx, cy, r) =>
-  `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`;
+  `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`
 
-// --- Custom Scatter Tooltip ---
+// ── ScatterTooltip ─────────────────────────────────────────────────────────
+
 const ScatterTooltipContent = ({ active, payload, xKey, yKey, plotMode }) => {
-  if (!active || !payload?.length) return null;
-  const data = payload[0].payload;
-  const isActivityMode = plotMode === "activity";
-  const valueLabel = isActivityMode ? "Activity" : "Intensity";
+  if (!active || !payload?.length) return null
+  const data = payload[0].payload
+  const isActivityMode = plotMode === "activity"
+  const valueLabel = isActivityMode ? "Activity" : "Intensity"
 
   return (
-    <div style={{
-      backgroundColor: "#fff",
-      border: "1px solid #e5e7eb",
-      borderRadius: "8px",
-      padding: "0.75rem 1rem",
-      boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-      fontSize: "0.825rem",
-      maxWidth: "300px",
-    }}>
-      <div style={{ fontWeight: "700", color: "#1f2937", marginBottom: "0.3rem", fontFamily: "monospace" }}>
-        {data.gene}
-      </div>
+    <div className="bg-surface border rounded-xl px-4 py-3 shadow-lg text-sm max-w-[300px]">
+      <div className="font-bold font-mono text-primary mb-1">{data.gene}</div>
       {data.nickname && (
-        <div style={{ color: "#6b7280", marginBottom: "0.3rem", fontSize: "0.75rem" }}>
-          {data.nickname}
-        </div>
+        <div className="text-muted-foreground text-xs mb-1">{data.nickname}</div>
       )}
-      <div style={{ color: mediaColors[xKey], marginBottom: "0.15rem" }}>
+      <div className="mb-0.5" style={{ color: mediaColors[xKey] }}>
         {mediaLabels[xKey]} {valueLabel}: <strong>{data.x?.toFixed(2)}</strong>
       </div>
-      <div style={{ color: mediaColors[yKey], marginBottom: isActivityMode ? "0.3rem" : "0" }}>
+      <div className={isActivityMode ? "mb-2" : ""} style={{ color: mediaColors[yKey] }}>
         {mediaLabels[yKey]} {valueLabel}: <strong>{data.y?.toFixed(2)}</strong>
       </div>
       {isActivityMode && data.xActivity && (
-        <div style={{ fontSize: "0.7rem", color: "#6b7280", borderTop: "1px solid #e5e7eb", paddingTop: "0.3rem", marginTop: "0.3rem" }}>
-          <div>{mediaLabels[xKey]}: peak@{data.xActivity.peak_timepoint}h → min@{data.xActivity.min_timepoint}h</div>
-          <div>{mediaLabels[yKey]}: peak@{data.yActivity.peak_timepoint}h → min@{data.yActivity.min_timepoint}h</div>
+        <div className="text-xs text-muted-foreground border-t border pt-2 mt-2 space-y-0.5">
+          <div>
+            {mediaLabels[xKey]}: peak@{data.xActivity.peak_timepoint}h → min@
+            {data.xActivity.min_timepoint}h
+          </div>
+          <div>
+            {mediaLabels[yKey]}: peak@{data.yActivity.peak_timepoint}h → min@
+            {data.yActivity.min_timepoint}h
+          </div>
         </div>
       )}
-      <div style={{ color: "#9ca3af", marginTop: "0.3rem", fontSize: "0.7rem", fontStyle: "italic" }}>
-        Click to jump to gene card
-      </div>
+      <div className="text-muted-foreground mt-1.5 text-xs italic">Click to jump to gene card</div>
     </div>
-  );
-};
+  )
+}
 
-// --- VS Hero Banner ---
+// ── SubstrateHero ──────────────────────────────────────────────────────────
+
 const SubstrateHero = ({ heroStats, activeSubstrates }) => {
-  const substrates = [...activeSubstrates];
-  const isVsMode = substrates.length === 2;
-
-  if (substrates.length === 0) return null;
+  const substrates = [...activeSubstrates]
+  const isVsMode = substrates.length === 2
+  if (substrates.length === 0) return null
 
   return (
-    <div style={{
-      display: "flex",
-      alignItems: "stretch",
-      marginBottom: "2rem",
-      borderRadius: "12px",
-      overflow: "hidden",
-      border: "1px solid #e5e7eb",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.06)",
-      position: "relative",
-    }}>
+    <div className="flex items-stretch mb-8 rounded-xl overflow-hidden border shadow-md relative">
       {substrates.map((substrate, i) => {
-        const stats = heroStats[substrate];
-        const color = mediaColors[substrate];
-
+        const stats = heroStats[substrate]
+        const color = mediaColors[substrate]
         return (
           <React.Fragment key={substrate}>
-            {/* VS divider */}
             {isVsMode && i === 1 && (
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: "0",
-                position: "relative",
-                zIndex: 2,
-              }}>
-                <div style={{
-                  width: "52px",
-                  height: "52px",
-                  borderRadius: "50%",
-                  backgroundColor: "#1f2937",
-                  color: "#fff",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontWeight: "900",
-                  fontSize: "0.9rem",
-                  letterSpacing: "0.08em",
-                  boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
-                  position: "absolute",
-                }}>
+              <div className="flex items-center justify-center w-0 relative z-10">
+                <div
+                  className="w-12 h-12 rounded-full flex items-center justify-center font-black text-sm tracking-wider text-white shadow-lg absolute"
+                  style={{ backgroundColor: "var(--sem-text-primary)" }}
+                >
                   VS
                 </div>
               </div>
             )}
-
-            {/* Non-VS divider for 3+ substrates */}
-            {!isVsMode && i > 0 && (
-              <div style={{ width: "1px", backgroundColor: "#e5e7eb" }} />
-            )}
-
-            <div style={{
-              flex: "1",
-              padding: "1.75rem 2rem",
-              background: `linear-gradient(135deg, ${color}0A 0%, ${color}18 100%)`,
-              borderLeft: `4px solid ${color}`,
-            }}>
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.5rem",
-                marginBottom: "1.25rem",
-              }}>
-                <div style={{
-                  width: "14px",
-                  height: "14px",
-                  borderRadius: "50%",
-                  backgroundColor: color,
-                  boxShadow: `0 0 8px ${color}66`,
-                }} />
-                <span style={{
-                  fontSize: "1.3rem",
-                  fontWeight: "800",
-                  color: "#1f2937",
-                }}>
+            {!isVsMode && i > 0 && <div className="w-px bg-border" />}
+            <div
+              className="flex-1 p-7"
+              style={{
+                background: `linear-gradient(135deg, ${color}0A 0%, ${color}18 100%)`,
+                borderLeft: `4px solid ${color}`,
+              }}
+            >
+              <div className="flex items-center gap-2 mb-5">
+                <div
+                  className="w-3.5 h-3.5 rounded-full"
+                  style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}66` }}
+                />
+                <span className="text-xl font-extrabold text-primary">
                   {mediaLabels[substrate]}
                 </span>
               </div>
-
-              <div style={{
-                display: "flex",
-                gap: "2rem",
-              }}>
+              <div className="flex gap-8">
                 <div>
-                  <div style={{
-                    fontSize: "0.65rem", fontWeight: "700", color: "#9ca3af",
-                    textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.2rem"
-                  }}>Genes Tested</div>
-                  <div style={{ fontSize: "1.75rem", fontWeight: "800", color }}>
+                  <div className="label mb-1">Genes Tested</div>
+                  <div className="text-3xl font-extrabold" style={{ color }}>
                     {stats?.geneCount || 0}
                   </div>
                 </div>
                 <div>
-                  <div style={{
-                    fontSize: "0.65rem", fontWeight: "700", color: "#9ca3af",
-                    textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.2rem"
-                  }}>Mean Activity</div>
-                  <div style={{ fontSize: "1.75rem", fontWeight: "800", color }}>
+                  <div className="label mb-1">Mean Activity</div>
+                  <div className="text-3xl font-extrabold" style={{ color }}>
                     {stats?.meanActivity?.toFixed(4) || "—"}
                   </div>
                 </div>
               </div>
             </div>
           </React.Fragment>
-        );
+        )
       })}
     </div>
-  );
-};
+  )
+}
 
-// --- Plot Mode Toggle ---
+// ── PlotModeToggle ─────────────────────────────────────────────────────────
+
 const PlotModeToggle = ({ plotMode, onModeChange }) => (
-  <div style={{
-    display: "flex",
-    gap: "0.5rem",
-    marginBottom: "1.5rem",
-    alignItems: "center",
-  }}>
-    <span style={{ fontSize: "0.85rem", fontWeight: "600", color: "#6b7280" }}>
-      Plot Mode:
-    </span>
+  <div className="flex items-center gap-2 mb-6 flex-wrap">
+    <span className="text-sm font-semibold text-secondary-foreground">Plot Mode:</span>
     {Object.entries(plotModes).map(([mode, { label, description }]) => {
-      const isActive = plotMode === mode;
+      const isActive = plotMode === mode
       return (
         <button
           key={mode}
           onClick={() => onModeChange(mode)}
           title={description}
-          style={{
-            padding: "0.5rem 1rem",
-            borderRadius: "8px",
-            border: isActive ? "2px solid #1f2937" : "2px solid #d1d5db",
-            backgroundColor: isActive ? "#1f2937" : "transparent",
-            color: isActive ? "#fff" : "#4b5563",
-            fontWeight: "600",
-            fontSize: "0.8rem",
-            cursor: "pointer",
-            transition: "all 0.2s ease",
-          }}
-          onMouseEnter={e => {
-            if (!isActive) {
-              e.currentTarget.style.backgroundColor = "#f3f4f6";
-              e.currentTarget.style.borderColor = "#9ca3af";
-            }
-          }}
-          onMouseLeave={e => {
-            if (!isActive) {
-              e.currentTarget.style.backgroundColor = "transparent";
-              e.currentTarget.style.borderColor = "#d1d5db";
-            }
-          }}
+          className={`btn text-sm ${isActive ? "btn-primary" : "btn-secondary"}`}
         >
           {label}
         </button>
-      );
+      )
     })}
-    <span style={{ fontSize: "0.75rem", color: "#9ca3af", marginLeft: "0.5rem", fontStyle: "italic" }}>
+    <span className="text-xs text-muted-foreground italic ml-2">
       {plotModes[plotMode].description}
     </span>
   </div>
-);
+)
 
-// --- Timepoint Toggle Chips ---
+// ── TimepointToggle ────────────────────────────────────────────────────────
+
 const TimepointToggle = ({ availableTimepoints, activeTimepoint, onSelect }) => {
-  if (availableTimepoints.length === 0) return null;
-
+  if (availableTimepoints.length === 0) return null
   return (
-    <div style={{
-      display: "flex",
-      gap: "0.5rem",
-      marginBottom: "2rem",
-      flexWrap: "wrap",
-      alignItems: "center",
-    }}>
-      <span style={{ fontSize: "0.85rem", fontWeight: "600", color: "#6b7280" }}>
-        Timepoint:
-      </span>
-      {/* "All" option for averaged data */}
-      <button
-        onClick={() => onSelect(null)}
-        style={{
-          padding: "0.4rem 0.9rem",
-          borderRadius: "16px",
-          border: `2px solid ${timepointColors["all"]}`,
-          backgroundColor: activeTimepoint === null ? timepointColors["all"] : "transparent",
-          color: activeTimepoint === null ? "#fff" : timepointColors["all"],
-          fontWeight: "600",
-          fontSize: "0.75rem",
-          cursor: "pointer",
-          transition: "all 0.2s ease",
-        }}
-        onMouseEnter={e => {
-          if (activeTimepoint !== null) {
-            e.currentTarget.style.backgroundColor = `${timepointColors["all"]}15`;
-          }
-        }}
-        onMouseLeave={e => {
-          if (activeTimepoint !== null) {
-            e.currentTarget.style.backgroundColor = "transparent";
-          }
-        }}
-      >
-        All (avg)
-      </button>
-      {availableTimepoints.map(tp => {
-        const isActive = activeTimepoint === tp;
-        const color = timepointColors[tp] || "#6b7280";
+    <div className="flex items-center gap-2 mb-8 flex-wrap">
+      <span className="text-sm font-semibold text-secondary-foreground">Timepoint:</span>
+      {[null, ...availableTimepoints].map(tp => {
+        const isActive = activeTimepoint === tp
+        const color = tp === null ? timepointColors.all : timepointColors[tp] || "#6b7280"
+        const label = tp === null ? "All (avg)" : `${tp}h`
         return (
           <button
-            key={tp}
+            key={tp ?? "all"}
             onClick={() => onSelect(tp)}
+            className="px-3.5 py-1.5 rounded-full text-xs font-semibold border-2 transition-colors"
             style={{
-              padding: "0.4rem 0.9rem",
-              borderRadius: "16px",
-              border: `2px solid ${color}`,
+              borderColor: color,
               backgroundColor: isActive ? color : "transparent",
               color: isActive ? "#fff" : color,
-              fontWeight: "600",
-              fontSize: "0.75rem",
-              cursor: "pointer",
-              transition: "all 0.2s ease",
-            }}
-            onMouseEnter={e => {
-              if (!isActive) {
-                e.currentTarget.style.backgroundColor = `${color}15`;
-              }
-            }}
-            onMouseLeave={e => {
-              if (!isActive) {
-                e.currentTarget.style.backgroundColor = "transparent";
-              }
             }}
           >
-            {tp}h
+            {label}
           </button>
-        );
+        )
       })}
     </div>
-  );
-};
+  )
+}
 
-// --- Substrate Toggle Chips ---
+// ── SubstrateToggle ────────────────────────────────────────────────────────
+
 const SubstrateToggle = ({ activeSubstrates, onToggle }) => (
-  <div style={{
-    display: "flex",
-    gap: "0.75rem",
-    marginBottom: "2rem",
-    flexWrap: "wrap",
-    alignItems: "center",
-  }}>
-    <span style={{ fontSize: "0.85rem", fontWeight: "600", color: "#6b7280" }}>
-      Substrates:
-    </span>
+  <div className="flex items-center gap-3 mb-8 flex-wrap">
+    <span className="text-sm font-semibold text-secondary-foreground">Substrates:</span>
     {allSubstrates.map(substrate => {
-      const isActive = activeSubstrates.has(substrate);
-      const color = mediaColors[substrate];
+      const isActive = activeSubstrates.has(substrate)
+      const color = mediaColors[substrate]
       return (
         <button
           key={substrate}
           onClick={() => onToggle(substrate)}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-full border-2 text-sm font-bold transition-colors"
           style={{
-            padding: "0.45rem 1.1rem",
-            borderRadius: "20px",
-            border: `2px solid ${color}`,
+            borderColor: color,
             backgroundColor: isActive ? color : "transparent",
             color: isActive ? "#fff" : color,
-            fontWeight: "700",
-            fontSize: "0.8rem",
-            cursor: "pointer",
-            transition: "all 0.2s ease",
-            display: "flex",
-            alignItems: "center",
-            gap: "0.4rem",
-          }}
-          onMouseEnter={e => {
-            if (!isActive) {
-              e.currentTarget.style.backgroundColor = `${color}15`;
-            }
-          }}
-          onMouseLeave={e => {
-            if (!isActive) {
-              e.currentTarget.style.backgroundColor = "transparent";
-            }
           }}
         >
-          <span style={{
-            width: "8px",
-            height: "8px",
-            borderRadius: "50%",
-            backgroundColor: isActive ? "#fff" : color,
-            display: "inline-block",
-          }} />
+          <span
+            className="w-2 h-2 rounded-full inline-block"
+            style={{ backgroundColor: isActive ? "#fff" : color }}
+          />
           {mediaLabels[substrate]}
         </button>
-      );
+      )
     })}
   </div>
-);
+)
 
-// --- Scatter Plot: Substrate Preference ---
+// ── SubstrateScatter ───────────────────────────────────────────────────────
+
 const SubstrateScatter = ({
   scatterData, activeSubstrates,
   scatterXAxis, scatterYAxis,
@@ -395,387 +234,251 @@ const SubstrateScatter = ({
   onDotClick, highlightedGene,
   activeTimepoint, plotMode,
 }) => {
-  const isActivityMode = plotMode === "activity";
-  const axisLabel = isActivityMode ? "Activity" : "Avg Intensity";
-  const substrates = [...activeSubstrates];
+  const isActivityMode = plotMode === "activity"
+  const axisLabel = isActivityMode ? "Activity" : "Avg Intensity"
+  const substrates = [...activeSubstrates]
 
   const diagonalData = useMemo(() => {
-    if (scatterData.length === 0) return [];
-    const allVals = scatterData.flatMap(d => [d.x, d.y]).filter(v => v != null && !isNaN(v));
-    if (allVals.length === 0) return [];
-    const min = Math.min(...allVals);
-    const max = Math.max(...allVals);
-    const pad = (max - min) * 0.05 || 0.01;
-    return [
-      { x: min - pad, y: min - pad },
-      { x: max + pad, y: max + pad },
-    ];
-  }, [scatterData]);
+    if (scatterData.length === 0) return []
+    const allVals = scatterData.flatMap(d => [d.x, d.y]).filter(v => v != null && !isNaN(v))
+    if (allVals.length === 0) return []
+    const min = Math.min(...allVals)
+    const max = Math.max(...allVals)
+    const pad = (max - min) * 0.05 || 0.01
+    return [{ x: min - pad, y: min - pad }, { x: max + pad, y: max + pad }]
+  }, [scatterData])
 
   return (
-    <div
-      id="substrate-scatter"
-      style={{
-      backgroundColor: "#fff",
-      border: "1px solid #e5e7eb",
-      borderRadius: "12px",
-      padding: "1.5rem",
-      marginBottom: "2rem",
-      boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
-      position: "relative",
-    }}>
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: "1rem",
-        flexWrap: "wrap",
-        gap: "1rem",
-      }}>
+    <div id="substrate-scatter" className="card mb-8 relative">
+      {/* Header */}
+      <div className="flex justify-between items-start mb-4 flex-wrap gap-4">
         <div>
-          <h2 style={{ fontSize: "1.25rem", fontWeight: "700", color: "#1f2937", margin: 0 }}>
+          <h2 className="text-xl font-bold text-primary">
             Substrate Preference
             {isActivityMode && (
-              <span style={{
-                marginLeft: "0.75rem",
-                fontSize: "0.85rem",
-                fontWeight: "600",
-                color: "#059669",
-                backgroundColor: "#d1fae5",
-                padding: "0.2rem 0.6rem",
-                borderRadius: "12px",
-              }}>
+              <span className="ml-3 text-sm font-semibold text-success bg-success/10 px-2.5 py-0.5 rounded-full">
                 Activity Mode
               </span>
             )}
             {!isActivityMode && activeTimepoint !== null && (
-              <span style={{
-                marginLeft: "0.75rem",
-                fontSize: "0.85rem",
-                fontWeight: "600",
-                color: timepointColors[activeTimepoint] || "#6b7280",
-                backgroundColor: `${timepointColors[activeTimepoint] || "#6b7280"}15`,
-                padding: "0.2rem 0.6rem",
-                borderRadius: "12px",
-              }}>
+              <span
+                className="ml-3 text-sm font-semibold px-2.5 py-0.5 rounded-full"
+                style={{
+                  color: timepointColors[activeTimepoint] || "#6b7280",
+                  backgroundColor: `${timepointColors[activeTimepoint] || "#6b7280"}18`,
+                }}
+              >
                 @ {activeTimepoint}h
               </span>
             )}
           </h2>
-          <p style={{ fontSize: "0.825rem", color: "#6b7280", margin: "0.25rem 0 0" }}>
+          <p className="text-sm text-secondary-foreground mt-1">
             {isActivityMode
               ? "Each dot is one gene. Activity = peak intensity minus subsequent minimum"
-              : `Each dot is one gene. Dots above the diagonal prefer the Y-axis substrate${activeTimepoint === null ? " (averaged across all timepoints)" : ""}`
-            }
+              : `Each dot is one gene. Dots above the diagonal prefer the Y-axis substrate${activeTimepoint === null ? " (averaged across all timepoints)" : ""}`}
           </p>
         </div>
 
         {substrates.length > 2 && (
-          <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-            <label style={{ fontSize: "0.8rem", color: "#6b7280", display: "flex", alignItems: "center", gap: "0.3rem" }}>
-              X:
-              <select
-                value={scatterXAxis}
-                onChange={e => onXAxisChange(e.target.value)}
-                style={{
-                  padding: "0.3rem 0.5rem", borderRadius: "6px",
-                  border: `2px solid ${mediaColors[scatterXAxis]}`,
-                  fontSize: "0.8rem", fontWeight: "600",
-                  color: mediaColors[scatterXAxis],
-                }}
-              >
-                {substrates.map(s => (
-                  <option key={s} value={s}>{mediaLabels[s]}</option>
-                ))}
-              </select>
-            </label>
-            <label style={{ fontSize: "0.8rem", color: "#6b7280", display: "flex", alignItems: "center", gap: "0.3rem" }}>
-              Y:
-              <select
-                value={scatterYAxis}
-                onChange={e => onYAxisChange(e.target.value)}
-                style={{
-                  padding: "0.3rem 0.5rem", borderRadius: "6px",
-                  border: `2px solid ${mediaColors[scatterYAxis]}`,
-                  fontSize: "0.8rem", fontWeight: "600",
-                  color: mediaColors[scatterYAxis],
-                }}
-              >
-                {substrates.map(s => (
-                  <option key={s} value={s}>{mediaLabels[s]}</option>
-                ))}
-              </select>
-            </label>
+          <div className="flex gap-4 items-center">
+            {[
+              { label: "X", value: scatterXAxis, onChange: onXAxisChange },
+              { label: "Y", value: scatterYAxis, onChange: onYAxisChange },
+            ].map(({ label, value, onChange }) => (
+              <label key={label} className="flex items-center gap-1.5 text-sm text-secondary-foreground">
+                {label}:
+                <select
+                  value={value}
+                  onChange={e => onChange(e.target.value)}
+                  className="input w-auto py-1 text-sm font-semibold"
+                  style={{
+                    borderColor: mediaColors[value],
+                    color: mediaColors[value],
+                  }}
+                >
+                  {substrates.map(s => (
+                    <option key={s} value={s}>{mediaLabels[s]}</option>
+                  ))}
+                </select>
+              </label>
+            ))}
           </div>
         )}
       </div>
 
       <ResponsiveContainer width="100%" height={420}>
         <ScatterChart margin={{ top: 10, right: 30, left: 20, bottom: 30 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--sem-border)" />
           <XAxis
-            type="number"
-            dataKey="x"
-            name={mediaLabels[scatterXAxis]}
+            type="number" dataKey="x" name={mediaLabels[scatterXAxis]}
             label={{
               value: `${axisLabel} — ${mediaLabels[scatterXAxis]}`,
-              position: "insideBottom",
-              offset: -5,
+              position: "insideBottom", offset: -5,
               style: { fontWeight: "700", fontSize: "0.8rem", fill: mediaColors[scatterXAxis] },
             }}
-            tick={{ fontSize: 11 }}
-            stroke="#d1d5db"
+            tick={{ fontSize: 11 }} stroke="var(--sem-border)"
           />
           <YAxis
-            type="number"
-            dataKey="y"
-            name={mediaLabels[scatterYAxis]}
+            type="number" dataKey="y" name={mediaLabels[scatterYAxis]}
             label={{
               value: `${axisLabel} — ${mediaLabels[scatterYAxis]}`,
-              angle: -90,
-              position: "center",
-              dx: -30,
+              angle: -90, position: "center", dx: -30,
               style: { fontWeight: "700", fontSize: "0.8rem", fill: mediaColors[scatterYAxis] },
             }}
-            tick={{ fontSize: 11 }}
-            stroke="#d1d5db"
+            tick={{ fontSize: 11 }} stroke="var(--sem-border)"
           />
           <ZAxis range={[50, 50]} />
-          <Tooltip content={<ScatterTooltipContent xKey={scatterXAxis} yKey={scatterYAxis} plotMode={plotMode} />} />
-
-          {/* Diagonal "equal preference" line */}
+          <Tooltip
+            content={
+              <ScatterTooltipContent
+                xKey={scatterXAxis}
+                yKey={scatterYAxis}
+                plotMode={plotMode}
+              />
+            }
+          />
+          {/* Diagonal line */}
           <Scatter
             data={diagonalData}
             fill="none"
-            line={{ stroke: "#9ca3af", strokeDasharray: "6 4", strokeWidth: 1.5 }}
+            line={{ stroke: "var(--sem-text-tertiary)", strokeDasharray: "6 4", strokeWidth: 1.5 }}
             shape={() => null}
             legendType="none"
             isAnimationActive={false}
           />
-
           {/* Gene dots */}
           <Scatter
             data={scatterData}
-            isAnimationActive={true}
+            isAnimationActive
             animationDuration={800}
-            onClick={(data) => {
-              if (data?.gene) onDotClick(data.gene);
-            }}
+            onClick={data => { if (data?.gene) onDotClick(data.gene) }}
             cursor="pointer"
-            shape={(props) => {
-              const { cx, cy, payload } = props;
-              const prefersX = payload.x > payload.y;
-              const color = prefersX ? mediaColors[scatterXAxis] : mediaColors[scatterYAxis];
-              const isHighlighted = highlightedGene && payload.gene === highlightedGene;
-              const benchmarkLabel = benchmarkEnzymes[payload.accession];
+            shape={props => {
+              const { cx, cy, payload } = props
+              const prefersX = payload.x > payload.y
+              const color = prefersX ? mediaColors[scatterXAxis] : mediaColors[scatterYAxis]
+              const isHighlighted = highlightedGene && payload.gene === highlightedGene
+              const benchmarkLabel = benchmarkEnzymes[payload.accession]
 
               const pulseRing = (
-                <>
-                  <circle cx={cx} cy={cy} r={14} fill="none" stroke={color} strokeWidth={2}>
-                    <animate attributeName="r" from="8" to="18" dur="1.5s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
-                  </circle>
-                </>
-              );
+                <circle cx={cx} cy={cy} r={14} fill="none" stroke={color} strokeWidth={2}>
+                  <animate attributeName="r" from="8" to="18" dur="1.5s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" from="0.8" to="0" dur="1.5s" repeatCount="indefinite" />
+                </circle>
+              )
 
               const label = benchmarkLabel ? (
-                <text x={cx + 14} y={cy + 4} fontSize="11" fontWeight="700" fill="#1f2937">
+                <text x={cx + 14} y={cy + 4} fontSize="11" fontWeight="700" fill="var(--sem-text-primary)">
                   {benchmarkLabel}
                 </text>
-              ) : null;
+              ) : null
 
               if (benchmarkLabel && isHighlighted) {
-                return (
-                  <g>
-                    {pulseRing}
-                    <polygon points={diamondPoints(cx, cy, 9)} fill={color} stroke="#fff" strokeWidth={2.5} />
-                    {label}
-                  </g>
-                );
+                return <g>{pulseRing}<polygon points={diamondPoints(cx, cy, 9)} fill={color} stroke="#fff" strokeWidth={2.5} />{label}</g>
               }
-
               if (benchmarkLabel) {
-                return (
-                  <g>
-                    <polygon points={diamondPoints(cx, cy, 8)} fill={color} stroke="#1f2937" strokeWidth={2} />
-                    {label}
-                  </g>
-                );
+                return <g><polygon points={diamondPoints(cx, cy, 8)} fill={color} stroke="var(--sem-text-primary)" strokeWidth={2} />{label}</g>
               }
-
               if (isHighlighted) {
-                return (
-                  <g>
-                    {pulseRing}
-                    <circle cx={cx} cy={cy} r={7} fill={color} stroke="#fff" strokeWidth={2.5} />
-                  </g>
-                );
+                return <g>{pulseRing}<circle cx={cx} cy={cy} r={7} fill={color} stroke="#fff" strokeWidth={2.5} /></g>
               }
-
-              return (
-                <circle cx={cx} cy={cy} r={5} fill={color} fillOpacity={0.65}
-                  stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
-              );
+              return <circle cx={cx} cy={cy} r={5} fill={color} fillOpacity={0.65} stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
             }}
           />
         </ScatterChart>
       </ResponsiveContainer>
 
-      {/* Highlighted gene info card */}
+      {/* Highlighted gene popover */}
       {highlightedGene && (() => {
-        const gene = scatterData.find(d => d.gene === highlightedGene);
-        if (!gene) return null;
-        const valueLabel = isActivityMode ? "Activity" : "Intensity";
+        const gene = scatterData.find(d => d.gene === highlightedGene)
+        if (!gene) return null
+        const valueLabel = isActivityMode ? "Activity" : "Intensity"
         return (
-          <div style={{
-            position: "absolute",
-            top: "4.5rem",
-            right: "2rem",
-            backgroundColor: "#fff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "8px",
-            padding: "0.75rem 1rem",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-            fontSize: "0.825rem",
-            maxWidth: "280px",
-            zIndex: 10,
-            opacity: 0,
-            animation: "highlightFadeIn 0.3s ease forwards",
-          }}>
-            <style>{`@keyframes highlightFadeIn { to { opacity: 1; } }`}</style>
-            <div style={{ fontWeight: "700", color: "#1f2937", marginBottom: "0.3rem", fontFamily: "monospace" }}>
-              {gene.gene}
-            </div>
-            {gene.nickname && (
-              <div style={{ color: "#6b7280", marginBottom: "0.3rem", fontSize: "0.75rem" }}>
-                {gene.nickname}
-              </div>
-            )}
-            <div style={{ color: mediaColors[scatterXAxis], marginBottom: "0.15rem" }}>
+          <div className="absolute top-16 right-8 bg-surface border rounded-xl px-4 py-3 shadow-lg text-sm max-w-[280px] z-10 opacity-0 animate-[fadeIn_0.3s_ease_forwards]">
+            <style>{`@keyframes fadeIn { to { opacity: 1 } }`}</style>
+            <div className="font-bold font-mono text-primary mb-1">{gene.gene}</div>
+            {gene.nickname && <div className="text-muted-foreground text-xs mb-1">{gene.nickname}</div>}
+            <div style={{ color: mediaColors[scatterXAxis] }} className="mb-0.5">
               {mediaLabels[scatterXAxis]} {valueLabel}: <strong>{gene.x?.toFixed(2)}</strong>
             </div>
             <div style={{ color: mediaColors[scatterYAxis] }}>
               {mediaLabels[scatterYAxis]} {valueLabel}: <strong>{gene.y?.toFixed(2)}</strong>
             </div>
-            {isActivityMode && gene.xActivity && (
-              <div style={{ fontSize: "0.7rem", color: "#6b7280", borderTop: "1px solid #e5e7eb", paddingTop: "0.3rem", marginTop: "0.3rem" }}>
-                <div>{mediaLabels[scatterXAxis]}: peak@{gene.xActivity.peak_timepoint}h → min@{gene.xActivity.min_timepoint}h</div>
-                <div>{mediaLabels[scatterYAxis]}: peak@{gene.yActivity.peak_timepoint}h → min@{gene.yActivity.min_timepoint}h</div>
-              </div>
-            )}
           </div>
-        );
+        )
       })()}
 
       {/* Legend */}
-      <div style={{
-        display: "flex",
-        justifyContent: "center",
-        gap: "1.5rem",
-        marginTop: "0.5rem",
-        fontSize: "0.8rem",
-        color: "#6b7280",
-        flexWrap: "wrap",
-      }}>
-        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <span style={{
-            width: "10px", height: "10px", borderRadius: "50%",
-            backgroundColor: mediaColors[scatterXAxis], display: "inline-block",
-          }} />
-          Prefers {mediaLabels[scatterXAxis]}
-        </span>
-        <span style={{ color: "#e5e7eb" }}>|</span>
-        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <span style={{
-            width: "10px", height: "10px", borderRadius: "50%",
-            backgroundColor: mediaColors[scatterYAxis], display: "inline-block",
-          }} />
-          Prefers {mediaLabels[scatterYAxis]}
-        </span>
-        <span style={{ color: "#e5e7eb" }}>|</span>
-        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <span style={{
-            width: "20px", height: "0",
-            borderTop: "2px dashed #9ca3af",
-            display: "inline-block",
-          }} />
+      <div className="flex justify-center gap-6 mt-2 text-xs text-secondary-foreground flex-wrap">
+        {[
+          { color: mediaColors[scatterXAxis], label: `Prefers ${mediaLabels[scatterXAxis]}` },
+          { color: mediaColors[scatterYAxis], label: `Prefers ${mediaLabels[scatterYAxis]}` },
+        ].map(({ color, label }) => (
+          <span key={label} className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full inline-block" style={{ backgroundColor: color }} />
+            {label}
+          </span>
+        ))}
+        <span className="flex items-center gap-1.5">
+          <span className="inline-block w-5 border-t-2 border-dashed border-text-tertiary" />
           Equal preference
         </span>
-        <span style={{ color: "#e5e7eb" }}>|</span>
-        <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-          <svg width="12" height="12" viewBox="0 0 12 12" style={{ display: "inline-block" }}>
-            <polygon points="6,1 11,6 6,11 1,6" fill="#1f2937" stroke="#1f2937" strokeWidth="1" />
+        <span className="flex items-center gap-1.5">
+          <svg width="12" height="12" viewBox="0 0 12 12">
+            <polygon points="6,1 11,6 6,11 1,6" fill="var(--sem-text-primary)" />
           </svg>
           Benchmark
         </span>
       </div>
     </div>
-  );
-};
+  )
+}
 
-// --- Gene Substrate Card ---
-const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToScatter, activityData, isSelected, onSelectionChange }) => {
-  const { nickname, accession, mediaData } = geneData;
-  const mediaTypes = Object.keys(mediaData);
-  // Flatten mediaData to the flat-array format ActivityLineChart expects
+// ── GeneSubstrateCard ──────────────────────────────────────────────────────
+
+const GeneSubstrateCard = ({
+  gene, geneData, isExpanded, onToggle,
+  onScrollToScatter, activityData, isSelected, onSelectionChange,
+}) => {
+  const { nickname, accession, mediaData } = geneData
+  const mediaTypes = Object.keys(mediaData)
   const flatChartData = Object.entries(mediaData).flatMap(([media, points]) =>
-    points.map(p => ({ timepoint_hours: p.timepoint, media, average_readout: p.average_readout, stddev_readout: p.stddev_readout }))
-  );
+    points.map(p => ({
+      timepoint_hours: p.timepoint,
+      media,
+      average_readout: p.average_readout,
+      stddev_readout: p.stddev_readout,
+    }))
+  )
 
   return (
     <div
       id={`gene-${gene}`}
-      onMouseEnter={e => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.08)";
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "none";
-      }}
-      style={{
-        backgroundColor: "#ffffff",
-        border: "1px solid #e5e7eb",
-        borderRadius: "8px",
-        marginBottom: "0.75rem",
-        overflow: "hidden",
-        transition: "transform 0.2s ease, box-shadow 0.2s ease",
-      }}
+      className="bg-surface border rounded-xl mb-3 overflow-hidden transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-md"
     >
-      {/* Header */}
+      {/* Header button */}
       <button
         onClick={onToggle}
-        style={{
-          width: "100%",
-          padding: "1rem 1.25rem",
-          backgroundColor: "transparent",
-          border: "none",
-          cursor: "pointer",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          textAlign: "left",
-        }}
+        className="w-full px-5 py-4 bg-transparent border-none cursor-pointer flex justify-between items-center text-left"
       >
-        <div style={{ display: "flex", gap: "1.5rem", alignItems: "center", flexWrap: "wrap", flex: "1" }}>
-          {/* Selection checkbox */}
+        <div className="flex gap-6 items-center flex-wrap flex-1">
+          {/* Checkbox */}
           <div
-            onClick={(e) => {
-              e.stopPropagation();
-              onSelectionChange(gene);
+            role="checkbox"
+            aria-checked={isSelected}
+            tabIndex={0}
+            onClick={e => { e.stopPropagation(); onSelectionChange(gene) }}
+            onKeyDown={e => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                e.stopPropagation()
+                onSelectionChange(gene)
+              }
             }}
+            className="w-5 h-5 rounded flex items-center justify-center cursor-pointer transition-colors shrink-0 border-2"
             style={{
-              width: "20px",
-              height: "20px",
-              borderRadius: "4px",
-              border: `2px solid ${isSelected ? "#059669" : "#d1d5db"}`,
-              backgroundColor: isSelected ? "#059669" : "#fff",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-              flexShrink: 0,
+              borderColor: isSelected ? "#059669" : "var(--sem-border-strong)",
+              backgroundColor: isSelected ? "#059669" : "var(--sem-surface)",
             }}
           >
             {isSelected && (
@@ -785,68 +488,49 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
             )}
           </div>
 
+          {/* Gene ID */}
           <div>
-            <span style={{
-              fontSize: "0.7rem", fontWeight: "700", color: "#9ca3af",
-              textTransform: "uppercase", letterSpacing: "0.06em",
-            }}>Gene ID</span>
-            <div style={{
-              fontSize: "1.1rem", fontWeight: "700", color: "#1f2937", fontFamily: "monospace",
-            }}>{gene}</div>
+            <div className="label mb-0.5">Gene ID</div>
+            <div className="font-mono text-lg font-bold text-primary">{gene}</div>
           </div>
 
           {nickname && (
             <div>
-              <span style={{
-                fontSize: "0.7rem", fontWeight: "700", color: "#9ca3af",
-                textTransform: "uppercase", letterSpacing: "0.06em",
-              }}>Nickname</span>
-              <div style={{ fontSize: "1.1rem", color: "#4b5563" }}>{nickname}</div>
+              <div className="label mb-0.5">Nickname</div>
+              <div className="text-lg text-secondary-foreground">{nickname}</div>
             </div>
           )}
 
           {accession && (
             <div>
-              <span style={{
-                fontSize: "0.7rem", fontWeight: "700", color: "#9ca3af",
-                textTransform: "uppercase", letterSpacing: "0.06em",
-              }}>Accession</span>
-              <div style={{ fontSize: "1.1rem", color: "#4b5563", fontFamily: "monospace" }}>{accession}</div>
+              <div className="label mb-0.5">Accession</div>
+              <div className="font-mono text-lg text-secondary-foreground">{accession}</div>
             </div>
           )}
 
-          <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
+          <div className="flex gap-1.5 items-center flex-wrap">
             {benchmarkEnzymes[accession] && (
-              <span style={{
-                padding: "0.2rem 0.55rem",
-                backgroundColor: "#1f2937",
-                color: "white",
-                borderRadius: "4px",
-                fontSize: "0.7rem",
-                fontWeight: "700",
-              }}>Benchmark</span>
+              <span className="px-2 py-0.5 bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 rounded text-2xs font-bold">
+                Benchmark
+              </span>
             )}
             {mediaTypes.map(media => (
-              <span key={media} style={{
-                padding: "0.2rem 0.55rem",
-                backgroundColor: mediaColors[media] || "#059669",
-                color: "white",
-                borderRadius: "4px",
-                fontSize: "0.7rem",
-                fontWeight: "700",
-              }}>{media}</span>
+              <span
+                key={media}
+                className="px-2 py-0.5 rounded text-2xs font-bold text-white"
+                style={{ backgroundColor: mediaColors[media] || "#059669" }}
+              >
+                {media}
+              </span>
             ))}
           </div>
         </div>
 
+        {/* Chevron */}
         <svg
-          style={{
-            width: "20px", height: "20px",
-            transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-            transition: "transform 0.2s ease",
-            flexShrink: 0, marginLeft: "1rem",
-          }}
-          fill="none" stroke="#6b7280" strokeWidth="2" viewBox="0 0 24 24"
+          className="w-5 h-5 shrink-0 ml-4 text-muted-foreground transition-transform duration-200"
+          style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
+          fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"
         >
           <path d="M19 9l-7 7-7-7" />
         </svg>
@@ -854,146 +538,94 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
 
       {/* Expanded content */}
       {isExpanded && (
-        <div style={{ padding: "0 1.25rem 1.25rem 1.25rem" }}>
-          <div style={{ borderTop: "1px solid #e5e7eb", paddingTop: "1rem" }}>
-
-            <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", marginBottom: "1rem", flexWrap: "wrap" }}>
+        <div className="px-5 pb-5">
+          <div className="border-t border pt-4">
+            <div className="flex items-center gap-6 mb-4 flex-wrap">
               {accession && (
                 <Link
                   to={`/sequence/${accession}`}
-                  style={{
-                    color: "#2563eb", textDecoration: "none",
-                    borderBottom: "2px solid transparent",
-                    fontSize: "0.9rem", fontWeight: "500",
-                    transition: "border-color 0.2s",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor = "#2563eb"}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = "transparent"}
+                  className="text-sm font-medium text-accent hover:text-accent-hover border-b-2 border-transparent hover:border-accent transition-colors"
                 >
-                  View sequence details for {accession} &rarr;
+                  View sequence details for {accession} →
                 </Link>
               )}
               <button
                 onClick={onScrollToScatter}
-                style={{
-                  color: "#6b7280", background: "none", border: "none",
-                  cursor: "pointer", fontSize: "0.9rem", fontWeight: "500",
-                  padding: 0, borderBottom: "2px solid transparent",
-                  transition: "border-color 0.2s, color 0.2s",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = "#6b7280"; e.currentTarget.style.color = "#1f2937"; }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = "transparent"; e.currentTarget.style.color = "#6b7280"; }}
+                className="text-sm font-medium text-muted-foreground hover:text-primary border-b-2 border-transparent hover:border-text-tertiary transition-colors bg-transparent border-none p-0 cursor-pointer"
               >
-                &larr; Back to scatter plot
+                ← Back to scatter plot
               </button>
             </div>
 
-            {/* Chart */}
             {flatChartData.length > 0 && (
-              <div style={{
-                backgroundColor: "#f0fdf4",
-                border: "1px solid #86efac",
-                borderRadius: "6px",
-                padding: "1rem",
-              }}>
-                <div style={{
-                  fontSize: "0.875rem", fontWeight: "600",
-                  color: "#065f46", marginBottom: "0.75rem",
-                }}>
-                  Activity Over Time
-                </div>
-
+              <div className="bg-success/5 border border-success/30 rounded-lg p-4">
+                <div className="text-sm font-semibold text-success mb-3">Activity Over Time</div>
                 <ActivityLineChart data={flatChartData} />
 
                 {/* Per-media stats */}
-                <div style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
-                  gap: "1rem", backgroundColor: "#dcfce7",
-                  borderRadius: "4px", padding: "0.75rem",
-                }}>
+                <div className="grid gap-4 mt-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))" }}>
                   {mediaTypes.map(media => {
-                    const points = mediaData[media];
-                    const values = points.map(p => p.average_readout);
-                    const avg = values.reduce((s, v) => s + v, 0) / values.length;
-                    const max = Math.max(...values);
-                    const min = Math.min(...values);
-                    // Calculate pooled standard deviation
-                    const stddevs = points.map(p => p.stddev_readout || 0).filter(s => s > 0);
+                    const points = mediaData[media]
+                    const values = points.map(p => p.average_readout)
+                    const avg = values.reduce((s, v) => s + v, 0) / values.length
+                    const max = Math.max(...values)
+                    const min = Math.min(...values)
+                    const stddevs = points.map(p => p.stddev_readout || 0).filter(s => s > 0)
                     const avgStddev = stddevs.length > 0
                       ? Math.sqrt(stddevs.reduce((sum, s) => sum + s * s, 0) / stddevs.length)
-                      : 0;
-                    // Get activity data for this media
-                    const activity = activityData?.[media];
+                      : 0
+                    const activity = activityData?.[media]
 
                     return (
-                      <div key={media} style={{
-                        backgroundColor: "white", borderRadius: "4px",
-                        padding: "0.75rem",
-                        border: `2px solid ${mediaColors[media] || "#059669"}`,
-                      }}>
-                        <div style={{
-                          fontSize: "0.75rem", fontWeight: "600",
-                          color: "#065f46", marginBottom: "0.5rem",
-                        }}>{media}</div>
+                      <div
+                        key={media}
+                        className="bg-surface rounded p-3 border-2"
+                        style={{ borderColor: mediaColors[media] || "#059669" }}
+                      >
+                        <div className="text-xs font-semibold text-success mb-2">{media}</div>
 
-                        {/* Activity metric - prominent display */}
-                        {activity && activity.activity !== null && (
-                          <div style={{
-                            backgroundColor: "#f0fdf4",
-                            border: "1px solid #86efac",
-                            borderRadius: "4px",
-                            padding: "0.5rem",
-                            marginBottom: "0.5rem",
-                          }}>
-                            <div style={{ fontSize: "0.65rem", fontWeight: "700", color: "#166534", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                              Activity (Peak → Min)
-                            </div>
-                            <div style={{ fontSize: "1.1rem", fontWeight: "800", color: mediaColors[media] || "#059669" }}>
+                        {activity?.activity !== null && activity?.activity !== undefined && (
+                          <div className="bg-success/5 border border-success/30 rounded p-2 mb-2">
+                            <div className="label mb-0.5">Activity (Peak → Min)</div>
+                            <div
+                              className="text-lg font-extrabold"
+                              style={{ color: mediaColors[media] || "#059669" }}
+                            >
                               {activity.activity.toFixed(2)}
                             </div>
-                            <div style={{ fontSize: "0.65rem", color: "#6b7280", marginTop: "0.2rem" }}>
-                              {activity.peak_value.toFixed(2)} @ {activity.peak_timepoint}h → {activity.min_value.toFixed(2)} @ {activity.min_timepoint}h
+                            <div className="text-2xs text-muted-foreground mt-0.5">
+                              {activity.peak_value.toFixed(2)} @ {activity.peak_timepoint}h →{" "}
+                              {activity.min_value.toFixed(2)} @ {activity.min_timepoint}h
                             </div>
                             {activity.flag && (
-                              <div style={{
-                                fontSize: "0.6rem",
-                                color: "#f59e0b",
-                                marginTop: "0.2rem",
-                                fontStyle: "italic",
-                              }}>
+                              <div className="text-2xs text-warning mt-0.5 italic">
                                 {activity.flag.replace(/_/g, " ")}
                               </div>
                             )}
                           </div>
                         )}
-                        {activity && activity.activity === null && (
-                          <div style={{
-                            backgroundColor: "#fef3c7",
-                            border: "1px solid #fcd34d",
-                            borderRadius: "4px",
-                            padding: "0.5rem",
-                            marginBottom: "0.5rem",
-                            fontSize: "0.7rem",
-                            color: "#92400e",
-                          }}>
+
+                        {activity?.activity === null && (
+                          <div className="bg-warning/5 border border-warning/30 rounded p-2 mb-2 text-xs text-warning">
                             Activity: N/A ({activity.flag?.replace(/_/g, " ") || "insufficient data"})
                           </div>
                         )}
 
-                        {/* Intensity stats */}
-                        <div style={{ fontSize: "0.7rem", color: "#6b7280", marginBottom: "0.15rem" }}>
-                          Avg Intensity: <strong style={{ color: "#059669" }}>{avg.toFixed(2)}</strong>
-                          {avgStddev > 0 && <span> ± {avgStddev.toFixed(2)}</span>}
-                        </div>
-                        <div style={{ fontSize: "0.7rem", color: "#6b7280", marginBottom: "0.15rem" }}>
-                          Max: <strong style={{ color: "#059669" }}>{max.toFixed(2)}</strong>
-                        </div>
-                        <div style={{ fontSize: "0.7rem", color: "#6b7280" }}>
-                          Min: <strong style={{ color: "#059669" }}>{min.toFixed(2)}</strong>
+                        <div className="text-xs text-secondary-foreground space-y-0.5">
+                          <div>
+                            Avg Intensity:{" "}
+                            <strong className="text-success">{avg.toFixed(2)}</strong>
+                            {avgStddev > 0 && ` ± ${avgStddev.toFixed(2)}`}
+                          </div>
+                          <div>
+                            Max: <strong className="text-success">{max.toFixed(2)}</strong>
+                          </div>
+                          <div>
+                            Min: <strong className="text-success">{min.toFixed(2)}</strong>
+                          </div>
                         </div>
                       </div>
-                    );
+                    )
                   })}
                 </div>
               </div>
@@ -1002,215 +634,146 @@ const GeneSubstrateCard = ({ gene, geneData, isExpanded, onToggle, onScrollToSca
         </div>
       )}
     </div>
-  );
-};
+  )
+}
 
-// --- Download Controls ---
+// ── DownloadControls ───────────────────────────────────────────────────────
+
 const DownloadControls = ({
-  selectedCount,
-  totalCount,
-  onSelectAll,
-  onDeselectAll,
-  onDownloadIntensity,
-  onDownloadActivity,
+  selectedCount, totalCount,
+  onSelectAll, onDeselectAll,
+  onDownloadIntensity, onDownloadActivity,
   disabled,
 }) => (
-  <div style={{
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "1rem 1.25rem",
-    backgroundColor: "#f9fafb",
-    border: "1px solid #e5e7eb",
-    borderRadius: "8px",
-    marginBottom: "1.5rem",
-    flexWrap: "wrap",
-    gap: "1rem",
-  }}>
-    {/* Selection controls */}
-    <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-      <span style={{ fontSize: "0.875rem", color: "#4b5563", fontWeight: "500" }}>
+  <div className="flex justify-between items-center p-4 bg-surface-raised border rounded-xl mb-6 flex-wrap gap-4">
+    <div className="flex items-center gap-4">
+      <span className="text-sm text-secondary-foreground font-medium">
         {selectedCount} of {totalCount} genes selected
       </span>
       <button
         onClick={onSelectAll}
         disabled={disabled || selectedCount === totalCount}
-        style={{
-          padding: "0.35rem 0.75rem",
-          borderRadius: "6px",
-          border: "1px solid #d1d5db",
-          backgroundColor: selectedCount === totalCount ? "#f3f4f6" : "#fff",
-          color: selectedCount === totalCount ? "#9ca3af" : "#374151",
-          fontSize: "0.8rem",
-          fontWeight: "500",
-          cursor: selectedCount === totalCount || disabled ? "default" : "pointer",
-          transition: "all 0.15s ease",
-        }}
+        className="btn btn-secondary text-sm disabled:opacity-40 disabled:cursor-default"
       >
         Select All
       </button>
       <button
         onClick={onDeselectAll}
         disabled={disabled || selectedCount === 0}
-        style={{
-          padding: "0.35rem 0.75rem",
-          borderRadius: "6px",
-          border: "1px solid #d1d5db",
-          backgroundColor: selectedCount === 0 ? "#f3f4f6" : "#fff",
-          color: selectedCount === 0 ? "#9ca3af" : "#374151",
-          fontSize: "0.8rem",
-          fontWeight: "500",
-          cursor: selectedCount === 0 || disabled ? "default" : "pointer",
-          transition: "all 0.15s ease",
-        }}
+        className="btn btn-secondary text-sm disabled:opacity-40 disabled:cursor-default"
       >
         Deselect All
       </button>
     </div>
 
-    {/* Download buttons */}
-    <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-      <span style={{ fontSize: "0.8rem", color: "#6b7280" }}>Download:</span>
-      <button
-        onClick={onDownloadIntensity}
-        disabled={disabled || selectedCount === 0}
-        style={{
-          padding: "0.5rem 1rem",
-          borderRadius: "8px",
-          border: "2px solid #059669",
-          backgroundColor: selectedCount === 0 || disabled ? "#f3f4f6" : "#059669",
-          color: selectedCount === 0 || disabled ? "#9ca3af" : "#fff",
-          fontSize: "0.8rem",
-          fontWeight: "600",
-          cursor: selectedCount === 0 || disabled ? "default" : "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.4rem",
-          transition: "all 0.15s ease",
-        }}
-      >
-        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-        </svg>
-        Intensity CSV
-      </button>
-      <button
-        onClick={onDownloadActivity}
-        disabled={disabled || selectedCount === 0}
-        style={{
-          padding: "0.5rem 1rem",
-          borderRadius: "8px",
-          border: "2px solid #7c3aed",
-          backgroundColor: selectedCount === 0 || disabled ? "#f3f4f6" : "#7c3aed",
-          color: selectedCount === 0 || disabled ? "#9ca3af" : "#fff",
-          fontSize: "0.8rem",
-          fontWeight: "600",
-          cursor: selectedCount === 0 || disabled ? "default" : "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: "0.4rem",
-          transition: "all 0.15s ease",
-        }}
-      >
-        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-        </svg>
-        Activity CSV
-      </button>
+    <div className="flex items-center gap-3">
+      <span className="text-xs text-muted-foreground">Download:</span>
+      {[
+        { label: "Intensity CSV", color: "#059669", onClick: onDownloadIntensity },
+        { label: "Activity CSV", color: "#7c3aed", onClick: onDownloadActivity },
+      ].map(({ label, color, onClick }) => (
+        <button
+          key={label}
+          onClick={onClick}
+          disabled={disabled || selectedCount === 0}
+          className="btn text-sm gap-1.5 disabled:opacity-40 disabled:cursor-default"
+          style={
+            selectedCount > 0 && !disabled
+              ? { backgroundColor: color, color: "#fff", borderColor: color }
+              : {}
+          }
+        >
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          {label}
+        </button>
+      ))}
     </div>
   </div>
-);
+)
 
-// --- Main Page ---
+// ── SubstratePage ──────────────────────────────────────────────────────────
+
 const SubstratePage = () => {
-  useScrollHeader();
-  const [rawData, setRawData] = useState([]);
-  const [activityData, setActivityData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [expandedGenes, setExpandedGenes] = useState(new Set());
-  const [activeSubstrates, setActiveSubstrates] = useState(new Set(["BHET12.5", "BHET25"]));
-  const [scatterXAxis, setScatterXAxis] = useState("BHET12.5");
-  const [scatterYAxis, setScatterYAxis] = useState("BHET25");
-  const [highlightedGene, setHighlightedGene] = useState(null);
-  const [activeTimepoint, setActiveTimepoint] = useState(null); // null = "All (avg)"
-  const [plotMode, setPlotMode] = useState("intensity"); // "intensity" or "activity"
-  const [selectedGenes, setSelectedGenes] = useState(new Set());
+  useScrollHeader()
+  const [rawData, setRawData] = useState([])
+  const [activityData, setActivityData] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [expandedGenes, setExpandedGenes] = useState(new Set())
+  const [activeSubstrates, setActiveSubstrates] = useState(new Set(["BHET12.5", "BHET25"]))
+  const [scatterXAxis, setScatterXAxis] = useState("BHET12.5")
+  const [scatterYAxis, setScatterYAxis] = useState("BHET25")
+  const [highlightedGene, setHighlightedGene] = useState(null)
+  const [activeTimepoint, setActiveTimepoint] = useState(null)
+  const [plotMode, setPlotMode] = useState("intensity")
+  const [selectedGenes, setSelectedGenes] = useState(new Set())
 
   const activeMediaString = useMemo(
     () => [...activeSubstrates].sort().join(","),
     [activeSubstrates]
-  );
+  )
 
-  // Fetch data when active substrates change
   useEffect(() => {
-    let cancelled = false;
+    let cancelled = false
     async function load() {
-      setLoading(true);
+      setLoading(true)
       try {
-        const res = await fetch(`${config.apiUrl}/plate-data/comparison?media=${activeMediaString}`);
-        if (!res.ok) throw new Error(`Status ${res.status}`);
-        const { timeseries, activity } = await res.json();
-
+        const res = await fetch(`${config.apiUrl}/plate-data/comparison?media=${activeMediaString}`)
+        if (!res.ok) throw new Error(`Status ${res.status}`)
+        const { timeseries, activity } = await res.json()
         if (!cancelled) {
-          setRawData(timeseries);
-          setActivityData(activity);
-          setError(null);
+          setRawData(timeseries)
+          setActivityData(activity)
+          setError(null)
         }
       } catch (err) {
-        if (!cancelled) setError(err.toString());
+        if (!cancelled) setError(err.toString())
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setLoading(false)
       }
     }
-    load();
-    return () => { cancelled = true; };
-  }, [activeMediaString]);
+    load()
+    return () => { cancelled = true }
+  }, [activeMediaString])
 
-  // Ensure scatter axes stay valid when substrates change
   useEffect(() => {
-    const subs = [...activeSubstrates];
+    const subs = [...activeSubstrates]
     if (subs.length >= 2) {
-      if (!activeSubstrates.has(scatterXAxis)) setScatterXAxis(subs[0]);
-      if (!activeSubstrates.has(scatterYAxis)) setScatterYAxis(subs[subs.length - 1]);
+      if (!activeSubstrates.has(scatterXAxis)) setScatterXAxis(subs[0])
+      if (!activeSubstrates.has(scatterYAxis)) setScatterYAxis(subs[subs.length - 1])
     }
-  }, [activeSubstrates, scatterXAxis, scatterYAxis]);
+  }, [activeSubstrates, scatterXAxis, scatterYAxis])
 
-  // Extract available timepoints from raw data
   const availableTimepoints = useMemo(() => {
-    const tps = new Set(rawData.map(r => r.timepoint_hours));
-    return [...tps].sort((a, b) => a - b);
-  }, [rawData]);
+    const tps = new Set(rawData.map(r => r.timepoint_hours))
+    return [...tps].sort((a, b) => a - b)
+  }, [rawData])
 
-  // Group raw data by gene
   const geneGroups = useMemo(() => {
-    const groups = {};
+    const groups = {}
     rawData.forEach(row => {
       if (!groups[row.gene]) {
-        groups[row.gene] = {
-          nickname: row.nickname,
-          accession: row.accession,
-          mediaData: {},
-        };
+        groups[row.gene] = { nickname: row.nickname, accession: row.accession, mediaData: {} }
       }
       if (!groups[row.gene].mediaData[row.media]) {
-        groups[row.gene].mediaData[row.media] = [];
+        groups[row.gene].mediaData[row.media] = []
       }
       groups[row.gene].mediaData[row.media].push({
         timepoint: row.timepoint_hours,
         average_readout: parseFloat(row.average_readout),
         stddev_readout: row.stddev_readout ? parseFloat(row.stddev_readout) : 0,
         sample_count: parseInt(row.sample_count),
-      });
-    });
-    return groups;
-  }, [rawData]);
+      })
+    })
+    return groups
+  }, [rawData])
 
-  // Index activity data by gene -> media for quick lookup
   const activityByGeneMedia = useMemo(() => {
-    const index = {};
+    const index = {}
     activityData.forEach(row => {
-      if (!index[row.gene]) index[row.gene] = {};
+      if (!index[row.gene]) index[row.gene] = {}
       index[row.gene][row.media] = {
         activity: row.activity,
         peak_value: row.peak_value,
@@ -1219,310 +782,149 @@ const SubstratePage = () => {
         min_timepoint: row.min_timepoint,
         flag: row.flag,
         timepoint_count: row.timepoint_count,
-      };
-    });
-    return index;
-  }, [activityData]);
-
-  // Initialize all genes as selected when geneGroups changes
-  useEffect(() => {
-    const allGenes = Object.keys(geneGroups);
-    setSelectedGenes(new Set(allGenes));
-  }, [geneGroups]);
-
-  // Selection handlers
-  const handleSelectAll = useCallback(() => {
-    setSelectedGenes(new Set(Object.keys(geneGroups)));
-  }, [geneGroups]);
-
-  const handleDeselectAll = useCallback(() => {
-    setSelectedGenes(new Set());
-  }, []);
-
-  const handleToggleGeneSelection = useCallback((gene) => {
-    setSelectedGenes(prev => {
-      const next = new Set(prev);
-      if (next.has(gene)) {
-        next.delete(gene);
-      } else {
-        next.add(gene);
       }
-      return next;
-    });
-  }, []);
+    })
+    return index
+  }, [activityData])
 
-  // CSV generation functions
-  const generateIntensityCSV = useCallback(() => {
-    const headers = [
-      'gene_id',
-      'nickname',
-      'accession',
-      'source',
-      'substrate',
-      'timepoint_hours',
-      'average_intensity',
-      'stddev_intensity',
-      'sample_count',
-    ];
+  useEffect(() => {
+    setSelectedGenes(new Set(Object.keys(geneGroups)))
+  }, [geneGroups])
 
-    const rows = rawData
-      .filter(row => selectedGenes.has(row.gene))
-      .map(row => [
-        row.gene,
-        row.nickname || '',
-        row.accession || '',
-        row.source || '',
-        row.media,
-        row.timepoint_hours,
-        row.average_readout,
-        row.stddev_readout || '',
-        row.sample_count,
-      ]);
+  const handleSelectAll = useCallback(() => setSelectedGenes(new Set(Object.keys(geneGroups))), [geneGroups])
+  const handleDeselectAll = useCallback(() => setSelectedGenes(new Set()), [])
 
-    return { headers, rows };
-  }, [rawData, selectedGenes]);
+  const handleToggleGeneSelection = useCallback(gene => {
+    setSelectedGenes(prev => {
+      const next = new Set(prev)
+      if (next.has(gene)) next.delete(gene)
+      else next.add(gene)
+      return next
+    })
+  }, [])
 
-  const generateActivityCSV = useCallback(() => {
-    const headers = [
-      'gene_id',
-      'nickname',
-      'accession',
-      'source',
-      'substrate',
-      'activity',
-      'peak_value',
-      'peak_timepoint_hours',
-      'min_value',
-      'min_timepoint_hours',
-      'flag',
-      'timepoint_count',
-    ];
+  const generateIntensityCSV = useCallback(() => ({
+    headers: ["gene_id", "nickname", "accession", "source", "substrate", "timepoint_hours", "average_intensity", "stddev_intensity", "sample_count"],
+    rows: rawData.filter(row => selectedGenes.has(row.gene)).map(row => [
+      row.gene, row.nickname || "", row.accession || "", row.source || "",
+      row.media, row.timepoint_hours, row.average_readout, row.stddev_readout || "", row.sample_count,
+    ]),
+  }), [rawData, selectedGenes])
 
-    const rows = activityData
-      .filter(row => selectedGenes.has(row.gene))
-      .map(row => [
-        row.gene,
-        row.nickname || '',
-        row.accession || '',
-        row.source || '',
-        row.media,
-        row.activity !== null ? row.activity : '',
-        row.peak_value !== null ? row.peak_value : '',
-        row.peak_timepoint !== null ? row.peak_timepoint : '',
-        row.min_value !== null ? row.min_value : '',
-        row.min_timepoint !== null ? row.min_timepoint : '',
-        row.flag || '',
-        row.timepoint_count,
-      ]);
-
-    return { headers, rows };
-  }, [activityData, selectedGenes]);
+  const generateActivityCSV = useCallback(() => ({
+    headers: ["gene_id", "nickname", "accession", "source", "substrate", "activity", "peak_value", "peak_timepoint_hours", "min_value", "min_timepoint_hours", "flag", "timepoint_count"],
+    rows: activityData.filter(row => selectedGenes.has(row.gene)).map(row => [
+      row.gene, row.nickname || "", row.accession || "", row.source || "", row.media,
+      row.activity !== null ? row.activity : "", row.peak_value !== null ? row.peak_value : "",
+      row.peak_timepoint !== null ? row.peak_timepoint : "", row.min_value !== null ? row.min_value : "",
+      row.min_timepoint !== null ? row.min_timepoint : "", row.flag || "", row.timepoint_count,
+    ]),
+  }), [activityData, selectedGenes])
 
   const handleDownloadIntensity = useCallback(() => {
-    const { headers, rows } = generateIntensityCSV();
-    if (rows.length === 0) {
-      alert('No genes selected for download.');
-      return;
-    }
-    const csv = generateCSV(headers, rows);
-    const timestamp = new Date().toISOString().slice(0, 10);
-    downloadCSV(csv, `petadex_intensity_${timestamp}`);
-  }, [generateIntensityCSV]);
+    const { headers, rows } = generateIntensityCSV()
+    if (!rows.length) { alert("No genes selected for download."); return }
+    downloadCSV(generateCSV(headers, rows), `petadex_intensity_${new Date().toISOString().slice(0, 10)}`)
+  }, [generateIntensityCSV])
 
   const handleDownloadActivity = useCallback(() => {
-    const { headers, rows } = generateActivityCSV();
-    if (rows.length === 0) {
-      alert('No genes selected for download.');
-      return;
-    }
-    const csv = generateCSV(headers, rows);
-    const timestamp = new Date().toISOString().slice(0, 10);
-    downloadCSV(csv, `petadex_activity_${timestamp}`);
-  }, [generateActivityCSV]);
+    const { headers, rows } = generateActivityCSV()
+    if (!rows.length) { alert("No genes selected for download."); return }
+    downloadCSV(generateCSV(headers, rows), `petadex_activity_${new Date().toISOString().slice(0, 10)}`)
+  }, [generateActivityCSV])
 
-  // Compute hero stats per substrate
   const heroStats = useMemo(() => {
-    const stats = {};
-    [...activeSubstrates].forEach(substrate => {
-      const rows = rawData.filter(r => r.media === substrate);
-      if (rows.length === 0) {
-        stats[substrate] = { geneCount: 0, meanActivity: 0, topGene: null, peakTimepoint: null };
-        return;
-      }
+    const stats = {}
+      ;[...activeSubstrates].forEach(substrate => {
+        const rows = rawData.filter(r => r.media === substrate)
+        if (!rows.length) { stats[substrate] = { geneCount: 0, meanActivity: 0 }; return }
+        const genes = new Set(rows.map(r => r.gene))
+        const meanActivity = rows.reduce((sum, r) => sum + parseFloat(r.average_readout), 0) / rows.length
+        stats[substrate] = { geneCount: genes.size, meanActivity }
+      })
+    return stats
+  }, [rawData, activeSubstrates])
 
-      const genes = new Set(rows.map(r => r.gene));
-      const meanActivity = rows.reduce((sum, r) => sum + parseFloat(r.average_readout), 0) / rows.length;
-
-      // Top gene: highest mean readout across timepoints
-      const geneAvgs = {};
-      rows.forEach(r => {
-        if (!geneAvgs[r.gene]) geneAvgs[r.gene] = { sum: 0, count: 0 };
-        geneAvgs[r.gene].sum += parseFloat(r.average_readout);
-        geneAvgs[r.gene].count += 1;
-      });
-      let topGene = null;
-      let topAvg = -Infinity;
-      Object.entries(geneAvgs).forEach(([gene, { sum, count }]) => {
-        const avg = sum / count;
-        if (avg > topAvg) { topAvg = avg; topGene = gene; }
-      });
-
-      // Peak timepoint: highest mean readout across all genes
-      const tpAvgs = {};
-      rows.forEach(r => {
-        const tp = r.timepoint_hours;
-        if (!tpAvgs[tp]) tpAvgs[tp] = { sum: 0, count: 0 };
-        tpAvgs[tp].sum += parseFloat(r.average_readout);
-        tpAvgs[tp].count += 1;
-      });
-      let peakTimepoint = null;
-      let peakAvg = -Infinity;
-      Object.entries(tpAvgs).forEach(([tp, { sum, count }]) => {
-        const avg = sum / count;
-        if (avg > peakAvg) { peakAvg = avg; peakTimepoint = parseFloat(tp); }
-      });
-
-      stats[substrate] = { geneCount: genes.size, meanActivity, topGene, peakTimepoint };
-    });
-    return stats;
-  }, [rawData, activeSubstrates]);
-
-  // Compute scatter data: per-gene value for each axis substrate
-  // If plotMode is "activity", use activity values; otherwise use intensity values
-  // If activeTimepoint is null, average across all timepoints; otherwise use specific timepoint
   const scatterData = useMemo(() => {
     if (plotMode === "activity") {
-      // Activity mode: use peak - min values
-      return Object.entries(geneGroups)
-        .map(([gene, data]) => {
-          const xActivity = activityByGeneMedia[gene]?.[scatterXAxis];
-          const yActivity = activityByGeneMedia[gene]?.[scatterYAxis];
-
-          // Skip if no activity data or activity is null (peak at end)
-          if (!xActivity || !yActivity) return null;
-          if (xActivity.activity === null || yActivity.activity === null) return null;
-
-          return {
-            gene,
-            nickname: data.nickname,
-            accession: data.accession,
-            x: xActivity.activity,
-            y: yActivity.activity,
-            xActivity,
-            yActivity,
-          };
-        })
-        .filter(Boolean);
+      return Object.entries(geneGroups).map(([gene, data]) => {
+        const xActivity = activityByGeneMedia[gene]?.[scatterXAxis]
+        const yActivity = activityByGeneMedia[gene]?.[scatterYAxis]
+        if (!xActivity || !yActivity || xActivity.activity === null || yActivity.activity === null) return null
+        return { gene, nickname: data.nickname, accession: data.accession, x: xActivity.activity, y: yActivity.activity, xActivity, yActivity }
+      }).filter(Boolean)
     }
-
-    // Intensity mode: use raw readout values
-    return Object.entries(geneGroups)
-      .map(([gene, data]) => {
-        const xMedia = data.mediaData[scatterXAxis];
-        const yMedia = data.mediaData[scatterYAxis];
-        if (!xMedia || !yMedia) return null;
-
-        let xVal, yVal;
-
-        if (activeTimepoint === null) {
-          // Average across all timepoints
-          xVal = xMedia.reduce((s, p) => s + p.average_readout, 0) / xMedia.length;
-          yVal = yMedia.reduce((s, p) => s + p.average_readout, 0) / yMedia.length;
-        } else {
-          // Use specific timepoint
-          const xPoint = xMedia.find(p => p.timepoint === activeTimepoint);
-          const yPoint = yMedia.find(p => p.timepoint === activeTimepoint);
-          if (!xPoint || !yPoint) return null;
-          xVal = xPoint.average_readout;
-          yVal = yPoint.average_readout;
-        }
-
-        if (isNaN(xVal) || isNaN(yVal)) return null;
-
-        return { gene, nickname: data.nickname, accession: data.accession, x: xVal, y: yVal };
-      })
-      .filter(Boolean);
-  }, [geneGroups, activityByGeneMedia, scatterXAxis, scatterYAxis, activeTimepoint, plotMode]);
-
-  const toggleSubstrate = (substrate) => {
-    setActiveSubstrates(prev => {
-      const next = new Set(prev);
-      if (next.has(substrate)) {
-        if (next.size <= 1) return prev;
-        next.delete(substrate);
+    return Object.entries(geneGroups).map(([gene, data]) => {
+      const xMedia = data.mediaData[scatterXAxis]
+      const yMedia = data.mediaData[scatterYAxis]
+      if (!xMedia || !yMedia) return null
+      let xVal, yVal
+      if (activeTimepoint === null) {
+        xVal = xMedia.reduce((s, p) => s + p.average_readout, 0) / xMedia.length
+        yVal = yMedia.reduce((s, p) => s + p.average_readout, 0) / yMedia.length
       } else {
-        next.add(substrate);
+        const xPoint = xMedia.find(p => p.timepoint === activeTimepoint)
+        const yPoint = yMedia.find(p => p.timepoint === activeTimepoint)
+        if (!xPoint || !yPoint) return null
+        xVal = xPoint.average_readout; yVal = yPoint.average_readout
       }
-      return next;
-    });
-  };
+      if (isNaN(xVal) || isNaN(yVal)) return null
+      return { gene, nickname: data.nickname, accession: data.accession, x: xVal, y: yVal }
+    }).filter(Boolean)
+  }, [geneGroups, activityByGeneMedia, scatterXAxis, scatterYAxis, activeTimepoint, plotMode])
 
-  const toggleGene = (gene) => {
+  const toggleSubstrate = substrate => {
+    setActiveSubstrates(prev => {
+      const next = new Set(prev)
+      if (next.has(substrate)) {
+        if (next.size <= 1) return prev
+        next.delete(substrate)
+      } else {
+        next.add(substrate)
+      }
+      return next
+    })
+  }
+
+  const toggleGene = gene => {
     setExpandedGenes(prev => {
-      const next = new Set(prev);
-      if (next.has(gene)) next.delete(gene);
-      else next.add(gene);
-      return next;
-    });
-  };
+      const next = new Set(prev)
+      if (next.has(gene)) next.delete(gene)
+      else next.add(gene)
+      return next
+    })
+  }
 
-  const handleScatterDotClick = (gene) => {
-    setExpandedGenes(prev => new Set([...prev, gene]));
+  const handleScatterDotClick = gene => {
+    setExpandedGenes(prev => new Set([...prev, gene]))
     setTimeout(() => {
-      const el = document.getElementById(`gene-${gene}`);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 100);
-  };
+      document.getElementById(`gene-${gene}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+    }, 100)
+  }
 
-  const handleScrollToScatter = (gene) => {
-    setHighlightedGene(gene);
-    const el = document.getElementById("substrate-scatter");
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    setTimeout(() => setHighlightedGene(null), 3000);
-  };
+  const handleScrollToScatter = gene => {
+    setHighlightedGene(gene)
+    document.getElementById("substrate-scatter")?.scrollIntoView({ behavior: "smooth", block: "center" })
+    setTimeout(() => setHighlightedGene(null), 3000)
+  }
 
-  const geneEntries = Object.entries(geneGroups);
+  const geneEntries = Object.entries(geneGroups)
 
   return (
     <>
-      <SiteHeader />
-
-      <main style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "2rem",
-        paddingTop: "2rem",
-      }}>
-        <div style={{ marginBottom: "2rem" }}>
-          <h1 style={{
-            fontSize: "2.5rem",
-            marginBottom: "0.5rem",
-            color: "#2c3e50",
-          }}>
+      <section className="max-w-[1200px] mx-auto px-8 py-8">
+        <div className="mb-8">
+          <h1 className="text-4xl font-semibold text-primary mb-1">
             Substrate Activity Comparison
           </h1>
-          <p style={{
-            color: "#666",
-            fontSize: "1.1rem",
-            marginBottom: "1.5rem",
-          }}>
+          <p className="text-secondary-foreground text-lg">
             Compare enzyme activity across BHET substrates at different concentrations
           </p>
         </div>
 
-        {/* Substrate Toggle Chips */}
-        <SubstrateToggle
-          activeSubstrates={activeSubstrates}
-          onToggle={toggleSubstrate}
-        />
+        <SubstrateToggle activeSubstrates={activeSubstrates} onToggle={toggleSubstrate} />
+        <PlotModeToggle plotMode={plotMode} onModeChange={setPlotMode} />
 
-        {/* Plot Mode Toggle */}
-        <PlotModeToggle
-          plotMode={plotMode}
-          onModeChange={setPlotMode}
-        />
-
-        {/* Timepoint Toggle Chips (only in intensity mode) */}
         {plotMode === "intensity" && (
           <TimepointToggle
             availableTimepoints={availableTimepoints}
@@ -1532,26 +934,17 @@ const SubstratePage = () => {
         )}
 
         {loading ? (
-          <div style={{ padding: "3rem", textAlign: "center", color: "#666", fontStyle: "italic" }}>
-            Loading substrate data...
-          </div>
+          <p className="text-center text-muted-foreground italic py-12">Loading substrate data…</p>
         ) : error ? (
-          <div style={{
-            padding: "2rem", textAlign: "center", color: "#dc2626",
-            backgroundColor: "#fef2f2", borderRadius: "8px", border: "1px solid #fecaca",
-          }}>
+          <div className="p-6 text-center bg-error/5 border border-error/20 rounded-xl text-destructive">
             Error loading data: {error}
           </div>
         ) : geneEntries.length === 0 ? (
-          <div style={{ padding: "2rem", textAlign: "center", color: "#666" }}>
-            No substrate data available.
-          </div>
+          <p className="text-center text-muted-foreground py-8">No substrate data available.</p>
         ) : (
           <>
-            {/* VS Hero Banner */}
             <SubstrateHero heroStats={heroStats} activeSubstrates={activeSubstrates} />
 
-            {/* Scatter Plot (only when 2+ substrates active) */}
             {activeSubstrates.size >= 2 && scatterXAxis !== scatterYAxis && (
               <SubstrateScatter
                 scatterData={scatterData}
@@ -1567,7 +960,6 @@ const SubstratePage = () => {
               />
             )}
 
-            {/* Download Controls */}
             <DownloadControls
               selectedCount={selectedGenes.size}
               totalCount={geneEntries.length}
@@ -1578,19 +970,17 @@ const SubstratePage = () => {
               disabled={loading}
             />
 
-            {/* Gene Cards */}
-            <div style={{
-              display: "flex", justifyContent: "space-between",
-              alignItems: "center", marginBottom: "1rem",
-            }}>
-              <div style={{ fontSize: "0.9rem", color: "#6b7280" }}>
-                Showing {geneEntries.length} {geneEntries.length === 1 ? "gene" : "genes"} with substrate data
-              </div>
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-sm text-secondary-foreground">
+                Showing {geneEntries.length}{" "}
+                {geneEntries.length === 1 ? "gene" : "genes"} with substrate data
+              </p>
               {scatterData.length > 0 && (
-                <div style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
-                  {scatterData.length} genes have {plotMode === "activity" ? "activity" : "data"} for both selected substrates
+                <p className="text-xs text-muted-foreground">
+                  {scatterData.length} genes have{" "}
+                  {plotMode === "activity" ? "activity" : "data"} for both selected substrates
                   {plotMode === "intensity" && activeTimepoint !== null && ` at ${activeTimepoint}h`}
-                </div>
+                </p>
               )}
             </div>
 
@@ -1609,16 +999,16 @@ const SubstratePage = () => {
             ))}
           </>
         )}
-      </main>
+      </section>
     </>
-  );
-};
+  )
+}
 
-export default SubstratePage;
+export default SubstratePage
 
 export const Head = () => (
   <Seo
     title="Substrate Activity Comparison"
     description="Compare enzyme activity on BHET substrates at different concentrations for plastic-degrading enzymes"
   />
-);
+)

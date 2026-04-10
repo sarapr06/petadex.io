@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import config from "../config";
-import "../styles/molstar-custom.css";
+import config from "../../config";
+import "../../styles/molstar-custom.css";
 
 const ProteinViewer = ({
   accession,
@@ -27,8 +27,6 @@ const ProteinViewer = ({
         setLoading(true);
         setError(null);
 
-        console.log('Loading Molstar for:', accession);
-
         // Import Molstar CSS first
         await import('molstar/lib/mol-plugin-ui/skin/light.scss');
 
@@ -42,11 +40,9 @@ const ProteinViewer = ({
           return;
         }
 
-        console.log('Molstar loaded, creating plugin...');
 
         // Ensure container has explicit pixel dimensions
         const rect = containerRef.current.getBoundingClientRect();
-        console.log('Container dimensions:', rect.width, rect.height);
 
         if (rect.width === 0 || rect.height === 0) {
           throw new Error('Container has no dimensions');
@@ -80,11 +76,9 @@ const ProteinViewer = ({
         });
 
         pluginRef.current = plugin;
-        console.log('Plugin created:', plugin);
 
         // Get PDB info from backend
         const pdbUrl = `${config.apiUrl}/pdb/accession/${accession}`;
-        console.log('Fetching PDB info from:', pdbUrl);
 
         const response = await fetch(pdbUrl);
 
@@ -93,7 +87,6 @@ const ProteinViewer = ({
         }
 
         const pdbInfo = await response.json();
-        console.log('PDB info received:', pdbInfo);
 
         if (!isMounted) {
           console.log('Component unmounted, aborting');
@@ -101,19 +94,16 @@ const ProteinViewer = ({
         }
 
         // Fetch PDB file
-        console.log('Fetching PDB file from:', pdbInfo.pdb_url);
         const pdbResponse = await fetch(pdbInfo.pdb_url);
         if (!pdbResponse.ok) {
           throw new Error(`Failed to load PDB file: ${pdbResponse.status}`);
         }
 
         const pdbData = await pdbResponse.text();
-        console.log('PDB data loaded, length:', pdbData.length);
 
         if (!isMounted) return;
 
         // Load structure into Molstar
-        console.log('Loading structure into Molstar...');
         const data = await plugin.builders.data.rawData({
           data: pdbData,
           label: `${accession} Structure`
@@ -159,7 +149,7 @@ const ProteinViewer = ({
             };
         }
 
-        const representation = await plugin.builders.structure.representation.addRepresentation(structure, reprParams);
+        await plugin.builders.structure.representation.addRepresentation(structure, reprParams);
 
         // Auto-focus on structure
         const { Structure } = await import('molstar/lib/mol-model/structure');
@@ -178,7 +168,6 @@ const ProteinViewer = ({
           // Selection is enabled by default in Molstar
         }
 
-        console.log('Structure loaded successfully');
         setLoading(false);
       } catch (err) {
         console.error('Error loading structure:', err);
@@ -194,7 +183,6 @@ const ProteinViewer = ({
     return () => {
       isMounted = false;
       if (pluginRef.current) {
-        console.log('Disposing plugin');
         pluginRef.current.dispose();
         pluginRef.current = null;
       }
@@ -212,6 +200,7 @@ const ProteinViewer = ({
   };
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       onMouseEnter={handleMouseEnter}
       className={!showControls ? 'molstar-compact' : ''}
@@ -227,33 +216,13 @@ const ProteinViewer = ({
       {/* Molstar plugin container */}
       <div
         ref={containerRef}
-        style={{
-          width: '100%',
-          height: '100%',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          overflow: 'hidden' // Ensure nothing escapes
-        }}
+        className='w-full h-full absolute top-0 left-0 overflow-hidden'
       />
 
       {/* Loading overlay */}
       {loading && (
         <div
-          style={{
-            width: '100%',
-            height: '100%',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#f1f5f9',
-            color: '#64748b',
-            fontSize: '0.875rem',
-            zIndex: 10
-          }}
+          className='w-full h-full absolute top-0 left-0 flex items-center justify-center bg-surface text-primary text-sm z-10'
         >
           Loading structure...
         </div>
@@ -262,22 +231,7 @@ const ProteinViewer = ({
       {/* Error overlay */}
       {error && !loading && (
         <div
-          style={{
-            width: '100%',
-            height: '100%',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: '#f1f5f9',
-            color: '#94a3b8',
-            fontSize: '0.75rem',
-            textAlign: 'center',
-            padding: '0.5rem',
-            zIndex: 10
-          }}
+          className='w-full h-full absolute top-0 left-0 flex items-center justify-center bg-surface text-primary text-xs z-10 text-center p-2'
         >
           Structure unavailable
         </div>

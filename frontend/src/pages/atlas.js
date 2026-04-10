@@ -1,37 +1,23 @@
 import React from "react"
-import "../styles/home.css"
-import SiteHeader from "../components/SiteHeader"
 import Seo from "../components/seo"
-import AtlasMap from "../components/AtlasMap"
+import AtlasMap from "../components/charts/AtlasMap"
 import { useScrollHeader } from "../hooks/useScrollHeader"
+import Container from '../components/common/Container'
 
 const AtlasPage = () => {
   useScrollHeader()
 
   return (
-    <>
-      <SiteHeader />
-
-      <main
-        style={{
-          maxWidth: "1400px",
-          margin: "0 auto",
-          padding: "2rem",
-          paddingTop: "2rem",
-        }}
-      >
-        <div style={{ marginBottom: "1.5rem" }}>
-          <h1 style={{ fontSize: "2.5rem", marginBottom: "0.5rem", color: "#2c3e50" }}>
-            Family Atlas
-          </h1>
-          <p style={{ color: "#666", fontSize: "1.1rem" }}>
-            UMAP embedding of plastic-degrading enzyme families
-          </p>
-        </div>
-
+    <section className="py-20 md:py-24">
+      <Container>
+        <h1 className="text-4xl font-semibold text-primary mb-1">Family Atlas</h1>
+        <p className="text-secondary-foreground text-lg">
+          UMAP embedding of plastic-degrading enzyme families
+        </p>
         <AtlasMap />
-      </main>
-    </>
+      </Container>
+
+    </section>
   )
 }
 

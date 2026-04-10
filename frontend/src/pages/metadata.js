@@ -1,51 +1,30 @@
-import React from "react";
-import "../styles/home.css";
-import SiteHeader from "../components/SiteHeader";
-import Seo from "../components/seo";
-import MetadataMap from "../components/MetadataMap";
-import { useScrollHeader } from "../hooks/useScrollHeader";
+import React from "react"
+import Seo from "../components/seo"
+import MetadataMap from "../components/MetadataMap"
+import { useScrollHeader } from "../hooks/useScrollHeader"
+import Container from '../components/common/Container'
 
 const MetadataPage = () => {
-  useScrollHeader();
+  useScrollHeader()
 
   return (
-    <>
-      <SiteHeader />
-
-      <main style={{
-        maxWidth: "1200px",
-        margin: "0 auto",
-        padding: "2rem",
-        paddingTop: "2rem",
-      }}>
-        <div style={{ marginBottom: "2rem" }}>
-          <h1 style={{
-            fontSize: "2.5rem",
-            marginBottom: "0.5rem",
-            color: "#2c3e50",
-          }}>
-            Sample Metadata
-          </h1>
-          <p style={{
-            color: "#666",
-            fontSize: "1.1rem",
-            marginBottom: "1.5rem",
-          }}>
-            Geographic distribution of plastic-degrading enzyme discovery sites
-          </p>
-        </div>
-
+    <section className="py-16 md:py-20">
+      <Container>
+        <h1 className="text-4xl font-semibold text-primary mb-2">Sample Metadata</h1>
+        <p className="text-secondary-foreground text-lg mb-4">
+          Geographic distribution of plastic-degrading enzyme discovery sites
+        </p>
         <MetadataMap />
-      </main>
-    </>
-  );
-};
+      </Container>
+    </section>
+  )
+}
 
-export default MetadataPage;
+export default MetadataPage
 
 export const Head = () => (
   <Seo
     title="Sample Metadata"
     description="Explore the geographic distribution of plastic-degrading enzyme samples on an interactive map"
   />
-);
+)

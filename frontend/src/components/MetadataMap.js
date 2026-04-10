@@ -145,14 +145,7 @@ const MetadataMap = () => {
 
   if (error) {
     return (
-      <div style={{
-        padding: "2rem",
-        textAlign: "center",
-        color: "#dc2626",
-        backgroundColor: "#fef2f2",
-        borderRadius: "8px",
-        border: "1px solid #fecaca",
-      }}>
+      <div className='p-8 text-center text-primary bg-surface rounded-xl border border-border'>
         Error loading location data: {error}
       </div>
     );
@@ -160,7 +153,7 @@ const MetadataMap = () => {
 
   if (!locations.length) {
     return (
-      <div style={{ padding: "3rem", textAlign: "center", color: "#64748b" }}>
+      <div className='p-12 text-center text-primary'>
         No location data available.
       </div>
     );
@@ -169,45 +162,36 @@ const MetadataMap = () => {
   return (
     <div>
       {stats && (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-          gap: "1rem",
-          marginBottom: "1.5rem",
-          padding: "1rem",
-          backgroundColor: "#f8fafc",
-          borderRadius: "8px",
-          border: "1px solid #e2e8f0",
-        }}>
+        <div className='grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 mb-6 p-4 bg-surface rounded-sm border border-border'>
           <div>
-            <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "0.25rem" }}>
+            <div className='text-sm text-muted-foreground mb-1'>
               Total Samples
             </div>
-            <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#2c3e50" }}>
+            <div className='text-2xl text-primary font-semibold'>
               {stats.totalSamples.toLocaleString()}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "0.25rem" }}>
+            <div className='text-sm text-muted-foreground mb-1'>
               Countries
             </div>
-            <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#2c3e50" }}>
+            <div className='text-2xl text-primary font-semibold'>
               {stats.countries.toLocaleString()}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "0.25rem" }}>
+            <div className='text-sm text-muted-foreground mb-1'>
               Continents
             </div>
-            <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#2c3e50" }}>
+            <div className='text-2xl text-primary font-semibold'>
               {stats.continents.toLocaleString()}
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "0.85rem", color: "#64748b", marginBottom: "0.25rem" }}>
+            <div className='text-sm text-muted-foreground mb-1'>
               Biomes
             </div>
-            <div style={{ fontSize: "1.5rem", fontWeight: "600", color: "#2c3e50" }}>
+            <div className='text-2xl text-primary font-semibold'>
               {stats.biomes.toLocaleString()}
             </div>
           </div>
@@ -216,13 +200,7 @@ const MetadataMap = () => {
 
       <div
         ref={mapContainerRef}
-        style={{
-          width: "100%",
-          height: "600px",
-          borderRadius: "8px",
-          border: "1px solid #e2e8f0",
-          overflow: "hidden",
-        }}
+        className='w-full h-[600px] rounded-lg border border-border overflow-hidden'
       />
     </div>
   );

@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 import * as d3 from "d3"
 import { Axes } from "./Axes"
-import * as styles from "./scatterplot.module.css"
 import { Tooltip } from "./Tooltip"
 
 function familyColor(familyId) {
@@ -9,11 +8,50 @@ function familyColor(familyId) {
   return `hsl(${hue}, 60%, 45%)`
 }
 
-export const Scatterplot = ({ height, data, familyCounts = {}, unknownCount = 0, total = 0 }) => {
+// Shared chip used by legend
+const LegendChip = ({ label, count, color, onClick }) => (
+  <span
+    className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border-[1.5px] transition-opacity"
+    style={{
+      borderColor: color,
+      background: `${color}10`,
+      cursor: onClick ? "pointer" : "default",
+    }}
+    {...(onClick && {
+      role: "button",
+      tabIndex: 0,
+      onClick,
+      onKeyDown: (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onClick(e)
+        }
+      },
+    })}
+  >
+    <span
+      className="w-2 h-2 rounded-full shrink-0"
+      style={{ background: color }}
+    />
+    {label}
+    <span className="text-muted-foreground text-[10px] font-normal">
+      {count}
+    </span>
+  </span>
+)
+
+export const Scatterplot = ({
+  height,
+  data,
+  familyCounts = {},
+  unknownCount = 0,
+  total = 0,
+}) => {
   const containerRef = useRef(null)
   const [containerWidth, setContainerWidth] = useState(0)
   const [zoomTransform, setZoomTransform] = useState(d3.zoomIdentity)
   const [zoomMode, setZoomMode] = useState(false)
+  const [interactionData, setInteractionData] = useState()
   const svgRef = useRef(null)
   const zoomRef = useRef(null)
 
@@ -39,223 +77,219 @@ export const Scatterplot = ({ height, data, familyCounts = {}, unknownCount = 0,
   const yMin = d3.min(data, d => d.y) - 5
   const yMax = d3.max(data, d => d.y) + 5
 
-  const sortedData = [...data]
-
-  const [interactionData, setInteractionData] = useState()
-
-  // Base scales
   const xScale = d3.scaleLinear().domain([xMin, xMax]).range([0, innerWidth])
   const yScale = d3.scaleLinear().domain([yMin, yMax]).range([innerHeight, 0])
-
-  // Rescaled scales — these shift/stretch with the zoom transform
-  const zoomedXScale = zoomTransform.rescaleX(xScale)
-  const zoomedYScale = zoomTransform.rescaleY(yScale)
-
+  const zoomedX = zoomTransform.rescaleX(xScale)
+  const zoomedY = zoomTransform.rescaleY(yScale)
   const sizeScale = d3.scaleSqrt().domain([0, 600]).range([4, 16])
 
-  // Set up D3 zoom behavior
   useEffect(() => {
     const svg = d3.select(svgRef.current)
-
-    const zoom = d3.zoom()
+    const zoom = d3
+      .zoom()
       .scaleExtent([0.5, 20])
       .translateExtent([
         [-margin.left, -margin.top],
         [width + margin.right, height + margin.bottom],
       ])
-      .on("zoom", (event) => {
-        setZoomTransform(event.transform)
-      })
-
+      .on("zoom", e => setZoomTransform(e.transform))
     zoomRef.current = zoom
     svg.call(zoom)
-
     return () => svg.on(".zoom", null)
   }, [width, height, margin.left, margin.top, margin.right, margin.bottom])
 
-  // Enable/disable pointer events on the SVG based on zoom mode
   useEffect(() => {
     const svg = d3.select(svgRef.current)
     svg.style("cursor", zoomMode ? "grab" : "default")
-    // When zoom mode is off, disable the zoom interaction
-    if (!zoomMode) {
-      svg.on(".zoom", null)
-    } else if (zoomRef.current) {
-      svg.call(zoomRef.current)
-    }
+    if (!zoomMode) svg.on(".zoom", null)
+    else if (zoomRef.current) svg.call(zoomRef.current)
   }, [zoomMode])
 
   const handleResetZoom = useCallback(() => {
     const svg = d3.select(svgRef.current)
     if (zoomRef.current) {
-      svg.transition().duration(400).call(zoomRef.current.transform, d3.zoomIdentity)
+      svg
+        .transition()
+        .duration(400)
+        .call(zoomRef.current.transform, d3.zoomIdentity)
     }
   }, [])
-
-  const squares = sortedData.map((d, i) => {
-    const r = sizeScale(d.size) / 2
-    const cx = zoomedXScale(d.x)
-    const cy = zoomedYScale(d.y)
-    return (
-      <g
-        key={i}
-        style={{ cursor: "pointer" }}
-        onClick={() => { if (!zoomMode && d.enzyme_id != null) window.open(`/enzyme/${d.enzyme_id}`, "_blank") }}
-        onMouseMove={() =>
-          setInteractionData({
-            xPos: cx + margin.left,
-            yPos: cy + margin.top,
-            ...d,
-          })
-        }
-        onMouseLeave={() => setInteractionData(undefined)}
-      >
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill={d.family != null ? familyColor(d.family) : "#1a73e8"}
-          opacity={0.7}
-          className={styles.scatterplotSquare}
-        />
-      </g>
-    )
-  })
-
-  const annotations = sortedData
-    .filter(d => d.annotation)
-    .map((d, i) => {
-      const size = sizeScale(d.size)
-      // Use zoomed scales for annotation positions too
-      const x = zoomedXScale(d.x)
-      const y = zoomedYScale(d.y)
-      const xText = d.annotation === "right" ? x + size / 2 + 5 : x - size / 2 - 5
-      const yText = y
-      return (
-        <g key={i}>
-          <rect
-            x={x - size / 2}
-            y={y - size / 2}
-            fill="none"
-            strokeWidth={1}
-            stroke="black"
-            width={size}
-            height={size}
-          />
-          <text
-            x={xText}
-            y={yText}
-            fontSize={12}
-            fontWeight={500}
-            textAnchor={d.annotation === "right" ? "start" : "end"}
-            dominantBaseline="middle"
-          >
-            {d.name}
-          </text>
-        </g>
-      )
-    })
 
   const legendEntries = [
     ...Object.entries(familyCounts)
       .sort((a, b) => b[1].count - a[1].count)
-      .map(([label, { count, family_num }]) => ({ label, count, family_num, color: familyColor(family_num) })),
-    ...(unknownCount > 0 ? [{ label: "Unknown", count: unknownCount, family_num: null, color: "#adb5bd" }] : []),
+      .map(([label, { count, family_num }]) => ({
+        label,
+        count,
+        family_num,
+        color: familyColor(family_num),
+      })),
+    ...(unknownCount > 0
+      ? [
+          {
+            label: "Unknown",
+            count: unknownCount,
+            family_num: null,
+            color: "var(--muted-foreground)",
+          },
+        ]
+      : []),
   ]
 
   if (!containerWidth) {
-    return <div ref={containerRef} style={{ width: "100%", minHeight: height }} />
+    return (
+      <div
+        ref={containerRef}
+        className="w-full"
+        style={{ minHeight: height }}
+      />
+    )
   }
 
   return (
-    <div ref={containerRef} style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1 }}>
+    <div ref={containerRef} className="relative flex flex-col flex-1">
       {/* Controls */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+      <div className="flex gap-2 mb-2">
         <button
           onClick={() => setZoomMode(z => !z)}
-          style={{
-            padding: "4px 12px",
-            border: "1px solid #ccc",
-            borderRadius: 4,
-            background: zoomMode ? "#1a73e8" : "#fff",
-            color: zoomMode ? "#fff" : "#333",
-            cursor: "pointer",
-            fontSize: 13,
-          }}
+          className={`px-3 py-1 text-xs border rounded transition-colors ${
+            zoomMode
+              ? "bg-accent text-accent-foreground border-accent"
+              : "bg-background text-foreground border-border hover:border-border-strong"
+          }`}
         >
-          {zoomMode ? "🔍 Zoom On" : "🔍 Zoom Off"}
+          🔍 Zoom {zoomMode ? "On" : "Off"}
         </button>
         <button
           onClick={handleResetZoom}
-          style={{
-            padding: "4px 12px",
-            border: "1px solid #ccc",
-            borderRadius: 4,
-            background: "#fff",
-            color: "#333",
-            cursor: "pointer",
-            fontSize: 13,
-          }}
+          className="px-3 py-1 text-xs border border-border rounded bg-background text-foreground hover:border-border-strong transition-colors"
         >
           ↺ Reset
         </button>
       </div>
 
+      {/* Legend */}
       {legendEntries.length > 0 && (
-        <div className={styles.legendWrap}>
+        <div className="flex flex-wrap gap-1 mb-2">
           {legendEntries.map(({ label, count, family_num, color }) => (
-            <span
+            <LegendChip
               key={label}
-              className={styles.legendChip}
-              style={{ borderColor: color, background: `${color}10`, cursor: family_num != null ? "pointer" : "default" }}
-              onClick={() => family_num != null && window.open(`/family/${family_num}`, "_blank")}
-            >
-              <span className={styles.legendChipDot} style={{ background: color }} />
-              {label}
-              <span className={styles.legendChipCount}>{count}</span>
-            </span>
+              label={label}
+              count={count}
+              color={color}
+              onClick={
+                family_num != null
+                  ? () => window.open(`/family/${family_num}`, "_blank")
+                  : null
+              }
+            />
           ))}
         </div>
       )}
-      <div className={styles.svgWrap}>
+
+      {/* SVG wrapper */}
+      <div className="relative border border-border rounded-lg overflow-hidden bg-surface-raised flex flex-col flex-1 justify-center">
         <svg
           ref={svgRef}
           width={width}
           height={height}
           shapeRendering="crispEdges"
-          // Block mouse tooltip events from firing when panning/zooming
-          style={{ userSelect: "none", display: "block" }}
+          className="block select-none"
         >
-          {/* Clip path so points don't render outside the plot area */}
           <defs>
             <clipPath id="plot-area">
               <rect x={0} y={0} width={innerWidth} height={innerHeight} />
             </clipPath>
           </defs>
-
           <g transform={`translate(${margin.left}, ${margin.top})`}>
             <Axes
-              xScale={zoomedXScale}
-              yScale={zoomedYScale}
+              xScale={zoomedX}
+              yScale={zoomedY}
               width={innerWidth}
               height={innerHeight}
             />
             <g clipPath="url(#plot-area)">
-              {squares}
-              {annotations}
+              {/* Dots */}
+              {[...data].map((d, i) => {
+                const r = sizeScale(d.size) / 2
+                const cx = zoomedX(d.x)
+                const cy = zoomedY(d.y)
+                return (
+                  <g
+                    key={i}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => {
+                      if (!zoomMode && d.enzyme_id != null)
+                        window.open(`/enzyme/${d.enzyme_id}`, "_blank")
+                    }}
+                    onMouseMove={() =>
+                      setInteractionData({
+                        xPos: cx + margin.left,
+                        yPos: cy + margin.top,
+                        ...d,
+                      })
+                    }
+                    onMouseLeave={() => setInteractionData(undefined)}
+                  >
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={r}
+                      fill={
+                        d.family != null ? familyColor(d.family) : "var(--info)"
+                      }
+                      opacity={0.7}
+                      stroke="white"
+                      strokeWidth={0.5}
+                      className="hover:opacity-100 hover:stroke-black hover:stroke-2"
+                    />
+                  </g>
+                )
+              })}
+
+              {/* Annotations */}
+              {[...data]
+                .filter(d => d.annotation)
+                .map((d, i) => {
+                  const size = sizeScale(d.size)
+                  const x = zoomedX(d.x)
+                  const y = zoomedY(d.y)
+                  const xText =
+                    d.annotation === "right"
+                      ? x + size / 2 + 5
+                      : x - size / 2 - 5
+                  return (
+                    <g key={i}>
+                      <rect
+                        x={x - size / 2}
+                        y={y - size / 2}
+                        fill="none"
+                        strokeWidth={1}
+                        stroke="var(--foreground)"
+                        width={size}
+                        height={size}
+                      />
+                      <text
+                        x={xText}
+                        y={y}
+                        fontSize={12}
+                        fontWeight={500}
+                        textAnchor={d.annotation === "right" ? "start" : "end"}
+                        dominantBaseline="middle"
+                        fill="var(--foreground)"
+                      >
+                        {d.name}
+                      </text>
+                    </g>
+                  )
+                })}
             </g>
           </g>
         </svg>
 
         <div
-          style={{
-            position: "absolute",
-            width,
-            height,
-            top: 0,
-            left: 0,
-            pointerEvents: "none",
-          }}
+          className="absolute inset-0 pointer-events-none"
+          style={{ width, height }}
         >
           <Tooltip interactionData={interactionData} containerWidth={width} />
         </div>

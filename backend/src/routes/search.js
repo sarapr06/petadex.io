@@ -222,7 +222,10 @@ async function enrichWithFamilyData(accessions) {
        JOIN enzyme_fastaa e ON e.enzyme_id = v.enzyme_id
        LEFT JOIN enzyme_taxonomy t ON t.enzyme_id = v.enzyme_id
        WHERE v.genbank_accession_id = ANY($1)
-         AND v.genbank_accession_id NOT IN (SELECT accession FROM direct)
+         AND NOT EXISTS (
+          SELECT 1 FROM enzyme_fastaa e2
+          WHERE e2.genbank_accession_id = v.genbank_accession_id
+        )
      )
      SELECT * FROM direct
      UNION ALL
@@ -292,6 +295,8 @@ router.post('/', async (req, res, next) => {
         cached: true,
         results: transformResults(cached.data.results, cached.data.query_length),
         metadata: {
+          query_header: cached.data.query_header,
+          query_sequence: cached.data.query_sequence,
           query_length: cached.data.query_length,
           num_results: cached.data.num_results,
           database_size: cached.data.database_size,
@@ -310,7 +315,7 @@ router.post('/', async (req, res, next) => {
         InvocationType: 'Event',
         Payload: JSON.stringify({
           sessionId: sessionId,
-          sequence: cleanSequence,
+          sequence: sequence,
           max_results: max_results,
         }),
       }));
@@ -424,6 +429,8 @@ router.get('/results/:job_id', async (req, res, next) => {
         cached: true,
         results: transformedResults,
         metadata: {
+          query_header: result.data.query_header,
+          query_sequence: result.data.query_sequence,
           query_length: result.data.query_length,
           num_results: result.data.num_results,
           database_size: result.data.database_size,

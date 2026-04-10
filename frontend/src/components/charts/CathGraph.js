@@ -4,7 +4,7 @@ import {
   CATH_GROUPS,
   COMPONENT_SHADE_CSS,
   CATH_BASE_CSS,
-} from "../utils/cathColors"
+} from "../../utils/cathColors"
 
 // Hub-spoke Cytoscape graph: CATH domain nodes → component nodes
 const CathGraph = ({ activeComponents }) => {
