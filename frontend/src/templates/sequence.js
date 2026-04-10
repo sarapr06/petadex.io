@@ -1,6 +1,5 @@
 // frontend/src/templates/sequence.js
 import React, { useState, useEffect } from "react"
-import { Link } from "gatsby"
 import DataViewer from "../components/sequence/DataViewer"
 import SynthesizedGenePanel from "../components/SynthesizedGenePanel"
 import Seo from "../components/seo"

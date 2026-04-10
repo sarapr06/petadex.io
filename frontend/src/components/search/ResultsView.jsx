@@ -240,8 +240,16 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
           {/* Family summary — persists above tabs */}
           <div className="mb-5 py-3.5 px-4 bg-surface-raised border border-border rounded-sm">
             <div
+              role="button"
+              tabIndex={0}
               className="flex justify-between items-center text-sm font-semibold text-muted-foreground uppercase tracking-tighter cursor-pointer select-none"
               onClick={() => setFamilySummaryOpen(o => !o)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  setFamilySummaryOpen(o => !o)
+                }
+              }}
             >
               <span>
                 {uniqueFamilies} {uniqueFamilies === 1 ? "family" : "families"}{" "}
@@ -475,7 +483,15 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                 />
                 {!atlasActive && (
                   <div
+                    role="button"
+                    tabIndex={0}
                     onClick={() => setAtlasActive(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        setAtlasActive(true)
+                      }
+                    }}
                     onMouseLeave={() => setAtlasActive(false)}
                     style={{
                       position: "absolute",

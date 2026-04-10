@@ -329,6 +329,8 @@ export function TaxonomyScatterChart({ data, height = 440 }) {
           return (
             <span
               key={name}
+              role="button"
+              tabIndex={0}
               className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border-[1.5px] cursor-pointer transition-all hover:shadow-sm text-foreground"
               style={{
                 borderColor: hidden ? "transparent" : color,
@@ -336,6 +338,12 @@ export function TaxonomyScatterChart({ data, height = 440 }) {
                 background: hidden ? "var(--surface-raised)" : `${color}10`,
               }}
               onClick={() => toggleCategory(name)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  toggleCategory(name)
+                }
+              }}
               onMouseEnter={() => !hidden && setHighlightCat(name)}
               onMouseLeave={() => setHighlightCat(null)}
             >

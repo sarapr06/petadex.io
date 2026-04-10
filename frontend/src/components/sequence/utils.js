@@ -76,6 +76,7 @@ export const AASpan = React.memo(
   ({ char, position, colorScheme, isSelected, onMouseDown, onMouseEnter }) => {
     const bg = colorScheme?.[char] || "var(--surface-sunken)"
     return (
+      // eslint-disable-next-line jsx-a11y/no-static-element-interactions
       <span
         className={[
           "inline-flex items-center justify-center h-6",

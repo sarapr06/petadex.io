@@ -464,7 +464,17 @@ const GeneSubstrateCard = ({
         <div className="flex gap-6 items-center flex-wrap flex-1">
           {/* Checkbox */}
           <div
+            role="checkbox"
+            aria-checked={isSelected}
+            tabIndex={0}
             onClick={e => { e.stopPropagation(); onSelectionChange(gene) }}
+            onKeyDown={e => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault()
+                e.stopPropagation()
+                onSelectionChange(gene)
+              }
+            }}
             className="w-5 h-5 rounded flex items-center justify-center cursor-pointer transition-colors shrink-0 border-2"
             style={{
               borderColor: isSelected ? "#059669" : "var(--sem-border-strong)",

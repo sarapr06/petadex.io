@@ -88,7 +88,15 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
     >
       {/* Header */}
       <div
+        role="button"
+        tabIndex={0}
         onClick={handleToggle}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            handleToggle()
+          }
+        }}
         className={[
           "px-6 py-5 cursor-pointer transition-colors",
           isExpanded ? "border-b-2" : "bg-surfaced",
@@ -421,8 +429,9 @@ const EnzymesPage = () => {
         {/* Sort (families view only) */}
         {view === "families" && (
           <div className="flex items-center gap-2 mb-2">
-            <label className="text-sm text-secondary-foreground">Sort by:</label>
+            <label htmlFor="enzymes-sort-by" className="text-sm text-secondary-foreground">Sort by:</label>
             <select
+              id="enzymes-sort-by"
               value={sortBy}
               onChange={e => setSortBy(e.target.value)}
               className="input w-auto text-sm py-1.5"

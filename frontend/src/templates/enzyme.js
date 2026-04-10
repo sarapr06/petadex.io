@@ -74,7 +74,7 @@ export default function EnzymeTemplate({ pageContext }) {
     }
 
     fetchEnzyme()
-  }, [pageContext.enzyme])
+  }, [pageContext.enzyme, pageContext.enzymeId])
 
   if (loading) return <PageState>Loading enzyme…</PageState>
   if (error) return <PageState variant="error">Error: {error}</PageState>

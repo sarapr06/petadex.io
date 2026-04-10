@@ -228,6 +228,7 @@ function DendrogramSVG({ root }) {
       </div>
 
       {/* Canvas */}
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div
         className="w-full overflow-hidden bg-surface-raised border border-border rounded-md cursor-grab"
         style={{ height: "60vh", minHeight: 300 }}

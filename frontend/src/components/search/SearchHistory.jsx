@@ -85,7 +85,15 @@ const SearchHistory = ({ onSelectSearch, currentJobId, newSearchCount }) => {
           return (
             <li
               key={search.job_id}
+              role="button"
+              tabIndex={0}
               onClick={() => onSelectSearch(search.session_id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  onSelectSearch(search.session_id)
+                }
+              }}
               className={[
                 "flex items-center justify-between px-3 py-2.5 rounded-lg border cursor-pointer transition-colors",
                 isActive

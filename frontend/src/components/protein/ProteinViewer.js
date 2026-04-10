@@ -149,7 +149,7 @@ const ProteinViewer = ({
             };
         }
 
-        const representation = await plugin.builders.structure.representation.addRepresentation(structure, reprParams);
+        await plugin.builders.structure.representation.addRepresentation(structure, reprParams);
 
         // Auto-focus on structure
         const { Structure } = await import('molstar/lib/mol-model/structure');
@@ -200,6 +200,7 @@ const ProteinViewer = ({
   };
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       onMouseEnter={handleMouseEnter}
       className={!showControls ? 'molstar-compact' : ''}

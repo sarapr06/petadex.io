@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react"
 import config from "../../config"
 import {
   COMPONENT_SHADE_RGBA,
-  COMPONENT_TO_CATH,
   CATH_GROUPS,
   CATH_BASE_CSS,
 } from "../../utils/cathColors"
@@ -325,7 +324,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
     } else {
       setSearchPanel(null)
     }
-  }, [zoomToPoint, hidden, propHighlightId])
+  }, [zoomToPoint, hidden, propHighlightId, highlightFamilyIds])
 
   const cycleMatch = useCallback((dir) => {
     if (!searchMatches.length) return
@@ -341,7 +340,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
         layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorByRef.current, hidden, point.family_id, highlightFamilyIds)],
       })
     }
-  }, [searchMatches, searchMatchIdx, zoomToPoint, hidden])
+  }, [searchMatches, searchMatchIdx, zoomToPoint, hidden, highlightFamilyIds])
 
   const projectHighlight = useCallback(() => {
     if (!deckRef.current) return
@@ -503,6 +502,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, fresh, highlightFamilyId, highlightFamilyIds)],
     })
     setLegend(buildLegend(pointsRef.current, colorBy))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colorBy])
 
   // ── render ────────────────────────────────────────────────────────────────
@@ -772,7 +772,15 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
             return (
               <div
                 key={label}
+                role="button"
+                tabIndex={0}
                 onClick={() => toggleKey(label)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    toggleKey(label)
+                  }
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -841,11 +849,20 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
               <div key={cath} style={{ marginBottom: "8px" }}>
                 {/* CATH domain parent row */}
                 <div
+                  role="button"
+                  tabIndex={0}
                   onClick={() =>
                     cath === "Unassigned"
                       ? toggleKey("Unassigned")
                       : toggleKeys(childKeys)
                   }
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault()
+                      if (cath === "Unassigned") toggleKey("Unassigned")
+                      else toggleKeys(childKeys)
+                    }
+                  }}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -888,7 +905,15 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
                   return (
                     <div
                       key={label}
+                      role="button"
+                      tabIndex={0}
                       onClick={() => toggleKey(label)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          toggleKey(label)
+                        }
+                      }}
                       style={{
                         display: "flex",
                         alignItems: "center",

@@ -172,6 +172,7 @@ function DendrogramSVG({ root }) {
         <button onClick={() => setTransform(t => ({ ...t, k: Math.max(t.k * 0.77, 0.2) }))} style={btnStyle}>−</button>
         <button onClick={resetView} style={btnStyle}>Reset</button>
       </div>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div
         ref={containerRef}
         style={{ width: "100%", height: "70vh", minHeight: 400, overflow: "hidden", background: "#fafafa", border: "1px solid #e9ecef", borderRadius: 6, cursor: drag.current ? "grabbing" : "grab" }}

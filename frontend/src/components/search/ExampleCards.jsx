@@ -43,9 +43,10 @@ const ExampleCards = ({ onSelectExample, disabled }) => {
       </div>
       <div className="grid gap-4 grid-cols-3">
         {examples.map((example) => (
-          <div
+          <button
             key={example.job_id}
-            className="card text-left p-4 cursor-pointer"
+            type="button"
+            className="card text-left p-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={() => onSelectExample(example.job_id)}
             disabled={disabled}
           >
@@ -57,7 +58,7 @@ const ExampleCards = ({ onSelectExample, disabled }) => {
             {example.query_length && (
               <div className="text-xs mt-2 text-muted-foreground">{example.query_length} aa</div>
             )}
-          </div>
+          </button>
         ))}
       </div>
     </div>

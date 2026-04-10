@@ -17,7 +17,17 @@ const LegendChip = ({ label, count, color, onClick }) => (
       background: `${color}10`,
       cursor: onClick ? "pointer" : "default",
     }}
-    onClick={onClick}
+    {...(onClick && {
+      role: "button",
+      tabIndex: 0,
+      onClick,
+      onKeyDown: (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onClick(e)
+        }
+      },
+    })}
   >
     <span
       className="w-2 h-2 rounded-full shrink-0"
