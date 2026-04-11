@@ -9,7 +9,7 @@ export const ThemeProvider = ({ children }) => {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('theme');
-      const isDark = saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      const isDark = saved === 'dark';
       setDark(isDark);
       document.documentElement.classList.toggle('dark', isDark);
     }
