@@ -1,12 +1,16 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import config from "../../config"
 import {
-  COMPONENT_SHADE_RGBA,
-  CATH_GROUPS,
-  CATH_BASE_CSS,
+  COMPONENT_TO_CATH,
+  CATH_HUE,
+  hslToRgb,
 } from "../../utils/cathColors"
 
 // ── colour helpers ──────────────────────────────────────────────────────────
+
+// Dynamic color maps rebuilt by buildLegend when colorBy === "component"
+let dynamicCompRGBA = {}   // component → [r,g,b,a]
+let dynamicCathCSS  = {}   // cath_domain → "rgb(…)"
 
 const DOMAIN_COLORS = {
   Bacteria:   [78,  205, 196, 220],
@@ -78,7 +82,7 @@ function getPointColor(point, colorBy, hidden, highlightFamilyId, highlightFamil
     const key = point.component != null ? String(point.component) : "Unassigned"
     if (hidden.has(key)) return HIDDEN_COLOR
     return point.component != null
-      ? COMPONENT_SHADE_RGBA[point.component] || [148, 163, 184, 160]
+      ? dynamicCompRGBA[point.component] || [148, 163, 184, 160]
       : [148, 163, 184, 160]
   }
   return [100, 210, 190, 200]
@@ -88,32 +92,70 @@ function buildLegend(points, colorBy) {
   if (colorBy === "none") return []
 
   if (colorBy === "component") {
-    // Count points per component
+    // Count points per component and track domain_name/cath_domain from API
     const compCounts = new Map()
+    const compMeta = new Map() // component → { domain_name, cath_domain }
     let unassignedCount = 0
     for (const p of points) {
       if (p.component != null) {
         compCounts.set(p.component, (compCounts.get(p.component) || 0) + 1)
+        if (!compMeta.has(p.component) && p.cath_domain) {
+          compMeta.set(p.component, { domain_name: p.domain_name, cath_domain: p.cath_domain })
+        }
       } else {
         unassignedCount++
       }
     }
 
-    // Group components under their CATH domain parent
-    const cathOrder = Object.keys(CATH_GROUPS)
-    const groups = []
-    for (const cath of cathOrder) {
-      const children = CATH_GROUPS[cath]
-        .filter(comp => compCounts.has(comp))
-        .map(comp => ({
-          label: String(comp),
-          count: compCounts.get(comp),
-          color: COMPONENT_SHADE_RGBA[comp] || [148, 163, 184, 160],
-        }))
-      if (children.length > 0) {
-        const total = children.reduce((s, c) => s + c.count, 0)
-        groups.push({ cath, cathColor: CATH_BASE_CSS[cath], total, children })
+    // Group components by cath_domain from API data
+    const cathGroups = new Map() // cath_domain → [component, ...]
+    for (const [comp] of compCounts) {
+      const meta = compMeta.get(comp)
+      const cath = meta?.cath_domain || COMPONENT_TO_CATH[comp] || "Unknown"
+      if (!cathGroups.has(cath)) cathGroups.set(cath, [])
+      cathGroups.get(cath).push(comp)
+    }
+    for (const g of cathGroups.values()) g.sort((a, b) => a - b)
+
+    // Rebuild dynamic color maps
+    dynamicCompRGBA = {}
+    dynamicCathCSS  = {}
+    // Assign a hue to each CATH domain (use known hues, auto-assign for unknown)
+    let nextAutoHue = 310
+    const cathHueMap = {}
+    for (const cath of cathGroups.keys()) {
+      if (CATH_HUE[cath] != null) {
+        cathHueMap[cath] = CATH_HUE[cath]
+      } else {
+        cathHueMap[cath] = nextAutoHue
+        nextAutoHue = (nextAutoHue + 47) % 360
       }
+    }
+    for (const [cath, comps] of cathGroups) {
+      const hue = cathHueMap[cath]
+      const [br, bg, bb] = hslToRgb(hue, 60, 38)
+      dynamicCathCSS[cath] = `rgb(${br},${bg},${bb})`
+      comps.forEach((comp, i) => {
+        const n = comps.length
+        const lightness = n === 1 ? 55 : 35 + (i / (n - 1)) * 35
+        const [r, g, b] = hslToRgb(hue, 70, lightness)
+        dynamicCompRGBA[comp] = [r, g, b, 220]
+      })
+    }
+
+    const groups = []
+    for (const [cath, comps] of cathGroups) {
+      const children = comps.map(comp => ({
+        label: String(comp),
+        count: compCounts.get(comp),
+        color: dynamicCompRGBA[comp],
+      }))
+      const total = children.reduce((s, c) => s + c.count, 0)
+      const meta = comps.map(c => compMeta.get(c)).find(m => m?.domain_name)
+      const displayLabel = meta?.domain_name
+        ? `${meta.domain_name} (${cath})`
+        : cath
+      groups.push({ cath: displayLabel, cathColor: dynamicCathCSS[cath], total, children })
     }
     if (unassignedCount > 0) {
       groups.push({
@@ -123,6 +165,11 @@ function buildLegend(points, colorBy) {
         children: [],
       })
     }
+    groups.sort((a, b) => {
+      if (a.cath === "Unassigned") return 1
+      if (b.cath === "Unassigned") return -1
+      return b.total - a.total
+    })
     return { grouped: true, groups }
   }
 
@@ -498,10 +545,10 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
     if (!deckRef.current || !pointsRef.current.length || !LayerRef.current) return
     const fresh = new Set()
     setHidden(fresh)
+    setLegend(buildLegend(pointsRef.current, colorBy))
     deckRef.current.setProps({
       layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, fresh, highlightFamilyId, highlightFamilyIds)],
     })
-    setLegend(buildLegend(pointsRef.current, colorBy))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colorBy])
 
@@ -887,9 +934,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
                       fontSize: "11px",
                       fontWeight: 600,
                       flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      wordBreak: "break-word",
                     }}
                     title={cath}
                   >
