@@ -178,11 +178,10 @@ router.get('/:familyId/umap', async (req, res, next) => {
 
   try {
     const { rows } = await pool.query(
-      `SELECT fa.family_id, fa.umap_x, fa.umap_y, fa.family_size,
-              fa.organism, fa.taxonomy, fa.country, fa.component,
-              et.domain_name, et.cath_domain
-       FROM family_atlas fa
-       LEFT JOIN enzyme_taxonomy et ON et.enzyme_id = fa.family_id`
+      `SELECT family_id, umap_x, umap_y, family_size,
+              organism, taxonomy, country, component,
+              cath_domain, domain_name
+       FROM family_atlas`
     );
     res.json({ points: rows });
   } catch (err) {

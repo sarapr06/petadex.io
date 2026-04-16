@@ -99,7 +99,7 @@ function buildLegend(points, colorBy) {
     for (const p of points) {
       if (p.component != null) {
         compCounts.set(p.component, (compCounts.get(p.component) || 0) + 1)
-        if (!compMeta.has(p.component) && p.cath_domain) {
+        if (!compMeta.has(p.component) && p.domain_name) {
           compMeta.set(p.component, { domain_name: p.domain_name, cath_domain: p.cath_domain })
         }
       } else {
@@ -107,34 +107,35 @@ function buildLegend(points, colorBy) {
       }
     }
 
-    // Group components by cath_domain from API data
-    const cathGroups = new Map() // cath_domain → [component, ...]
+    // Group components by domain_name from API data
+    const cathGroups = new Map() // domain_name → [component, ...]
     for (const [comp] of compCounts) {
       const meta = compMeta.get(comp)
-      const cath = meta?.cath_domain || COMPONENT_TO_CATH[comp] || "Unknown"
-      if (!cathGroups.has(cath)) cathGroups.set(cath, [])
-      cathGroups.get(cath).push(comp)
+      const groupKey = meta?.domain_name || COMPONENT_TO_CATH[comp] || "Unknown"
+      if (!cathGroups.has(groupKey)) cathGroups.set(groupKey, [])
+      cathGroups.get(groupKey).push(comp)
     }
     for (const g of cathGroups.values()) g.sort((a, b) => a - b)
 
     // Rebuild dynamic color maps
     dynamicCompRGBA = {}
     dynamicCathCSS  = {}
-    // Assign a hue to each CATH domain (use known hues, auto-assign for unknown)
+    // Assign a hue per group — use known CATH hues if cath_domain is available, else auto-assign
     let nextAutoHue = 310
     const cathHueMap = {}
-    for (const cath of cathGroups.keys()) {
-      if (CATH_HUE[cath] != null) {
-        cathHueMap[cath] = CATH_HUE[cath]
+    for (const [groupKey, comps] of cathGroups) {
+      const cath = compMeta.get(comps[0])?.cath_domain || COMPONENT_TO_CATH[comps[0]]
+      if (cath && CATH_HUE[cath] != null) {
+        cathHueMap[groupKey] = CATH_HUE[cath]
       } else {
-        cathHueMap[cath] = nextAutoHue
+        cathHueMap[groupKey] = nextAutoHue
         nextAutoHue = (nextAutoHue + 47) % 360
       }
     }
-    for (const [cath, comps] of cathGroups) {
-      const hue = cathHueMap[cath]
+    for (const [groupKey, comps] of cathGroups) {
+      const hue = cathHueMap[groupKey]
       const [br, bg, bb] = hslToRgb(hue, 60, 38)
-      dynamicCathCSS[cath] = `rgb(${br},${bg},${bb})`
+      dynamicCathCSS[groupKey] = `rgb(${br},${bg},${bb})`
       comps.forEach((comp, i) => {
         const n = comps.length
         const lightness = n === 1 ? 55 : 35 + (i / (n - 1)) * 35
@@ -144,18 +145,16 @@ function buildLegend(points, colorBy) {
     }
 
     const groups = []
-    for (const [cath, comps] of cathGroups) {
+    for (const [groupKey, comps] of cathGroups) {
       const children = comps.map(comp => ({
         label: String(comp),
         count: compCounts.get(comp),
         color: dynamicCompRGBA[comp],
       }))
       const total = children.reduce((s, c) => s + c.count, 0)
-      const meta = comps.map(c => compMeta.get(c)).find(m => m?.domain_name)
-      const displayLabel = meta?.domain_name
-        ? `${meta.domain_name} (${cath})`
-        : cath
-      groups.push({ cath: displayLabel, cathColor: dynamicCathCSS[cath], total, children })
+      const cath = compMeta.get(comps[0])?.cath_domain
+      const displayLabel = cath ? `${groupKey} (${cath})` : groupKey
+      groups.push({ cath: displayLabel, cathColor: dynamicCathCSS[groupKey], total, children })
     }
     if (unassignedCount > 0) {
       groups.push({
@@ -257,10 +256,10 @@ function buildTooltip(object, highlightFamilyId) {
 // ── component ───────────────────────────────────────────────────────────────
 
 const COLOR_MODES = [
-  { value: "none",      label: "None" },
+  { value: "component", label: "Component" },
   { value: "domain",    label: "Domain" },
   { value: "phylum",    label: "Phylum" },
-  { value: "component", label: "Component" },
+  { value: "none",      label: "None" },
 ]
 
 const navBtnStyle = {
@@ -290,8 +289,8 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
   const [loading,              setLoading]              = useState(true)
   const [error,                setError]                = useState(null)
   const [pointCount,           setPointCount]           = useState(0)
-  const [colorBy,              setColorBy]              = useState("none")
-  const colorByRef = useRef("none")
+  const [colorBy,              setColorBy]              = useState("component")
+  const colorByRef = useRef("component")
   const [legend,               setLegend]               = useState([])
   const [hidden,               setHidden]               = useState(new Set())
   const [ripplePos,            setRipplePos]            = useState(null)
@@ -500,7 +499,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
           views: new OrthographicView({ id: "ortho" }),
           initialViewState: { target: [cx, cy, 0], zoom },
           controller: controllerEnabled,
-          layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "none", new Set(), highlightFamilyId, highlightFamilyIds)],
+          layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "component", new Set(), highlightFamilyId, highlightFamilyIds)],
           getTooltip: ({ object }) => object && buildTooltip(object, highlightFamilyId),
           onClick: ({ object }) => {
             if (object?.family_id != null && object.family_id !== highlightFamilyId) {
@@ -513,6 +512,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
 
         deckRef.current = deck
         setPointCount(points.length)
+        setLegend(buildLegend(points, colorByRef.current))
         setLoading(false)
 
         requestAnimationFrame(projectHighlight)
