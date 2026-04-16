@@ -15,7 +15,7 @@ export default function SummaryStatistics({ stats, loading }) {
   }
 
   return (
-    <div className="p-4 rounded-2xl mb-4 bg-surface border-border">
+    <div className="p-4 rounded-2xl mb-4 bg-surface border-border mt-">
       <h3 className="text-lg font-semibold mb-4 text-primary">
         Summary Statistics
       </h3>
