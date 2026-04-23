@@ -83,7 +83,7 @@ const SiteHeader = () => {
             <img
               src={require("../images/petadex-icon.png").default}
               alt="PETadex"
-              className="h-8 w-auto"
+              className="h-8 w-auto dark:invert"
             />
           </Link>
           <button onClick={closeMobileMenu} className={iconButtonClass} aria-label="Close menu">
@@ -125,7 +125,7 @@ const SiteHeader = () => {
             <img
               src={require("../images/petadex-icon.png").default}
               alt="PETadex"
-              className="h-8 w-auto"
+              className="h-8 w-auto dark:invert"
             />
           </Link>
 

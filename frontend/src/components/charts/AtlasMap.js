@@ -274,7 +274,7 @@ const navBtnStyle = {
   lineHeight: 1,
 }
 
-const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnabled = true } = {}) => {
+const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnabled = true, fullscreen = false } = {}) => {
   const propHighlightId = familyIdProp != null ? parseInt(familyIdProp) : null
   const compact = propHighlightId != null
   const [highlightFamilyId, setHighlightFamilyId] = useState(propHighlightId)
@@ -503,7 +503,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
           getTooltip: ({ object }) => object && buildTooltip(object, highlightFamilyId),
           onClick: ({ object }) => {
             if (object?.family_id != null && object.family_id !== highlightFamilyId) {
-              window.location.href = `/family/${object.family_id}`
+              window.open(`/family/${object.family_id}`, "_blank", "noopener,noreferrer")
             }
           },
           getCursor: ({ isHovering }) => isHovering ? "pointer" : "grab",
@@ -558,7 +558,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       style={{
         position: "relative",
         width: "100%",
-        height: compact ? "50vh" : "80vh",
+        height: fullscreen ? "100%" : compact ? "50vh" : "80vh",
         minHeight: compact ? 350 : undefined,
         background: "#0f172a",
         borderRadius: "8px",
@@ -633,7 +633,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       })()}
 
       {/* fit-to-highlighted button */}
-      {!loading && !error && (highlightFamilyIds?.size > 0 || searchMatches.length > 0) && (
+      {!loading && !error && !fullscreen && (highlightFamilyIds?.size > 0 || searchMatches.length > 0) && (
         <button
           onClick={fitToHighlighted}
           title="Fit view to highlighted families"
@@ -758,13 +758,27 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
         </div>
       )}
 
+      {/* title */}
+      {!loading && !error && (
+        <div style={{
+          position: "absolute",
+          top: "14px",
+          left: fullscreen ? "234px" : "14px",
+          zIndex: 10,
+          pointerEvents: "none",
+        }}>
+          <div style={{ color: "#f1f5f9", fontSize: "15px", fontWeight: 700, lineHeight: 1.2 }}>Family Atlas</div>
+          <div style={{ color: "#64748b", fontSize: "11px", marginTop: "2px" }}>UMAP embedding of plastic-degrading enzyme families (30% centroids)</div>
+        </div>
+      )}
+
       {/* colour-by controls */}
       {!loading && !error && (
         <div
           style={{
             position: "absolute",
-            top: compact ? "48px" : "14px",
-            left: "14px",
+            top: compact ? "48px" : "70px",
+            left: fullscreen ? "234px" : "14px",
             display: "flex",
             alignItems: "center",
             gap: "6px",
@@ -799,7 +813,18 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       {/* text legend — flat (domain/phylum) */}
       {Array.isArray(legend) && legend.length > 0 && (
         <div
-          style={{
+          style={fullscreen ? {
+            position: "absolute",
+            top: 0, left: 0, bottom: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflowY: "auto",
+            padding: "12px 14px",
+            background: "rgba(15,23,42,0.90)",
+            borderRight: "1px solid #1e293b",
+            zIndex: 10,
+            width: "220px",
+          } : {
             position: "absolute",
             top: compact ? "86px" : "52px",
             left: "14px",
@@ -832,9 +857,10 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
                   display: "flex",
                   alignItems: "center",
                   gap: "7px",
-                  marginBottom: "5px",
+                  marginBottom: fullscreen ? "5px" : "5px",
                   cursor: "pointer",
                   opacity: off ? 0.35 : 1,
+                  flexShrink: 0,
                 }}
               >
                 <div
@@ -852,9 +878,6 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
                   style={{
                     color: off ? "#475569" : "#cbd5e1",
                     fontSize: "11px",
-                    flex: 1,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                   }}
                   title={label}
@@ -873,7 +896,18 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       {/* grouped legend — component mode (CATH → components) */}
       {legend && legend.grouped && (
         <div
-          style={{
+          style={fullscreen ? {
+            position: "absolute",
+            top: 0, left: 0, bottom: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflowY: "auto",
+            padding: "12px 14px",
+            background: "rgba(15,23,42,0.90)",
+            borderRight: "1px solid #1e293b",
+            zIndex: 10,
+            width: "220px",
+          } : {
             position: "absolute",
             top: compact ? "86px" : "52px",
             left: "14px",
@@ -892,6 +926,44 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
             const childKeys = children.map(c => c.label)
             const allChildrenOff = childKeys.length > 0 && childKeys.every(k => hidden.has(k))
             const parentOff = cath === "Unassigned" ? hidden.has("Unassigned") : allChildrenOff
+
+            if (fullscreen) {
+              // Fullscreen: same vertical layout, just wider container
+              return (
+                <div key={cath} style={{ marginBottom: "8px" }}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => cath === "Unassigned" ? toggleKey("Unassigned") : toggleKeys(childKeys)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        cath === "Unassigned" ? toggleKey("Unassigned") : toggleKeys(childKeys)
+                      }
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "3px", cursor: "pointer", opacity: parentOff ? 0.35 : 1 }}
+                  >
+                    <div style={{ width: "10px", height: "10px", borderRadius: "3px", flexShrink: 0, background: parentOff ? "#334155" : cathColor }} />
+                    <span style={{ color: parentOff ? "#475569" : "#e2e8f0", fontSize: "11px", fontWeight: 600, flex: 1, wordBreak: "break-word" }} title={cath}>{cath}</span>
+                    <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>{total}</span>
+                  </div>
+                  {children.map(({ label, count, color }) => {
+                    const off = hidden.has(label)
+                    return (
+                      <div key={label} role="button" tabIndex={0} onClick={() => toggleKey(label)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleKey(label) } }}
+                        style={{ display: "flex", alignItems: "center", gap: "7px", marginBottom: "2px", paddingLeft: "17px", cursor: "pointer", opacity: off ? 0.35 : 1 }}
+                      >
+                        <div style={{ width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0, background: off ? "#334155" : `rgba(${color[0]},${color[1]},${color[2]},${(color[3] ?? 200) / 255})` }} />
+                        <span style={{ color: off ? "#475569" : "#cbd5e1", fontSize: "10px", flex: 1 }}>Component {label}</span>
+                        <span style={{ color: "#475569", fontSize: "10px", flexShrink: 0 }}>{count}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            }
+
             return (
               <div key={cath} style={{ marginBottom: "8px" }}>
                 {/* CATH domain parent row */}

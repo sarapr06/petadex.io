@@ -1,25 +1,12 @@
 import React from "react"
 import Seo from "../components/seo"
 import AtlasMap from "../components/charts/AtlasMap"
-import { useScrollHeader } from "../hooks/useScrollHeader"
-import Container from '../components/common/Container'
 
-const AtlasPage = () => {
-  useScrollHeader()
-
-  return (
-    <section className="py-20 md:py-24">
-      <Container>
-        <h1 className="text-4xl font-semibold text-primary mb-1">Family Atlas</h1>
-        <p className="text-secondary-foreground text-lg">
-          UMAP embedding of plastic-degrading enzyme families
-        </p>
-        <AtlasMap />
-      </Container>
-
-    </section>
-  )
-}
+const AtlasPage = () => (
+  <div style={{ position: "fixed", top: 64, left: 0, right: 0, bottom: 0, zIndex: 0 }}>
+    <AtlasMap fullscreen />
+  </div>
+)
 
 export default AtlasPage
 
