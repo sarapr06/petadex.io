@@ -1,232 +1,409 @@
-import React, { useState, useEffect } from "react"
-import { Link } from "gatsby"
-import { useScrollHeader } from "../hooks/useScrollHeader"
-import SequencePanel from "../components/sequence/SequencePanel"
-import StructurePanel from "../components/StructurePanel"
-import MetadataPanel from "../components/MetadataPanel"
-import Container from "../components/common/Container"
+import React, { useState, useEffect, useRef, useMemo } from "react"
 import config from "../config"
+import AtlasMap from "../components/AtlasMap"
+import Container from "../components/common/Container"
 
-const CheckIcon = () => (
-  <span className="inline-block h-4 w-4 shrink-0 text-accent">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
+/* ── Legend chip ─────────────────────────────────────────────── */
+const LegendChip = ({ color, children }) => (
+  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/50 border border-border text-2xs text-muted-foreground font-mono">
+    {color && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />}
+    {children}
   </span>
 )
 
-const FEATURES = [
-  {
-    title: "Comprehensive Sequence Database",
-    description: "Access a curated collection of plastic‑degrading enzyme sequences with detailed metadata, experimental data, and provenance information from research worldwide.",
-    bullets: ["350+ PETase sequences", "Experimental activity data", "Geographic metadata", "Regular updates"],
-    panel: "sequence",
-  },
-  {
-    title: "3D Structure Visualization",
-    description: "Explore protein structures in your browser with interactive 3D visualization. View PDB structures, analyze binding sites, and understand enzyme mechanisms.",
-    bullets: ["Interactive 3D viewer", "PDB structure data", "Structural annotations", "Browser‑based rendering"],
-    panel: "structure",
-  },
-  {
-    title: "Experimental Data & Analytics",
-    description: "Access experimental measurements, plate reader data, and enzyme activity profiles. Compare performance across conditions and identify promising candidates.",
-    bullets: ["Activity measurements", "Environmental parameters", "Data visualization", "Export capabilities"],
-    panel: "metadata",
-  },
-]
+/* ── Hero ────────────────────────────────────────────────────── */
+function Hero() {
+  return (
+    <section className="relative">
+      <div className="relative h-[640px] w-full bg-[#0e0e0e] border-b border-border overflow-hidden">
+        <AtlasMap interactive />
 
-const USE_CASES = [
-  {
-    role: "Protein Engineering",
-    sub: "Discover new variants",
-    quote: "Find novel enzyme variants with specific activity profiles for bioengineering applications.",
-    icon: <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />,
-  },
-  {
-    role: "Environmental Research",
-    sub: "Study enzyme distribution",
-    quote: "Explore the geographic distribution of plastic‑degrading enzymes and discover patterns in enzyme evolution.",
-    icon: <><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></>,
-  },
-  {
-    role: "Computational Biology",
-    sub: "Build predictive models",
-    quote: "Access comprehensive datasets for computational modeling and machine learning applications.",
-    icon: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></>,
-  },
-]
+        {/* Vignette overlay */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 80% 60% at 30% 50%, oklch(0 0 0 / 0.55) 0%, transparent 70%), linear-gradient(to right, oklch(0 0 0 / 0.65) 0%, transparent 50%)",
+          }}
+        />
 
-export default function HomePage() {
-  useScrollHeader()
+        {/* Value prop */}
+        <div className="absolute inset-0 flex items-center pointer-events-none">
+          <Container size="wide">
+            <div className="max-w-[560px] pointer-events-auto">
+              <p className="label mb-4">Open · Free · Community-driven</p>
+              <h1
+                className="text-foreground font-semibold tracking-tight leading-[1.05]"
+                style={{ fontSize: "clamp(2.4rem, 4.4vw, 3.6rem)" }}
+              >
+                Every plastic-degrading enzyme,
+                <br />
+                <span className="text-accent">in one atlas.</span>
+              </h1>
+              <p className="mt-5 text-base text-muted-foreground max-w-[480px] leading-relaxed">
+                1.3 billion unique sequences. 64,730 enzyme families. 350+ characterized PETases. One interface to
+                <span className="text-foreground"> search</span>,{" "}
+                <span className="text-foreground">align</span>,{" "}
+                <span className="text-foreground">compare substrates</span>, and{" "}
+                <span className="text-foreground">trace evolution</span>.
+              </p>
+              <div className="mt-7 flex flex-wrap items-center gap-3">
+                <a href="/atlas" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+                  Start exploring
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 10a1 1 0 011-1h10.586l-3.293-3.293a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L14.586 11H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                  </svg>
+                </a>
+                <a href="#cite" className="btn btn-ghost font-mono text-xs border border-border-strong">
+                  How to cite
+                </a>
+                <span className="text-2xs font-mono text-muted-foreground hidden sm:inline-flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                  v0.4 · April 2026
+                </span>
+              </div>
+            </div>
+          </Container>
+        </div>
 
-  const ISPETASE_ACCESSION = "WP_054022242.1"
-  const [sequenceData, setSequenceData] = useState(null)
-  const [metadata, setMetadata] = useState(null)
-  const [summaryStats, setSummaryStats] = useState(null)
-  const [loading, setLoading] = useState(true)
+        {/* Top-right chips */}
+        <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-none">
+          <LegendChip color="#4F8FE8">
+            Family Atlas <span className="text-foreground ml-1">live</span>
+          </LegendChip>
+          <LegendChip>scroll · drag · click</LegendChip>
+        </div>
 
+        {/* Bottom legend strip */}
+        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 rounded-lg bg-black/55 border border-border backdrop-blur-md pointer-events-auto">
+          {[
+            { c: "#4F8FE8", l: "α/β hydrolase" },
+            { c: "#2ECC71", l: "DD-peptidase" },
+            { c: "#E74C4C", l: "Amidase" },
+            { c: "#9B5BE0", l: "Trypsin-like" },
+            { c: "#F2C94C", l: "Arylesterase" },
+            { c: "#F2994A", l: "Cupredoxin" },
+            { c: "#6FB7E8", l: "L-aa peptidase" },
+          ].map(x => (
+            <LegendChip key={x.l} color={x.c}>{x.l}</LegendChip>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ── Mini thumbnails for tool cards ──────────────────────────── */
+function AtlasThumb() {
+  const ref = useRef(null)
   useEffect(() => {
-    async function fetchIsPETaseData() {
-      try {
-        const [seqRes, metaRes, statsRes] = await Promise.all([
-          fetch(`${config.apiUrl}/fastaa/${ISPETASE_ACCESSION}`),
-          fetch(`${config.apiUrl}/gene-metadata/by-accession/${ISPETASE_ACCESSION}`),
-          fetch(`${config.apiUrl}/aa-seq-features/${ISPETASE_ACCESSION}`),
-        ])
-        if (seqRes.ok) setSequenceData(await seqRes.json())
-        if (metaRes.ok) { const m = await metaRes.json(); setMetadata(Array.isArray(m) ? m : [m]) }
-        if (statsRes.ok) setSummaryStats(await statsRes.json())
-      } catch (err) {
-        console.error("Error fetching IsPETase data:", err)
-      } finally {
-        setLoading(false)
+    const canvas = ref.current
+    if (!canvas) return
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    const w = canvas.clientWidth, h = canvas.clientHeight
+    canvas.width = w * dpr; canvas.height = h * dpr
+    const ctx = canvas.getContext("2d")
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.fillStyle = "#0e0e0e"; ctx.fillRect(0, 0, w, h)
+    let s = 7
+    const rnd = () => { s = (s * 1664525 + 1013904223) | 0; return (s >>> 0) / 4294967296 }
+    const gauss = () => { let u = 0, v = 0; while (!u) u = rnd(); while (!v) v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v) }
+    ctx.globalCompositeOperation = "lighter"
+    for (const c of [
+      { cx: 0.30, cy: 0.05, sx: 0.18, sy: 0.16, n: 130, color: "#4F8FE8" },
+      { cx: -0.30, cy: 0.50, sx: 0.08, sy: 0.07, n: 44, color: "#2ECC71" },
+      { cx: 0.34, cy: 0.55, sx: 0.07, sy: 0.07, n: 40, color: "#E74C4C" },
+      { cx: -0.42, cy: -0.05, sx: 0.05, sy: 0.06, n: 17, color: "#9B5BE0" },
+      { cx: 0.04, cy: 0.42, sx: 0.05, sy: 0.04, n: 13, color: "#F2C94C" },
+    ]) {
+      for (let i = 0; i < c.n; i++) {
+        const x = c.cx + gauss() * c.sx, y = c.cy + gauss() * c.sy
+        const px = w / 2 + x * Math.min(w, h), py = h / 2 + (y - 0.18) * Math.min(w, h)
+        ctx.fillStyle = c.color; ctx.globalAlpha = 0.55
+        ctx.beginPath(); ctx.arc(px, py, 1.4, 0, Math.PI * 2); ctx.fill()
       }
     }
-    fetchIsPETaseData()
   }, [])
+  return <canvas ref={ref} className="block w-full h-full" />
+}
 
-  const loadingPlaceholder = (height = "h-[400px]") => (
-    <div className={`${height} flex items-center justify-center`}>
-      <p className="text-sm text-muted-foreground italic">Loading preview…</p>
+function SequenceThumb() {
+  const seq = "MNFPRASRLMQAAVLGGLMAVSAAATAQTNPYARGPNPTAASLEASAGPFTVRSFTVSRPSGYGAGTVYYPTNAGGTVGAIAIVPGYTARQSSIKWWGPRLASHGFVVITIDTNS"
+  const [typed, setTyped] = useState("")
+  useEffect(() => {
+    let i = 0
+    const id = setInterval(() => { i = (i + 1) % (seq.length + 8); setTyped(seq.slice(0, i)) }, 40)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <div className="absolute inset-0 p-3 flex flex-col gap-2">
+      <div className="flex items-center gap-1.5 text-2xs font-mono text-muted-foreground">
+        <span className="w-2 h-2 rounded-full bg-accent" /> FASTA · Protein
+      </div>
+      <div className="flex-1 rounded-md border border-border bg-surface-sunken p-2 font-mono text-2xs leading-relaxed text-foreground overflow-hidden">
+        <div className="text-muted-foreground">&gt;query|IsPETase</div>
+        <div className="break-all">
+          {typed}
+          <span className="inline-block w-1.5 h-2.5 -mb-px ml-px bg-accent animate-pulse" />
+        </div>
+      </div>
+      <div className="flex items-center justify-between text-2xs font-mono text-muted-foreground">
+        <span>{typed.length} / 10,000 aa</span>
+        <span className="px-1.5 py-0.5 rounded bg-accent-subtle text-accent border border-accent/30">MMseqs2</span>
+      </div>
     </div>
   )
+}
 
+function SubstrateThumb() {
+  const dots = useMemo(() => {
+    const arr = []; let s = 1234
+    const rnd = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff }
+    for (let i = 0; i < 70; i++) {
+      const x = rnd(), y = Math.max(0, Math.min(1, x + (rnd() - 0.5) * 0.5))
+      arr.push({ x, y, r: 1.5 + rnd() * 2.5 })
+    }
+    return arr
+  }, [])
+  return (
+    <svg viewBox="0 0 160 100" preserveAspectRatio="none" className="absolute inset-0 w-full h-full">
+      <rect width="160" height="100" fill="#0e0e0e" />
+      <line x1="14" y1="86" x2="150" y2="86" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
+      <line x1="14" y1="86" x2="14" y2="10" stroke="rgba(255,255,255,0.15)" strokeWidth="0.5" />
+      <line x1="14" y1="86" x2="150" y2="10" stroke="rgba(255,255,255,0.12)" strokeWidth="0.5" strokeDasharray="2 2" />
+      {dots.map((d, i) => (
+        <circle key={i} cx={14 + d.x * 136} cy={86 - d.y * 76} r={d.r}
+          fill={d.y > d.x ? "#A23B72" : "#2E86AB"} fillOpacity="0.75" />
+      ))}
+      <text x="78" y="97" fill="rgba(255,255,255,0.5)" fontSize="6" fontFamily="ui-monospace, monospace" textAnchor="middle">BHET25 →</text>
+    </svg>
+  )
+}
+
+function FamilyThumb() {
+  const lines = useMemo(() => {
+    const out = [], cx = 80, cy = 50, n = 14
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2 - Math.PI / 2
+      const r1 = 14 + (i % 3) * 4, r2 = 38 + (i % 4) * 3
+      out.push({ x1: cx + Math.cos(a) * r1, y1: cy + Math.sin(a) * r1, x2: cx + Math.cos(a) * r2, y2: cy + Math.sin(a) * r2 })
+      for (let j = -1; j <= 1; j += 2) {
+        const a2 = a + j * 0.10, r3 = r2 + 6 + (i % 3) * 2
+        out.push({ x1: cx + Math.cos(a) * r2, y1: cy + Math.sin(a) * r2, x2: cx + Math.cos(a2) * r3, y2: cy + Math.sin(a2) * r3, tip: true })
+      }
+    }
+    return out
+  }, [])
+  return (
+    <svg viewBox="0 0 160 100" className="absolute inset-0 w-full h-full">
+      <rect width="160" height="100" fill="#0e0e0e" />
+      <circle cx="80" cy="50" r="3" fill="var(--accent)" />
+      {lines.map((l, i) => (
+        <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
+          stroke={l.tip ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.30)"} strokeWidth={l.tip ? 0.6 : 0.8} />
+      ))}
+      {lines.filter(l => l.tip).map((l, i) => (
+        <circle key={i} cx={l.x2} cy={l.y2} r="1.2" fill={i % 4 === 0 ? "var(--accent)" : "#4F8FE8"} fillOpacity="0.9" />
+      ))}
+    </svg>
+  )
+}
+
+const TOOL_CARDS = [
+  { id: "atlas", eyebrow: "01 · Atlas", title: "Browse the family atlas", sub: "Explore 64,730 families in 2D UMAP space. Color by domain, phylum, or CATH component.", kbd: "A", cta: "Open Atlas →", href: "/atlas", Thumb: AtlasThumb },
+  { id: "search", eyebrow: "02 · Search", title: "Find homologs by sequence", sub: "Paste a FASTA sequence; MMseqs2 returns nearest neighbors with alignments and activity context.", kbd: "S", cta: "Run a search →", href: "/search", Thumb: SequenceThumb },
+  { id: "substrate", eyebrow: "03 · Substrate", title: "Compare BHET activity", sub: "Side-by-side scatter of measured activity at 12.5 / 25 / 50 mM BHET. Click any gene to drill in.", kbd: "B", cta: "Compare substrates →", href: "/substrate", Thumb: SubstrateThumb },
+  { id: "family", eyebrow: "04 · Family", title: "Trace a family tree", sub: "Newick-rendered phylogenies for every family, with member tables and centroid sequences.", kbd: "F", cta: "Open a family →", href: "/enzymes", Thumb: FamilyThumb },
+]
+
+function ToolCards() {
+  return (
+    <section id="start" className="py-20 border-b border-border">
+      <Container size="wide">
+        <div className="flex items-end justify-between flex-wrap gap-y-4 mb-10">
+          <div>
+            <p className="label mb-2">Start here</p>
+            <h2 className="text-3xl font-semibold tracking-tight">Four ways into the data</h2>
+          </div>
+          <p className="text-muted-foreground text-sm max-w-md">
+            PETadex is a launchpad, not a paper. Pick the tool that matches your question.
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {TOOL_CARDS.map(({ id, eyebrow, title, sub, kbd, cta, href, Thumb }) => (
+            <a key={id} href={href} target="_blank" rel="noopener noreferrer" className="card flex flex-col group no-underline">
+              <div className="relative h-40 bg-surface-sunken rounded-t-xl border-b border-border overflow-hidden">
+                <Thumb />
+                <div className="absolute top-2 left-2">
+                  <LegendChip>{eyebrow}</LegendChip>
+                </div>
+                <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-2xs font-mono text-muted-foreground border border-border bg-black/50">
+                  ⌘ {kbd}
+                </div>
+              </div>
+              <div className="p-4 flex-1 flex flex-col">
+                <h3 className="text-foreground text-base font-semibold leading-snug">{title}</h3>
+                <p className="text-muted-foreground text-xs mt-1.5 leading-relaxed flex-1">{sub}</p>
+                <div className="mt-3 text-xs font-medium text-accent group-hover:translate-x-0.5 transition-transform">
+                  {cta}
+                </div>
+              </div>
+            </a>
+          ))}
+        </div>
+      </Container>
+    </section>
+  )
+}
+
+/* ── Stats strip ─────────────────────────────────────────────── */
+const STATS = [
+  { v: "1.3B", k: "Unique sequences", sub: "across all enzyme families" },
+  { v: "64,730", k: "Enzyme families", sub: "UMAP-embedded centroids" },
+  { v: "350+", k: "Characterized PETases", sub: "with experimental activity" },
+  { v: "12,884", k: "Sequences in fastaa", sub: "amino-acid + provenance" },
+  { v: "189", k: "Sample countries", sub: "geo metadata + dates" },
+]
+
+function StatsStrip() {
+  return (
+    <section className="bg-surface-raised border-b border-border">
+      <Container size="wide" className="py-10 grid grid-cols-2 md:grid-cols-5 divide-x divide-border">
+        {STATS.map((s, i) => (
+          <div key={i} className={`px-5 ${i === 0 ? "pl-0" : ""} ${i === STATS.length - 1 ? "pr-0" : ""}`}>
+            <div className="text-foreground text-[28px] font-semibold tracking-tight tabular-nums">{s.v}</div>
+            <div className="text-foreground text-xs mt-1">{s.k}</div>
+            <div className="text-muted-foreground text-2xs font-mono mt-0.5">{s.sub}</div>
+          </div>
+        ))}
+      </Container>
+    </section>
+  )
+}
+
+/* ── What's in PETadex ───────────────────────────────────────── */
+const DATA_ROWS = [
+  { t: "Sequences", d: "Curated amino-acid sequences from NCBI BLAST-NR + literature", k: "fastaa · enzyme_fastaa · enzyme_taxonomy" },
+  { t: "Structures", d: "Predicted & experimental structures via Molstar + 3DMol viewers", k: "PDB · Molstar · 3DMol.js" },
+  { t: "Activity", d: "Plate-reader BHET hydrolysis at three substrate concentrations", k: "plate_data · plate_metadata · plate_activity_view" },
+  { t: "Provenance", d: "Geographic origin, BioSample / SRA links, sampling dates", k: "with_sra_and_biosample_loc_metadata" },
+  { t: "Embeddings", d: "UMAP coordinates + CATH-domain colorings for every family", k: "family_atlas (materialized view)" },
+  { t: "Phylogenies", d: "Pre-computed Newick trees per family from S3-backed alignments", k: "family/:id/tree" },
+]
+
+function WhatsInside() {
+  return (
+    <section className="py-20 border-b border-border">
+      <Container size="wide">
+        <div className="flex items-end justify-between flex-wrap gap-y-4 mb-10">
+          <div>
+            <p className="label mb-2">What's in PETadex</p>
+            <h2 className="text-3xl font-semibold tracking-tight">Six layers of data, one schema</h2>
+          </div>
+          <a href="/fastaa" target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:opacity-80 font-mono">
+            View the full schema →
+          </a>
+        </div>
+        <div className="card overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-muted-foreground text-2xs uppercase tracking-widest font-semibold">
+                <th className="px-5 py-3 w-[15%]">Layer</th>
+                <th className="px-5 py-3 w-[55%]">What's there</th>
+                <th className="px-5 py-3 w-[30%]">Tables / endpoints</th>
+              </tr>
+            </thead>
+            <tbody>
+              {DATA_ROWS.map((r, i) => (
+                <tr key={i} className="hover:bg-surface-raised transition-colors">
+                  <td className="px-5 py-4 text-foreground font-medium">{r.t}</td>
+                  <td className="px-5 py-4 text-muted-foreground">{r.d}</td>
+                  <td className="px-5 py-4 text-xs font-mono text-accent/85">{r.k}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Container>
+    </section>
+  )
+}
+
+/* ── Citation block ───────────────────────────────────────────── */
+const BIBTEX = `@misc{petadex2026,
+  title  = {PETadex: an open atlas of plastic-degrading enzymes},
+  author = {The PETadex contributors},
+  year   = {2026},
+  url    = {https://petadex.net},
+  note   = {v0.4 (Apr 2026)}
+}`
+
+function Citation() {
+  const [copied, setCopied] = useState(false)
+  const onCopy = () => {
+    navigator.clipboard?.writeText(BIBTEX)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1400)
+  }
+  return (
+    <section id="cite" className="py-20 bg-surface-sunken border-b border-border">
+      <Container size="wide" className="grid lg:grid-cols-[1fr_1.4fr] gap-10 items-start">
+        <div>
+          <p className="label mb-2">Cite</p>
+          <h2 className="text-3xl font-semibold tracking-tight">Use it, share it, cite it.</h2>
+          <p className="text-muted-foreground text-sm mt-4 leading-relaxed max-w-md">
+            PETadex is open-source under the MIT license. If a paper or pre-print uses our data,
+            tools, or atlases, please cite the entry below.
+          </p>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <a href="https://github.com/ababaian/petadex.io/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="btn btn-ghost border border-border-strong text-sm">
+              License (MIT)
+            </a>
+            <a href="https://github.com/ababaian/petadex.io" target="_blank" rel="noopener noreferrer" className="btn btn-ghost border border-border-strong text-sm">
+              Source on GitHub
+            </a>
+          </div>
+        </div>
+        <div className="card relative">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-border text-2xs font-mono text-muted-foreground">
+            <span>citation.bib</span>
+            <button onClick={onCopy} className="hover:text-foreground transition-colors flex items-center gap-1.5 cursor-pointer">
+              {copied ? (
+                <>
+                  <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                  copied
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="6" width="11" height="11" rx="1.5" /><path d="M14 6V4.5A1.5 1.5 0 0 0 12.5 3h-7A1.5 1.5 0 0 0 4 4.5v8A1.5 1.5 0 0 0 5.5 14H7" /></svg>
+                  copy
+                </>
+              )}
+            </button>
+          </div>
+          <pre className="font-mono text-xs leading-relaxed text-foreground px-4 py-4 m-0 overflow-x-auto whitespace-pre bg-transparent border-0 shadow-none rounded-none">
+{`@misc{petadex2026,
+  `}<span className="text-foreground font-semibold">title</span>{`  = {PETadex: an open atlas of plastic-degrading enzymes},
+  `}<span className="text-foreground font-semibold">author</span>{` = {The PETadex contributors},
+  `}<span className="text-foreground font-semibold">year</span>{`   = {2026},
+  `}<span className="text-foreground font-semibold">url</span>{`    = {https://petadex.net},
+  `}<span className="text-foreground font-semibold">note</span>{`   = {v0.4 (Apr 2026)}
+}`}
+          </pre>
+        </div>
+      </Container>
+    </section>
+  )
+}
+
+export default function HomePage() {
   return (
     <>
-      {/* ── Hero ── */}
-      <section className="py-20 md:py-24 text-center">
-        <Container size="sm">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground md:text-4xl">
-            Explore plastic‑degrading enzymes.
-          </h1>
-          <p className="mt-4 text-lg text-muted-foreground">
-            PETadex is an open‑source platform for discovering and analyzing plastic‑degrading
-            enzymes (PETases). Search sequences, view 3D structures, and explore experimental
-            data for enzymes that break down plastics.
-          </p>
-          <div className="mt-6 flex flex-col items-center gap-y-3">
-            <Link to="/fastaa" className="btn btn-primary rounded-full px-6 py-3 text-sm">
-              Start Exploring — It's Free
-            </Link>
-            <p className="text-xs text-muted-foreground">
-              <small>Open‑source and community‑driven.</small>
-            </p>
-          </div>
-        </Container>
-
-        <Container className="mt-10">
-          <img
-            src={require("../images/cys-pilot-seqs.png").default}
-            loading="lazy"
-            alt="PETase Network Diagram"
-            className="mx-auto w-full max-w-4xl rounded-xl shadow-md"
-          />
-        </Container>
-      </section>
-
-      {/* ── Partners strip ── */}
-      <section className="bg-surface-raised border-y border py-5">
-        <Container className="text-center">
-          <p className="text-xs text-muted-foreground">
-            Powered by open science and community contributions
-          </p>
-        </Container>
-      </section>
-
-      {/* ── Features ── */}
-      <section className="py-16 md:py-20">
-        <Container className="space-y-20">
-          {FEATURES.map(({ title, description, bullets, panel }, i) => {
-            const isEven = i % 2 === 0
-
-            const textBlock = (
-              <div>
-                <h2 className="text-2xl font-semibold text-foreground">{title}</h2>
-                <p className="mt-3 text-sm text-muted-foreground md:text-base">{description}</p>
-                <ul className="mt-4 grid gap-2 text-sm text-muted-foreground md:grid-cols-2 md:gap-3 md:text-base">
-                  {bullets.map(item => (
-                    <li key={item} className="flex items-center gap-2.5">
-                      <CheckIcon />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )
-
-            const previewBlock = (
-              <div className={`card overflow-auto p-0 ${panel === "structure" ? "h-[500px]" : "max-h-[400px]  p-5"}`}>
-                {loading ? loadingPlaceholder(panel === "structure" ? "h-[500px]" : "h-[400px]") : (
-                  panel === "sequence" ? (
-                    <SequencePanel sequence={sequenceData?.sequence} accession={ISPETASE_ACCESSION} summaryStats={summaryStats} statsLoading={false} />
-                  ) : panel === "structure" ? (
-                    <StructurePanel accession={ISPETASE_ACCESSION} />
-                  ) : (
-                    <MetadataPanel metadata={metadata} accession={ISPETASE_ACCESSION} />
-                  )
-                )}
-              </div>
-            )
-
-            return (
-              <div key={title} className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-center">
-                {isEven ? <>{previewBlock}{textBlock}</> : <>{textBlock}{previewBlock}</>}
-              </div>
-            )
-          })}
-        </Container>
-      </section>
-
-      {/* ── Use cases ── */}
-      <section className="bg-surface-raised border-y border py-16 md:py-20">
-        <Container>
-          <div className="mx-auto max-w-2xl text-center mb-12">
-            <h2 className="text-2xl font-semibold text-foreground md:text-3xl">Use Cases</h2>
-            <p className="mt-3 text-sm text-muted-foreground md:text-base">
-              How researchers use PETadex
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-            {USE_CASES.map(({ role, sub, quote, icon }) => (
-              <div key={role} className="text-center">
-                <svg viewBox="0 0 24 24" height="48" width="48" fill="none"
-                  stroke="currentColor" strokeWidth="1.5"
-                  className="mx-auto mb-4 text-muted-foreground">
-                  {icon}
-                </svg>
-                <p className="mb-4 text-sm text-muted-foreground md:text-base">"{quote}"</p>
-                <p className="text-xs text-muted-foreground">
-                  <strong className="text-foreground">{role}</strong>
-                  <br />
-                  <small>{sub}</small>
-                </p>
-              </div>
-            ))}
-          </div>
-        </Container>
-      </section>
-
-      {/* ── Closing CTA ── */}
-      <section className="bg-surface-sunken py-16 md:py-20">
-        <Container size="sm" className="text-center">
-          <h2 className="text-2xl font-semibold text-foreground md:text-3xl">
-            Start exploring today.
-          </h2>
-          <p className="mt-3 text-sm text-muted-foreground md:text-base">
-            Join the community tackling plastic pollution through enzyme research.
-          </p>
-          <div className="mt-6 flex flex-col items-center gap-y-3">
-            <Link to="/fastaa" className="btn btn-primary rounded-full px-6 py-3 text-sm">
-              Browse Database — It's Free
-            </Link>
-            <p className="text-xs text-muted-foreground">
-              <small>Open source and always free.</small>
-            </p>
-          </div>
-        </Container>
-      </section>
+      <Hero />
+      <ToolCards />
+      <StatsStrip />
+      <WhatsInside />
+      <Citation />
     </>
   )
 }
