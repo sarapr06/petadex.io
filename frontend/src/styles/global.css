@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────
-   Dark-mode variant — triggered by .dark on <html>
+   Light-mode variant — triggered by .light on <html>
+   Dark is now the default; light is the opt-in override.
    ───────────────────────────────────────────────────────────── */
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:is(:not(.light) *));
 
 /* ─────────────────────────────────────────────────────────────
    THEME MAPPING
@@ -161,14 +162,14 @@
 }
 
 /* ─────────────────────────────────────────────────────────────
-   RAW CSS VARS — Light mode defaults
+   RAW CSS VARS — Dark mode defaults
    These are the only place actual color values live.
    @theme inline reads these; never hardcode values in @theme.
 
    PETadex brand accent ≈ #c94141 = oklch(0.52 0.18 22)
    ───────────────────────────────────────────────────────────── */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
   --radius: 0.625rem;
 
@@ -178,79 +179,6 @@
   --duration-slow:   350ms;
 
   /* Surfaces */
-  --background:      oklch(1 0 0);
-  --foreground:      oklch(0.14 0 0);
-  --surface:         oklch(1 0 0);
-  --surface-raised:  oklch(0.97 0 0);
-  --surface-sunken:  oklch(0.94 0 0);
-  --surface-overlay: oklch(1 0 0 / 0.92);
-
-  /* Card */
-  --card:            oklch(1 0 0);
-  --card-foreground: oklch(0.14 0 0);
-
-  /* Popover */
-  --popover:            oklch(1 0 0);
-  --popover-foreground: oklch(0.14 0 0);
-
-  /* Primary — near-black for general CTAs */
-  --primary:            oklch(0.20 0 0);
-  --primary-foreground: oklch(0.98 0 0);
-
-  /* Secondary */
-  --secondary:            oklch(0.96 0 0);
-  --secondary-foreground: oklch(0.20 0 0);
-
-  /* Muted */
-  --muted:            oklch(0.96 0 0);
-  --muted-foreground: oklch(0.52 0 0);
-
-  /* Brand accent — PETadex red */
-  --accent:          oklch(0.52 0.18 22);
-  --accent-foreground: oklch(0.98 0 0);
-  --accent-subtle:   oklch(0.96 0.02 22);
-  --accent-hover:    oklch(0.46 0.18 22);
-
-  /* Destructive */
-  --destructive:            oklch(0.58 0.24 27);
-  --destructive-foreground: oklch(0.98 0 0);
-
-  /* Borders & inputs */
-  --border:        oklch(0.90 0 0);
-  --border-strong: oklch(0.82 0 0);
-  --input:         oklch(0.90 0 0);
-  --ring:          oklch(0.52 0.18 22);
-
-  /* Status */
-  --success:            oklch(0.56 0.16 155);
-  --success-foreground: oklch(0.98 0 0);
-  --warning:            oklch(0.70 0.16 75);
-  --warning-foreground: oklch(0.15 0 0);
-  --info:               oklch(0.56 0.18 255);
-  --info-foreground:    oklch(0.98 0 0);
-
-  /* Charts */
-  --chart-1: oklch(0.65 0.22 41);
-  --chart-2: oklch(0.60 0.12 185);
-  --chart-3: oklch(0.40 0.07 227);
-  --chart-4: oklch(0.83 0.19 84);
-  --chart-5: oklch(0.77 0.19 70);
-
-  /* Sidebar */
-  --sidebar:                    oklch(0.98 0 0);
-  --sidebar-foreground:         oklch(0.14 0 0);
-  --sidebar-primary:            oklch(0.52 0.18 22);
-  --sidebar-primary-foreground: oklch(0.98 0 0);
-  --sidebar-accent:             oklch(0.94 0.01 22);
-  --sidebar-accent-foreground:  oklch(0.14 0 0);
-  --sidebar-border:             oklch(0.90 0 0);
-  --sidebar-ring:               oklch(0.52 0.18 22);
-}
-
-/* ─── Dark mode ────────────────────────────────────────────── */
-.dark {
-  color-scheme: dark;
-
   --background:      oklch(0.14 0 0);
   --foreground:      oklch(0.97 0 0);
   --surface:         oklch(0.14 0 0);
@@ -258,35 +186,43 @@
   --surface-sunken:  oklch(0.10 0 0);
   --surface-overlay: oklch(0.14 0 0 / 0.92);
 
+  /* Card */
   --card:            oklch(0.20 0 0);
   --card-foreground: oklch(0.97 0 0);
 
+  /* Popover */
   --popover:            oklch(0.20 0 0);
   --popover-foreground: oklch(0.97 0 0);
 
+  /* Primary */
   --primary:            oklch(0.92 0 0);
   --primary-foreground: oklch(0.20 0 0);
 
+  /* Secondary */
   --secondary:            oklch(0.26 0 0);
   --secondary-foreground: oklch(0.97 0 0);
 
+  /* Muted */
   --muted:            oklch(0.26 0 0);
   --muted-foreground: oklch(0.68 0 0);
 
-  /* Brand accent lighter in dark for contrast */
-  --accent:          oklch(0.64 0.17 22);
+  /* Brand accent — lighter in dark for contrast */
+  --accent:            oklch(0.64 0.17 22);
   --accent-foreground: oklch(0.10 0 0);
-  --accent-subtle:   oklch(0.22 0.04 22);
-  --accent-hover:    oklch(0.70 0.16 22);
+  --accent-subtle:     oklch(0.22 0.04 22);
+  --accent-hover:      oklch(0.70 0.16 22);
 
+  /* Destructive */
   --destructive:            oklch(0.70 0.19 22);
   --destructive-foreground: oklch(0.14 0 0);
 
+  /* Borders & inputs */
   --border:        oklch(1 0 0 / 0.10);
   --border-strong: oklch(1 0 0 / 0.18);
   --input:         oklch(1 0 0 / 0.15);
   --ring:          oklch(0.64 0.17 22);
 
+  /* Status */
   --success:            oklch(0.65 0.15 155);
   --success-foreground: oklch(0.10 0 0);
   --warning:            oklch(0.78 0.15 75);
@@ -294,12 +230,14 @@
   --info:               oklch(0.65 0.17 255);
   --info-foreground:    oklch(0.10 0 0);
 
+  /* Charts */
   --chart-1: oklch(0.49 0.24 264);
   --chart-2: oklch(0.70 0.17 162);
   --chart-3: oklch(0.77 0.19 70);
   --chart-4: oklch(0.63 0.27 304);
   --chart-5: oklch(0.65 0.25 16);
 
+  /* Sidebar */
   --sidebar:                    oklch(0.20 0 0);
   --sidebar-foreground:         oklch(0.97 0 0);
   --sidebar-primary:            oklch(0.64 0.17 22);
@@ -308,6 +246,70 @@
   --sidebar-accent-foreground:  oklch(0.97 0 0);
   --sidebar-border:             oklch(1 0 0 / 0.10);
   --sidebar-ring:               oklch(0.64 0.17 22);
+}
+
+/* ─── Light mode ───────────────────────────────────────────── */
+.light {
+  color-scheme: light;
+
+  --background:      oklch(1 0 0);
+  --foreground:      oklch(0.14 0 0);
+  --surface:         oklch(1 0 0);
+  --surface-raised:  oklch(0.97 0 0);
+  --surface-sunken:  oklch(0.94 0 0);
+  --surface-overlay: oklch(1 0 0 / 0.92);
+
+  --card:            oklch(1 0 0);
+  --card-foreground: oklch(0.14 0 0);
+
+  --popover:            oklch(1 0 0);
+  --popover-foreground: oklch(0.14 0 0);
+
+  /* Primary — near-black for general CTAs */
+  --primary:            oklch(0.20 0 0);
+  --primary-foreground: oklch(0.98 0 0);
+
+  --secondary:            oklch(0.96 0 0);
+  --secondary-foreground: oklch(0.20 0 0);
+
+  --muted:            oklch(0.96 0 0);
+  --muted-foreground: oklch(0.52 0 0);
+
+  /* Brand accent — PETadex red */
+  --accent:            oklch(0.52 0.18 22);
+  --accent-foreground: oklch(0.98 0 0);
+  --accent-subtle:     oklch(0.96 0.02 22);
+  --accent-hover:      oklch(0.46 0.18 22);
+
+  --destructive:            oklch(0.58 0.24 27);
+  --destructive-foreground: oklch(0.98 0 0);
+
+  --border:        oklch(0.90 0 0);
+  --border-strong: oklch(0.82 0 0);
+  --input:         oklch(0.90 0 0);
+  --ring:          oklch(0.52 0.18 22);
+
+  --success:            oklch(0.56 0.16 155);
+  --success-foreground: oklch(0.98 0 0);
+  --warning:            oklch(0.70 0.16 75);
+  --warning-foreground: oklch(0.15 0 0);
+  --info:               oklch(0.56 0.18 255);
+  --info-foreground:    oklch(0.98 0 0);
+
+  --chart-1: oklch(0.65 0.22 41);
+  --chart-2: oklch(0.60 0.12 185);
+  --chart-3: oklch(0.40 0.07 227);
+  --chart-4: oklch(0.83 0.19 84);
+  --chart-5: oklch(0.77 0.19 70);
+
+  --sidebar:                    oklch(0.98 0 0);
+  --sidebar-foreground:         oklch(0.14 0 0);
+  --sidebar-primary:            oklch(0.52 0.18 22);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent:             oklch(0.94 0.01 22);
+  --sidebar-accent-foreground:  oklch(0.14 0 0);
+  --sidebar-border:             oklch(0.90 0 0);
+  --sidebar-ring:               oklch(0.52 0.18 22);
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -367,11 +369,11 @@
   }
 
   ::selection {
-    background-color: oklch(from var(--accent) l c h / 0.2);
+    background-color: oklch(from var(--accent) l c h / 0.35);
     color: var(--foreground);
   }
-  .dark ::selection {
-    background-color: oklch(from var(--accent) l c h / 0.35);
+  .light ::selection {
+    background-color: oklch(from var(--accent) l c h / 0.2);
   }
 
   ::-webkit-scrollbar       { width: 6px; height: 6px; }

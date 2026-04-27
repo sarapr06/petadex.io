@@ -10,9 +10,7 @@ export const onRenderBody = ({ setPreBodyComponents }) => {
         __html: `
           (function() {
             var saved = localStorage.getItem('theme');
-            var preferred = 'light';
-            var theme = saved || preferred;
-            if (theme === 'dark') document.documentElement.classList.add('dark');
+            if (saved === 'light') document.documentElement.classList.add('light');
           })();
         `
       }}
