@@ -22,4 +22,27 @@ router.get('/umap', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /api/atlas/components
+ * Distinct atlas components with representative CATH/domain labels and family counts.
+ * Used by the CATH domains page selector and deep links from the atlas.
+ */
+router.get('/components', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT ON (fa.component)
+         fa.component,
+         fa.cath_domain,
+         fa.domain_name,
+         COUNT(*) OVER (PARTITION BY fa.component)::int AS family_count
+       FROM family_atlas fa
+       WHERE fa.component IS NOT NULL
+       ORDER BY fa.component, fa.family_size DESC NULLS LAST`
+    );
+    res.json({ components: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
