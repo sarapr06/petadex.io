@@ -1,21 +1,25 @@
 import { Router } from 'express';
 import { pool } from '../db.js';
+import { getSchemaFlags } from '../schemaFlags.js';
+import {
+  UMAP_POINTS_FROM_BASE_TABLES,
+  UMAP_POINTS_FROM_FAMILY_ATLAS,
+} from '../atlasQueries.js';
 
 const router = Router();
 
 /**
  * GET /api/atlas/umap
- * Returns all points from the family_atlas materialized view.
- * Single full payload — no pagination, no filtering.
+ * Returns all UMAP points from `family_atlas` when present; otherwise builds the
+ * same column shape from `family_umap_coordinates` + `enzyme_taxonomy`.
  */
 router.get('/umap', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(
-      `SELECT family_id, umap_x, umap_y, family_size,
-              organism, taxonomy, country, component,
-              cath_domain, domain_name
-       FROM family_atlas`
-    );
+    const flags = await getSchemaFlags(pool);
+    const sql = flags.familyAtlas
+      ? UMAP_POINTS_FROM_FAMILY_ATLAS
+      : UMAP_POINTS_FROM_BASE_TABLES;
+    const { rows } = await pool.query(sql);
     res.json({ points: rows });
   } catch (err) {
     next(err);

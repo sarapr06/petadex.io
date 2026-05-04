@@ -6,6 +6,13 @@
 import { Router } from 'express';
 import Joi from 'joi';
 import { pool } from '../db.js';
+import { getSchemaFlags } from '../schemaFlags.js';
+import {
+  FAMILY_METADATA_FROM_BASE_TABLES,
+  FAMILY_METADATA_FROM_FAMILY_ATLAS,
+  UMAP_POINTS_FROM_BASE_TABLES,
+  UMAP_POINTS_FROM_FAMILY_ATLAS,
+} from '../atlasQueries.js';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
 const router = Router();
@@ -152,14 +159,11 @@ router.get('/:familyId/metadata', async (req, res, next) => {
   if (error) return res.status(400).json({ error: error.message });
 
   try {
-    const { rows } = await pool.query(
-      `SELECT family_id, genbank_accession_id, definition, organism, taxonomy,
-              journal, collection_date, country, family_size, umap_x, umap_y
-       FROM family_atlas
-       WHERE family_id = $1
-       LIMIT 1`,
-      [familyId]
-    );
+    const flags = await getSchemaFlags(pool);
+    const sql = flags.familyAtlas
+      ? FAMILY_METADATA_FROM_FAMILY_ATLAS
+      : FAMILY_METADATA_FROM_BASE_TABLES;
+    const { rows } = await pool.query(sql, [familyId]);
     if (!rows.length) return res.status(404).json({ error: `No atlas metadata for family ${familyId}` });
     res.json(rows[0]);
   } catch (err) {
@@ -177,12 +181,11 @@ router.get('/:familyId/umap', async (req, res, next) => {
   if (error) return res.status(400).json({ error: error.message });
 
   try {
-    const { rows } = await pool.query(
-      `SELECT family_id, umap_x, umap_y, family_size,
-              organism, taxonomy, country, component,
-              cath_domain, domain_name
-       FROM family_atlas`
-    );
+    const flags = await getSchemaFlags(pool);
+    const sql = flags.familyAtlas
+      ? UMAP_POINTS_FROM_FAMILY_ATLAS
+      : UMAP_POINTS_FROM_BASE_TABLES;
+    const { rows } = await pool.query(sql);
     res.json({ points: rows });
   } catch (err) {
     next(err);
