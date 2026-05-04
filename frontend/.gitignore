@@ -63,6 +63,8 @@ typings/
 # gatsby files
 .cache/
 public
+# Local XDG_CONFIG_HOME for Gatsby when ~/.config is not writable (e.g. CI/sandbox)
+.config/
 
 # Mac files
 .DS_Store

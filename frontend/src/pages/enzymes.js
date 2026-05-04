@@ -277,7 +277,7 @@ const SearchResults = ({
 
 // ── EnzymesPage ────────────────────────────────────────────────────────────
 
-const EnzymesPage = () => {
+const EnzymesPage = ({ location }) => {
   useScrollHeader()
 
   const [view, setView] = useState("families")
@@ -293,8 +293,32 @@ const EnzymesPage = () => {
   const [sortBy, setSortBy] = useState("variant_count")
   const [hasMore, setHasMore] = useState(false)
   const [offset, setOffset] = useState(0)
+  const [componentFilterId, setComponentFilterId] = useState(null)
+  const [componentEnzymes, setComponentEnzymes] = useState([])
+  const [loadingComponentEnzymes, setLoadingComponentEnzymes] = useState(false)
   const FAMILIES_PER_PAGE = 10
   const FAMILIES_INITIAL = 20
+
+  useEffect(() => {
+    const search = location?.search ?? (typeof window !== "undefined" ? window.location.search : "")
+    const raw = new URLSearchParams(search).get("component")
+    const id = raw != null && raw !== "" ? parseInt(raw, 10) : NaN
+    if (!Number.isFinite(id) || id <= 0) {
+      setComponentFilterId(null)
+      setComponentEnzymes([])
+      return
+    }
+    setComponentFilterId(id)
+    setLoadingComponentEnzymes(true)
+    fetch(`${config.apiUrl}/enzymes?component=${id}&limit=100`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (data?.data) setComponentEnzymes(data.data)
+        else setComponentEnzymes([])
+      })
+      .catch(() => setComponentEnzymes([]))
+      .finally(() => setLoadingComponentEnzymes(false))
+  }, [location?.search])
 
   useEffect(() => {
     setLoadingFamilies(true)
@@ -397,6 +421,47 @@ const EnzymesPage = () => {
       <Container>
         <h1 className='text-3xl font-bold tracking-tight text-primary md:text-4xl'>BLAST-NR Enzyme Database</h1>
         <p className="mt-4 text-lg text-secondary-foreground">Browse plastic-degrading enzyme families</p>
+
+        {componentFilterId != null && (
+          <div className="mt-6 max-w-4xl mx-auto text-left rounded-xl border border-border bg-card p-4 md:p-5">
+            <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+              <h2 className="text-base font-semibold text-primary m-0">
+                Enzymes in atlas component {componentFilterId}
+              </h2>
+              <div className="flex flex-wrap gap-3 text-sm">
+                <Link
+                  to={`/cath-domains?component=${componentFilterId}`}
+                  className="text-accent hover:text-accent-hover underline underline-offset-2"
+                >
+                  CATH domain reference
+                </Link>
+                <Link to="/atlas" className="text-accent hover:text-accent-hover underline underline-offset-2">
+                  Family atlas
+                </Link>
+                <Link to="/enzymes" className="text-muted-foreground hover:text-foreground underline underline-offset-2">
+                  Clear filter
+                </Link>
+              </div>
+            </div>
+            {loadingComponentEnzymes ? (
+              <p className="text-sm text-muted-foreground m-0">Loading enzymes…</p>
+            ) : componentEnzymes.length === 0 ? (
+              <p className="text-sm text-muted-foreground m-0">No enzymes found for this component.</p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Showing up to {componentEnzymes.length} sequences (API limit 100). Use search or family
+                  pages for broader exploration.
+                </p>
+                <ScrollableArea>
+                  {componentEnzymes.map(enzyme => (
+                    <EnzymeRow key={enzyme.enzyme_id} enzyme={enzyme} isCentroid={enzyme.family_pid === null} />
+                  ))}
+                </ScrollableArea>
+              </>
+            )}
+          </div>
+        )}
 
         {/* Stats grid */}
         {stats && (

@@ -54,6 +54,16 @@ app.use('/api/search', searchRoutes);
 app.use('/api/atlas', atlasRoutes);
 app.use('/api/family', familyRoutes);
 
+// Root: no HTML UI — API lives under /api/*. Browsers hitting :3001/ alone see this instead of "Cannot GET /".
+app.get('/', (req, res) => {
+  res.type('json').json({
+    service: 'PETadex API',
+    health: '/health',
+    docs: '/docs',
+    api: '/api',
+  });
+});
+
 // (Optional) health check route
 app.get('/health', async (req, res) => {
   try {
