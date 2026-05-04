@@ -11,8 +11,9 @@ const CathDomainHero = () => (
       visualized, and interpreted for modeling and experiment design.
     </p>
     <p className="text-muted-foreground text-sm leading-relaxed m-0">
-      Select an atlas component below to load its CATH label from the PETadex family atlas, plus
-      narrative notes, figures, and references where curated content exists.
+      Choose a Pfam profile from the literature-review list. When mapped to a PETadex atlas
+      component, live family counts and database links are shown; every entry includes narrative
+      sections, figures, and references.
     </p>
   </header>
 )

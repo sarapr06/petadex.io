@@ -9,36 +9,36 @@ import CathDomainVisualizationPanel from "../components/cath/CathDomainVisualiza
 import CathDomainNarrativeSections from "../components/cath/CathDomainNarrativeSections"
 import CathDomainFiguresAndRefs from "../components/cath/CathDomainFiguresAndRefs"
 import CathDomainRelatedLinks from "../components/cath/CathDomainRelatedLinks"
-import { PLACEHOLDER_DOMAINS } from "../data/cathDomainResearch.placeholder"
-import { mergeCathDomainFromAtlas } from "../utils/mergeCathDomainFromAtlas"
-
-function buildFallbackDomainModels() {
-  return PLACEHOLDER_DOMAINS.filter(p => p.atlasComponent != null).map(p =>
-    mergeCathDomainFromAtlas(
-      {
-        component: p.atlasComponent,
-        cath_domain: p.cathId,
-        domain_name: p.displayName,
-        family_count: 0,
-        profile_hmm: p.profileHmm,
-      },
-      PLACEHOLDER_DOMAINS,
-    ),
-  )
-}
+import { CATH_DOMAIN_CATALOG } from "../data/cathDomainCatalog"
+import { mergeCatalogWithAtlasComponents } from "../utils/mergeCatalogWithAtlas"
 
 function parseCathQuery(search) {
   const params = new URLSearchParams(search || "")
   const component = params.get("component")
   const cath = params.get("cath")
+  const pfam = params.get("pfam")
+  const id = params.get("id")
   return {
     componentNum: component != null && component !== "" ? parseInt(component, 10) : null,
     cathRaw: cath != null && cath !== "" ? decodeURIComponent(cath.trim()) : null,
+    pfamRaw: pfam != null && pfam !== "" ? pfam.trim().toUpperCase() : null,
+    idRaw: id != null && id !== "" ? id.trim() : null,
   }
 }
 
-function pickIdFromQuery(domainModels, { componentNum, cathRaw }) {
+function pickIdFromQuery(domainModels, { componentNum, cathRaw, pfamRaw, idRaw }) {
   if (!domainModels.length) return null
+  if (idRaw) {
+    const byId = domainModels.find(d => d.id === idRaw)
+    if (byId) return byId.id
+  }
+  if (pfamRaw) {
+    const acc = pfamRaw.startsWith("PF") ? pfamRaw : `PF${pfamRaw}`
+    const byPf = domainModels.find(
+      d => d.pfamAccession === acc || d.id === `pf-${acc}` || d.id === acc.toLowerCase(),
+    )
+    if (byPf) return byPf.id
+  }
   if (Number.isFinite(componentNum)) {
     const byComp = domainModels.find(d => d.component === componentNum)
     if (byComp) return byComp.id
@@ -74,16 +74,20 @@ const CathDomainsPage = ({ location }) => {
         if (cancelled) return
         const rows = Array.isArray(data?.components) ? data.components : []
         if (!rows.length) {
-          setDomainModels(buildFallbackDomainModels())
-          setLoadError("Atlas components unavailable; showing illustrative rows only.")
+          setDomainModels(mergeCatalogWithAtlasComponents(CATH_DOMAIN_CATALOG, []))
+          setLoadError(
+            "Atlas component counts unavailable; Pfam profiles still listed—family counts will appear when the API is reachable and Pfam↔atlas mapping is set.",
+          )
           return
         }
-        setDomainModels(rows.map(row => mergeCathDomainFromAtlas(row, PLACEHOLDER_DOMAINS)))
+        setDomainModels(mergeCatalogWithAtlasComponents(CATH_DOMAIN_CATALOG, rows))
       })
       .catch(() => {
         if (cancelled) return
-        setDomainModels(buildFallbackDomainModels())
-        setLoadError("Could not load atlas components; showing illustrative rows only.")
+        setDomainModels(mergeCatalogWithAtlasComponents(CATH_DOMAIN_CATALOG, []))
+        setLoadError(
+          "Could not load atlas components; showing Pfam catalog without live family counts.",
+        )
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -96,8 +100,8 @@ const CathDomainsPage = ({ location }) => {
 
   useEffect(() => {
     if (!domainModels.length) return
-    const { componentNum, cathRaw } = parseCathQuery(search)
-    const fromQuery = pickIdFromQuery(domainModels, { componentNum, cathRaw })
+    const q = parseCathQuery(search)
+    const fromQuery = pickIdFromQuery(domainModels, q)
     setSelectedId(prev => {
       if (fromQuery) return fromQuery
       if (prev && domainModels.some(d => d.id === prev)) return prev
@@ -114,7 +118,7 @@ const CathDomainsPage = ({ location }) => {
     return (
       <section className="py-16 md:py-20">
         <Container>
-          <p className="text-muted-foreground">Loading atlas components…</p>
+          <p className="text-muted-foreground">Loading CATH / Pfam domain reference…</p>
         </Container>
       </section>
     )
@@ -161,6 +165,6 @@ export default CathDomainsPage
 export const Head = () => (
   <Seo
     title="CATH domains"
-    description="PETadex: CATH domain reference pages keyed to family atlas components, linked to enzymes and the UMAP atlas."
+    description="PETadex: Pfam / CATH domain reference pages with literature-backed notes, linked to the family atlas when mapped."
   />
 )

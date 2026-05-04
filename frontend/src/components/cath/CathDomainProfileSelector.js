@@ -9,7 +9,7 @@ import React from "react"
 const CathDomainProfileSelector = ({ domains, selectedId, onSelectId }) => (
   <div className="mb-8 md:mb-10 max-w-2xl">
     <label htmlFor="cath-profile-hmm-select" className="block text-sm font-medium text-foreground mb-2">
-      Atlas component
+      Pfam profile
     </label>
     <select
       id="cath-profile-hmm-select"
@@ -24,8 +24,9 @@ const CathDomainProfileSelector = ({ domains, selectedId, onSelectId }) => (
       ))}
     </select>
     <p className="mt-2 text-xs text-muted-foreground m-0">
-      Options are derived from the same `family_atlas` labels used when coloring the UMAP by component.
-      When profile HMM metadata is added to the database, it will appear in each row here.
+      Order follows the PETadex Pfam literature-review list. When a profile is linked to a PETadex
+      atlas component (see <code className="text-xs">pfamAtlasMap.js</code>), family counts and
+      enzyme links use live data.
     </p>
   </div>
 )

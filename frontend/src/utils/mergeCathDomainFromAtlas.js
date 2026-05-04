@@ -1,3 +1,7 @@
+/**
+ * @deprecated Prefer `buildDomainModelFromCatalog` and `mergeCatalogWithAtlasComponents` in
+ * `mergeCatalogWithAtlas.js` (Pfam catalog is canonical).
+ */
 import { resolveCathDomain } from "./cathDomainResolve"
 
 const GENERIC = {
