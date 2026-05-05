@@ -2,7 +2,7 @@
  * Canonical Pfam-centered catalog for `/cath-domains` (literature review signup sheet order).
  * **23 profiles** (3HBOH … RoxA-like_Cyt-c). Narrative fields are living curation targets.
  *
- * Figures: add PNG/SVG under `frontend/static/cath/` and set `imageSrc: "/cath/yourfile.png"` on
+ * Figures: add files under `frontend/static/cath/` and set `imageSrc: "/cath/yourfile.ext"` on
  * an entry’s `figures[]` item. Pfam→atlas counts: edit `pfamAtlasMap.js` or set `atlasComponent`
  * on an entry when validated.
  *
@@ -22,11 +22,18 @@
  * @property {string} localization
  * @property {string} ptms
  * @property {string} catalyticResidues
+ * @property {string} [mechanisms]
+ * @property {string} [interactingDomains]
  * @property {string} function
- * @property {string} labNotes
+ * @property {string} [regulation]
+ * @property {string} [variability]
+ * @property {string} [structure]
+ * @property {string} [labNotes]  Wet-lab / assay notes (renders as “Lab notes” when present)
  * @property {CathDomainReference[]} references
  * @property {CathDomainLegendSegment[]} [legendSegments]
  * @property {(string|CathDomainFigure)[]} [figures]  Strings treated as caption-only figures
+ * @property {string[]} [pdbIds]  PDB IDs for Mol* / RCSB shortcuts (e.g. ["6TKX"])
+ * @property {{ label: string, url: string }[]} [resourceLinks]  Extra curated outbound links (merged with auto PETadex/CATH/PDB links in the UI)
  */
 
 const PF = acc => `https://www.ebi.ac.uk/interpro/entry/pfam/${acc}/`
@@ -174,18 +181,112 @@ export const CATH_DOMAIN_CATALOG = [
     profileHmm: "BD-FAE",
     atlasComponent: null,
     cathId: "3.40.50.1820",
-    displayName: "BD-FAE (bacterial degradation / feruloyl esterase–like)",
+    displayName: "Beaver Dropping Feruloyl and Acetyl Xylan Esterase (BD-FAE), domain PF20434",
     lastUpdated: "2026-05-04",
-    summary:
-      "BD-FAE families combine features of feruloyl esterase and bacterial polyester-interacting enzymes in some reports—curate with primary literature on aromatic polyester turnover.",
-    localization: "Often secreted from Gram-positive bacteria; check signalP predictions.",
-    ptms: "Secreted bacterial forms typically lack eukaryotic PTMs.",
-    catalyticResidues: "α/β hydrolase catalytic motif; map against feruloyl esterase PDB templates.",
-    function: "Ester hydrolysis on aromatic moieties; potential relevance to terephthalate/aryl ester chemistry.",
-    labNotes: "Compare KM on model esters vs PET oligomers when testing PET relevance.",
-    references: pfamRefs("PF20434"),
-    legendSegments: [{ label: "Esterase-like", cathId: "3.40.50.1820" }],
-    figures: [],
+    summary: "BD-FAE is a bifunctional esterase belonging to the α/β hydrolase superfamily. It is primarily observed to act on birchwood and corn fiber, and has a distinct structure from known CE1 structures despite functional similarities. The optimal pH and temperature are 6.0-7.0 and 40℃ respectively.",
+    localization:
+      "BD-FAE is a bacterial enzyme located in the gut environment of animals, with most homologs having a lipobox (lipid molecule covalently attached to cysteine) allowing BD-FAE to attach to the outer membrane and avoid drifting in the gut environment. BD-FAE was originally discovered within PULs (Polysaccharide Utilization Loci) of beaver and moose droppings. PULs are gene clusters primarily found in phylum Bacteroidetes of the gut to degrade complex dietary fibers, switching on and off depending on the food close to bacteroidete’s cell surfaces.",
+    variability:
+    "Of BD-FAE’s 200 homologs, the closest 33 involve xylan breakdown, while others are either alginate-targeting PULs or not encoded in PULs at all. All homologs are found on this link. The N-terminal tail is often removed to make the protein soluble and easier to purify, as the lipid-anchored version sticks to the cell membrane (Hameleers et al. 2021 study, E.coli lab work). Without the tail, BD-FAE is either a monomer or poorly folded, making it catalytically active but potentially less structurally stable. Commonly if not removed, the beginning of the N-terminal is a signal peptide cleaved after the protein reaches the periplasm signal peptidase.",
+    ptms:
+    "Post-translational modifications vary from the host cell, where scientists have chemically synthesized the DNA sequence from the unknown original bacterium to create the physical enzyme–currently in E.coli.",
+    catalyticResidues:
+      "BD-FAE belongs to the α/β hydrolase superfamily on a distinct branch from PETase. The family shares the same common fold, with the core typically consisting of 5-8 β-sheets connected by 6 α-helices. A catalytic triad is borne on loops on a central parallel β-sheet, with the typically arrangement being a nucleophile (on a sharp strand-to-helix turn between β5 and α3), acid (following β7), then base (following the last β-strand). Specifically for BD-FAE, the triad is Ser-Asp-His: Ser128, His269, and Asp237. BD-FAE’s single active site is a solvent-exposed shallow furrow handling both feruloyl and acetyl esterase activity (this is confirmed through research, where mutating the Serine to Alanine completely abolished both functions). An oxyanion hole (follows β3) composed of Gly53 and Ser128 NH-groups serves as a structural pocket within the active site. ",
+    mechanisms:
+      "Hydrolysis proceeds by serine nucleophilic attack on the ester carbonyl, tetrahedral intermediate formation, and acyl-enzyme turnover by water. This mechanism is consistent with feruloyl-ester cleavage chemistry and the triad architecture shown in Figure 1.",
+    interactingDomains:
+      "Commonly observed in carbohydrate-active enzyme contexts with carbohydrate-binding or polysaccharide-processing modules; domain context should be checked per protein architecture in PETadex before assigning accessory interactions.",
+    function:
+      "BD-FAE is a carbohydrate esterase and catalytically active enzyme capable of breaking the ester bonds from acetyl and feruloyl groups in complex biomasses like xylan (a hemicellulose polysaccharide that strengthens the cell wall through crosslinked networks). Acetyl breakdown is observed in acetylated glucuronoxylan (AcGX) from birchwood, while feruloyl breakdown is observed on acetylated and feruloylated xylooligosaccharides (AcFaXOS) in corn fiber. Acetyl and feruloyl groups exhibit steric hindrance (where their bulkiness prevents enzymes from attaching to and breaking down the cell wall in a chemical reaction). Thus, the removal of these side chains exposes the hemicellulose backbone, allowing other enzymes to effectively break down the biomass into simple sugars.",
+    regulation:
+    "Hybrid Two-Component Systems (HTCS) domain spans the inner membrane of the bacterium. When a fragment of feruloylated xylooligosaccharides (XOS) binds to HTCS, the transcription of BD-FAE gene cluster begins. XOS stems from basal expression, where the bacteria produces a small amount of BD-FAE and xylansases to clip small pieces off xylan fiber. Note that high levels of simple sugars trigger carbon catabolite repression, blocking the BD-FAE promoter and ignoring xylan decomposition. Additionally, there is product inhibition by ferulic acid.",
+    structure:
+      "The N-terminal tail of BD-FAE resembles Abhydrolase_3 (domain PF07859), while the C-terminal resembles peptidase_S9 (domain PF00326). By not showing remote homology related to the CE1 family, BD-FAE is suggested to be the founding member of a novel esterase family likely originating from domain shuffling. In crystal structure, the N-terminal(Gln2-Pro7) acts as a β-strand interacting with the β-sheets on other molecule’s surfaces, enabling oligomerization. This molecular packing yields a fourfold spiral-shaped homotetramer, with an interaction surface of 1055 Å² and with active sites pointing to the center of the spiral. This structure is predominantly observed in bacteroidetes.  See Figure 2 for the homotetramer arrangement and Figure 3 for the monomer view; use the Mol* and RCSB links above for interactive inspection.",
+    labNotes:
+      "Compared with acetylated substrates, BD-FAE shows higher relative activity on feruloylated substrates when removing ferulic or acetic acid from synthetic substrates; catalytic activity is comparable to type-A FAEs in Crépin's classification.\n\nResearch suggests:\n\n1. Steric hindrance: acetyl residues adjacent to feruloyl (a bulky aromatic) may be shielded from BD-FAE.\n\n2. Non-specific binding of the carbohydrate chain supports catalytic activity (lack of strict carbohydrate-chain recognition); substrate-binding discussion in Springer Biotechnol Biofuels (https://doi.org/10.1186/s13068-021-01976-0).\n\n3. Preference for xylan backbones: no BD-FAE activity was observed on AcGGM.",
+    references: [
+      {
+        label: "Pfam / InterPro: PF20434 (BD-FAE family)",
+        url: PF("PF20434"),
+      },
+      {
+        label: "PMC: Biochemical properties of carbohydrate esterases (CEs) vs other characterized CEs",
+        url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC8165983/",
+      },
+      {
+        label: "PMC8165983 — Figure 2 (article figure panel)",
+        url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC8165983/figure/Fig2/",
+      },
+      {
+        label:
+          "PMC: α/β-hydrolase nucleophile positioning and β-sheet context (serine nucleophile; loop after β8)",
+        url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC11878206/",
+      },
+      {
+        label: "Wikipedia: Catalytic triad (Ser–His–Asp/Glu overview and substrate scope)",
+        url: "https://en.wikipedia.org/wiki/Catalytic_triad",
+      },
+      {
+        label: "PMC: Hemicellulose xylan / plant cell-wall polysaccharide context",
+        url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC9898438/",
+      },
+      {
+        label: "ScienceDirect: Trends in Biotechnology (related CE / biotechnology review)",
+        url: "https://www.sciencedirect.com/science/article/abs/pii/S0966842X17301543",
+      },
+      {
+        label: "InterPro: IPR029058 — carbohydrate esterase family 1, catalytic domain",
+        url: "https://www.ebi.ac.uk/interpro/entry/InterPro/IPR029058/",
+      },
+      {
+        label:
+          "Springer (Biotechnol Biofuels): catalytic activity on acetylated vs related substrates",
+        url: "https://doi.org/10.1186/s13068-021-01976-0",
+      },
+      {
+        label:
+          "RCSB PDB 6TKX — feruloyl esterase structure (use Mol* / RCSB 3D View for interactive model)",
+        url: "https://www.rcsb.org/structure/6TKX",
+      },
+    ],
+    legendSegments: [
+      { label: "α/β hydrolase (representative CATH)", cathId: "3.40.50.1820" },
+    ],
+    pdbIds: ["6TKX"],
+    resourceLinks: [
+      {
+        label: "InterPro: IPR029058 (CE family 1, catalytic domain)",
+        url: "https://www.ebi.ac.uk/interpro/entry/InterPro/IPR029058/",
+      },
+      {
+        label: "PMC11878206 (α/β-hydrolase nucleophile / β-sheet context)",
+        url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC11878206/",
+      },
+      {
+        label: "Wikipedia: Catalytic triad",
+        url: "https://en.wikipedia.org/wiki/Catalytic_triad",
+      },
+    ],
+    figures: [
+      {
+        caption:
+          "Figure 1 source: PMC11878206. Catalytic triad reference diagram showing nucleophile/base/acid combinations and example substrate classes (ester cleavage context matches feruloyl esterase chemistry).",
+        imageSrc: "/cath/PF07859_triaddiagramforref.png",
+        alt: "Triad residue classes and substrate schematics",
+      },
+      {
+        caption:
+          "Figure 2 source: RCSB PDB 6TKX (https://www.rcsb.org/structure/6TKX). Homotetramer view of feruloyl esterase from Bacteroides dorei; open interactive structure via the links above.",
+        imageSrc: "/cath/PF07859_homeotetramer.jpg",
+        alt: "Homotetramer ribbon structure PDB 6TKX",
+      },
+      {
+        caption:
+          "Figure 3 source: RCSB PDB 6TKX (https://www.rcsb.org/structure/6TKX). Monomer view (rainbow N→C); use Mol* or RCSB 3D View from the links above for rotation/zoom when aligning PETadex residues.",
+        imageSrc: "/cath/PF07859_monomer.png",
+        alt: "Monomer structure PDB 6TKX rainbow",
+      },
+    ],
   },
   {
     id: "pf-PF00144",

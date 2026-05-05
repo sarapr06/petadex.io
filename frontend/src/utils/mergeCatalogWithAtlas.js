@@ -64,7 +64,12 @@ export function buildDomainModelFromCatalog(catalogEntry, atlasRow) {
     localization: catalogEntry.localization,
     ptms: catalogEntry.ptms,
     catalyticResidues: catalogEntry.catalyticResidues,
+    mechanisms: catalogEntry.mechanisms,
+    interactingDomains: catalogEntry.interactingDomains,
     function: catalogEntry.function,
+    regulation: catalogEntry.regulation,
+    variability: catalogEntry.variability,
+    structure: catalogEntry.structure,
     labNotes: catalogEntry.labNotes,
     figures,
     figureCaptions: figures.map(f => f.caption),
@@ -73,6 +78,8 @@ export function buildDomainModelFromCatalog(catalogEntry, atlasRow) {
       catalogEntry.legendSegments?.length > 0
         ? catalogEntry.legendSegments
         : [{ label: "Representative CATH", cathId }],
+    pdbIds: Array.isArray(catalogEntry.pdbIds) ? catalogEntry.pdbIds : [],
+    resourceLinks: Array.isArray(catalogEntry.resourceLinks) ? catalogEntry.resourceLinks : [],
   }
 }
 

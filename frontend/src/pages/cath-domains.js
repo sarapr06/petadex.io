@@ -140,7 +140,10 @@ const CathDomainsPage = ({ location }) => {
         <CathDomainHero />
 
         {loadError && (
-          <p className="mb-6 text-sm text-amber-700 dark:text-amber-300/90 max-w-2xl" role="status">
+          <p
+            className="mb-6 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300/90 max-w-3xl"
+            role="status"
+          >
             {loadError}
           </p>
         )}
@@ -153,8 +156,10 @@ const CathDomainsPage = ({ location }) => {
 
         <CathDomainVisualizationPanel domain={selected} />
         <CathDomainRelatedLinks domain={selected} />
-        <CathDomainNarrativeSections domain={selected} />
-        <CathDomainFiguresAndRefs domain={selected} />
+        <div className="max-w-5xl">
+          <CathDomainNarrativeSections domain={selected} />
+          <CathDomainFiguresAndRefs domain={selected} />
+        </div>
       </Container>
     </section>
   )

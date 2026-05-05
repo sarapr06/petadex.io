@@ -7,7 +7,7 @@ const CathDomainHero = () => (
     </p>
     <h1 className="text-4xl font-semibold text-primary mb-4">CATH domains</h1>
     <p className="text-secondary-foreground text-lg leading-relaxed mb-4">
-      Summaries of structural domains represented in PETadex, including how they are classified,
+      Summaries of common structural domains represented in PETadex, including how they are classified,
       visualized, and interpreted for modeling and experiment design.
     </p>
     <p className="text-muted-foreground text-sm leading-relaxed m-0">

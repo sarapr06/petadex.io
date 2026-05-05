@@ -8,16 +8,16 @@ const CathDomainRelatedLinks = ({ domain }) => {
   if (domain?.component == null) return null
 
   return (
-    <div className="mt-6 flex flex-wrap gap-4 text-sm">
+    <div className="mt-4 mb-2 flex flex-wrap gap-2 text-sm">
       <Link
         to={`/atlas`}
-        className="font-medium text-accent hover:text-accent-hover underline underline-offset-4"
+        className="inline-flex items-center rounded-lg border border-input bg-background px-3 py-1.5 font-medium text-accent hover:bg-muted/50 hover:text-accent-hover transition-colors"
       >
         Open family atlas
       </Link>
       <Link
         to={`/enzymes?component=${domain.component}`}
-        className="font-medium text-accent hover:text-accent-hover underline underline-offset-4"
+        className="inline-flex items-center rounded-lg border border-input bg-background px-3 py-1.5 font-medium text-accent hover:bg-muted/50 hover:text-accent-hover transition-colors"
       >
         Browse enzymes (component {domain.component})
       </Link>
