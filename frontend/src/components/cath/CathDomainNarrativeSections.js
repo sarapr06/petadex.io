@@ -39,16 +39,32 @@ function getFigureCount(domain) {
   return getNormalizedFigures(domain).length
 }
 
-function renderTextWithFigureLinks(text, figureCount) {
+const narrativeRefLinkOptions = {
+  numbered: true,
+  linkClassName:
+    "text-accent font-semibold no-underline hover:underline decoration-accent/50 hover:text-accent-hover",
+}
+
+/**
+ * Plain text with optional Figure N anchors and URLs/PMC tokens linked to `references` like captions.
+ */
+function renderNarrativeParagraph(text, figureCount, references) {
   const str = String(text || "")
-  if (!str || figureCount < 1 || !/Figure\s+\d+/i.test(str)) return str
+  const refs = references || []
+
+  const renderPlain = plain =>
+    renderCaptionWithReferenceAnchors(plain, refs, narrativeRefLinkOptions) ?? plain
+
+  if (!str || figureCount < 1 || !/Figure\s+\d+/i.test(str)) {
+    return renderPlain(str)
+  }
 
   const parts = str.split(FIGURE_TOKEN)
   const out = []
 
   for (let i = 0; i < parts.length; i += 3) {
     const plain = parts[i]
-    if (plain) out.push(plain)
+    if (plain) out.push(renderPlain(plain))
 
     const token = parts[i + 1]
     const nRaw = parts[i + 2]
@@ -73,6 +89,62 @@ function renderTextWithFigureLinks(text, figureCount) {
   }
 
   return out
+}
+
+function renderNarrativeContent(text, figureCount, references) {
+  const str = String(text || "").trim()
+  if (!str) return null
+
+  const sections = str.split(/\n{2,}/).map(s => s.trim()).filter(Boolean)
+
+  return sections.map((section, sectionIdx) => {
+    const lines = section
+      .split("\n")
+      .map(l => l.trim())
+      .filter(Boolean)
+
+    if (!lines.length) return null
+
+    const headingCandidate = lines[0]
+    const hasHeading = /:\s*$/.test(headingCandidate) && !/^[-*]\s+/.test(headingCandidate)
+    const bodyLines = hasHeading ? lines.slice(1) : lines
+    const bulletLines = bodyLines.filter(l => /^[-*]\s+/.test(l))
+    const numberedLines = bodyLines.filter(l => /^\d+\.\s+/.test(l))
+    const isListOnly = bodyLines.length > 0 && (bulletLines.length === bodyLines.length || numberedLines.length === bodyLines.length)
+
+    return (
+      <div key={`narrative-section-${sectionIdx}`} className={sectionIdx === 0 ? "" : "mt-5"}>
+        {hasHeading ? (
+          <h3 className="m-0 mb-2 text-sm md:text-base font-semibold text-foreground tracking-tight">
+            {headingCandidate.replace(/:\s*$/, "")}
+          </h3>
+        ) : null}
+        {isListOnly ? (
+          bulletLines.length === bodyLines.length ? (
+            <ul className="m-0 pl-5 space-y-1.5 list-disc">
+              {bodyLines.map((line, i) => (
+                <li key={`bullet-${sectionIdx}-${i}`}>
+                  {renderNarrativeParagraph(line.replace(/^[-*]\s+/, ""), figureCount, references)}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <ol className="m-0 pl-5 space-y-1.5 list-decimal">
+              {bodyLines.map((line, i) => (
+                <li key={`numbered-${sectionIdx}-${i}`}>
+                  {renderNarrativeParagraph(line.replace(/^\d+\.\s+/, ""), figureCount, references)}
+                </li>
+              ))}
+            </ol>
+          )
+        ) : (
+          <p className="m-0 whitespace-pre-wrap text-[0.97rem] leading-7">
+            {renderNarrativeParagraph(lines.join("\n"), figureCount, references)}
+          </p>
+        )}
+      </div>
+    )
+  })
 }
 
 /**
@@ -128,6 +200,53 @@ function InlineFigurePreview({ fig, n, anchorId, references = [] }) {
 }
 
 /**
+ * @param {{ table?: { caption?: string, headers?: string[], rows?: string[][] } }} props
+ */
+function InlineDomainTable({ table }) {
+  if (!table || !Array.isArray(table.headers) || !Array.isArray(table.rows) || !table.rows.length) {
+    return null
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-muted/10 p-4 md:p-5">
+      {table.caption ? (
+        <p className="text-sm font-semibold text-foreground mb-3 m-0">{table.caption}</p>
+      ) : null}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[700px] border-collapse text-sm">
+          <thead>
+            <tr>
+              {table.headers.map((h, i) => (
+                <th
+                  key={`h-${i}`}
+                  className="border border-border bg-muted/30 px-3 py-2 text-left font-semibold text-foreground align-top"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {table.rows.map((row, rIdx) => (
+              <tr key={`r-${rIdx}`}>
+                {row.map((cell, cIdx) => (
+                  <td
+                    key={`c-${rIdx}-${cIdx}`}
+                    className="border border-border px-3 py-2 text-muted-foreground align-top whitespace-pre-wrap"
+                  >
+                    {cell}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+/**
  * @param {{ domain: Record<string, string> }} props
  */
 const CathDomainNarrativeSections = ({ domain }) => {
@@ -150,6 +269,9 @@ const CathDomainNarrativeSections = ({ domain }) => {
         const mentioned = extractFigureNumbers(rawText).filter(n => n >= 1 && n <= figureCount)
         const hasAside = mentioned.length > 0
         const structureFiguresBelow = key === "structure" && hasAside
+        const pf00082PtmsFigureBelow =
+          domain?.pfamAccession === "PF00082" && key === "ptms" && hasAside
+        const renderFiguresBelow = structureFiguresBelow || pf00082PtmsFigureBelow
 
         const figureRow = mentioned.map(n => {
           const fig = figures[n - 1]
@@ -165,29 +287,58 @@ const CathDomainNarrativeSections = ({ domain }) => {
             />
           )
         })
+        const figureItems = figureRow.filter(Boolean)
 
         return (
           <section key={key} aria-labelledby={`cath-section-${key}`}>
+            {key === "ptms" && domain.prePtmsTable ? (
+              <div className="mb-4">
+                <InlineDomainTable table={domain.prePtmsTable} />
+              </div>
+            ) : null}
+            {key === "localization" && domain.postLocalizationTable ? (
+              <div className="mb-4">
+                <InlineDomainTable table={domain.postLocalizationTable} />
+              </div>
+            ) : null}
+            {key === "catalyticResidues" && domain.postCatalyticResiduesTable ? (
+              <div className="mb-4">
+                <InlineDomainTable table={domain.postCatalyticResiduesTable} />
+              </div>
+            ) : null}
             <h2 id={`cath-section-${key}`} className="text-xl md:text-2xl font-semibold text-primary mb-2.5">
               {title}
             </h2>
-            {structureFiguresBelow ? (
+            {renderFiguresBelow ? (
               <div className="flex flex-col gap-5">
                 <div className="min-w-0 w-full rounded-xl border border-border bg-muted/10 p-5 md:p-6 text-muted-foreground">
-                  <p className="m-0 whitespace-pre-wrap text-[0.97rem] leading-7">
-                    {renderTextWithFigureLinks(rawText, figureCount)}
-                  </p>
+                  <div className="text-[0.97rem] leading-7">
+                    {renderNarrativeContent(rawText, figureCount, references)}
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5 w-full min-w-0">
-                  {figureRow}
+                <div
+                  className={
+                    figureItems.length === 1
+                      ? "w-full min-w-0 flex justify-center"
+                      : "grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-5 w-full min-w-0"
+                  }
+                >
+                  {figureItems.length === 1 ? (
+                    <div className="w-full max-w-2xl">{figureItems[0]}</div>
+                  ) : (
+                    figureRow
+                  )}
                 </div>
+                {key === "structure" && domain.postStructureTable ? (
+                  <InlineDomainTable table={domain.postStructureTable} />
+                ) : null}
               </div>
             ) : hasAside ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-6 lg:items-stretch">
                 <div className="min-w-0 rounded-xl border border-border bg-muted/10 p-5 md:p-6 text-muted-foreground">
-                  <p className="m-0 whitespace-pre-wrap text-[0.97rem] leading-7">
-                    {renderTextWithFigureLinks(rawText, figureCount)}
-                  </p>
+                  <div className="text-[0.97rem] leading-7">
+                    {renderNarrativeContent(rawText, figureCount, references)}
+                  </div>
                 </div>
 
                 <aside className="min-w-0 w-full flex flex-col gap-3">
@@ -196,9 +347,14 @@ const CathDomainNarrativeSections = ({ domain }) => {
               </div>
             ) : (
               <div className="min-w-0 w-full rounded-xl border border-border bg-muted/10 p-5 md:p-6 text-muted-foreground">
-                <p className="m-0 whitespace-pre-wrap text-[0.97rem] leading-7">
-                  {renderTextWithFigureLinks(rawText, figureCount)}
-                </p>
+                <div className="text-[0.97rem] leading-7">
+                  {renderNarrativeContent(rawText, figureCount, references)}
+                </div>
+                {key === "structure" && domain.postStructureTable ? (
+                  <div className="mt-4">
+                    <InlineDomainTable table={domain.postStructureTable} />
+                  </div>
+                ) : null}
               </div>
             )}
           </section>

@@ -12,6 +12,8 @@ import { buildCathDomainStructureLinks } from "../../utils/cathStructureLinks"
  *   sourceLabel: string,
  *   lastUpdated: string,
  *   summary: string,
+ *   moreInformation?: string,
+ *   moreInformationFigure?: { imageSrc: string, caption: string, alt?: string },
  *   legendSegments?: { label: string, cathId: string }[],
  *   pdbIds?: string[],
  *   resourceLinks?: { label: string, url: string }[],
@@ -53,6 +55,33 @@ const CathDomainVisualizationPanel = ({ domain }) => {
           </div>
         </div>
         <p className="text-muted-foreground text-sm mt-3 mb-0 leading-relaxed max-w-4xl">{domain.summary}</p>
+        {domain.moreInformation && (
+          <div className="mt-4 max-w-4xl rounded-lg border border-border bg-background/50 px-4 py-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 m-0">
+              More information
+            </p>
+            <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap m-0">
+              {domain.moreInformation}
+            </p>
+            {domain.moreInformationFigure?.imageSrc && (
+              <figure className="mt-4 m-0">
+                <div className="rounded-lg overflow-hidden border border-border bg-muted/20">
+                  <img
+                    src={domain.moreInformationFigure.imageSrc}
+                    alt={domain.moreInformationFigure.alt || domain.moreInformationFigure.caption}
+                    className="w-full h-auto object-contain"
+                    loading="lazy"
+                  />
+                </div>
+                {domain.moreInformationFigure.caption && (
+                  <figcaption className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                    {domain.moreInformationFigure.caption}
+                  </figcaption>
+                )}
+              </figure>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="p-5 md:p-6">

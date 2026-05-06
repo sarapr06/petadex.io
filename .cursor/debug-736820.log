@@ -1,0 +1,2 @@
+{"sessionId":"736820","runId":"run_initial","hypothesisId":"H1","location":"backend/src/routes/fastaa.js:13","message":"Backend /fastaa query start","data":{"path":"/","method":"GET"},"timestamp":1777992719880}
+{"sessionId":"736820","runId":"run_initial","hypothesisId":"H1","location":"backend/src/routes/fastaa.js:37","message":"Backend /fastaa query success","data":{"rowCount":602,"firstAccession":"A0A075B5G4"},"timestamp":1777992720872}
