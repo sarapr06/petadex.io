@@ -271,7 +271,10 @@ const CathDomainNarrativeSections = ({ domain }) => {
         const structureFiguresBelow = key === "structure" && hasAside
         const pf00082PtmsFigureBelow =
           domain?.pfamAccession === "PF00082" && key === "ptms" && hasAside
-        const renderFiguresBelow = structureFiguresBelow || pf00082PtmsFigureBelow
+        const pf07224CatalyticFiguresBelow =
+          domain?.pfamAccession === "PF07224" && key === "catalyticResidues" && hasAside
+        const renderFiguresBelow =
+          structureFiguresBelow || pf00082PtmsFigureBelow || pf07224CatalyticFiguresBelow
 
         const figureRow = mentioned.map(n => {
           const fig = figures[n - 1]
