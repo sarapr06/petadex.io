@@ -1,6 +1,6 @@
 // Substrate activity comparison view (halo assay results).
 // Extracted from pages/substrate.js so it can be embedded in /halo-assay.
-import React, { useState, useEffect, useMemo, useCallback } from "react"
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import { Link } from "gatsby"
 import config from "../../config"
 import { generateCSV, downloadCSV } from "../../utils/csvDownload"
@@ -251,6 +251,27 @@ const SubstrateScatter = ({
   const axisLabel = isActivityMode ? "Activity" : "Avg Intensity"
   const substrates = [...activeSubstrates]
 
+  const containerRef = useRef(null)
+  const [containerWidth, setContainerWidth] = useState(0)
+  useEffect(() => {
+    if (!containerRef.current) return
+    const ro = new ResizeObserver(entries => setContainerWidth(entries[0].contentRect.width))
+    ro.observe(containerRef.current)
+    return () => ro.disconnect()
+  }, [])
+
+  const isMobile = containerWidth > 0 && containerWidth < 600
+  const chartMargin = isMobile
+    ? { top: 16, right: 12, left: 48, bottom: 64 }
+    : { top: 24, right: 48, left: 88, bottom: 88 }
+  const chartHeight = isMobile ? 340 : 460
+  const xLabelOffset = isMobile ? 22 : 48
+  const yLabelDx = isMobile ? -28 : -64
+  const yAxisWidth = isMobile ? 44 : 72
+  const axisFontSize = isMobile ? 9 : 11
+  const labelFontSize = isMobile ? "0.72rem" : "0.85rem"
+  const xTickCount = isMobile ? 4 : undefined
+
   // Zoom state. `zoom` holds the locked-in axis domains; `dragStart`/`dragEnd`
   // hold the selection rectangle while the user is dragging.
   const [zoom, setZoom] = useState(null)
@@ -291,6 +312,52 @@ const SubstrateScatter = ({
     }
   }, [scatterData])
 
+  // Resolved numeric min/max for the current scatter data (used in coordinate conversion).
+  const resolvedDomain = useMemo(() => {
+    if (!scatterData.length) return { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }
+    const xs = scatterData.map(d => d.x).filter(v => v != null && !isNaN(v))
+    const ys = scatterData.map(d => d.y).filter(v => v != null && !isNaN(v))
+    if (!xs.length || !ys.length) return { xMin: 0, xMax: 1, yMin: 0, yMax: 1 }
+    return { xMin: Math.min(...xs), xMax: Math.max(...xs), yMin: Math.min(...ys), yMax: Math.max(...ys) }
+  }, [scatterData])
+
+  // Cache the Recharts plot-area rect (from the SVG clip path) so that mouse
+  // events can convert client pixels → data coordinates without layout thrash.
+  const plotAreaRef = useRef(null)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const clipRect = containerRef.current
+        ?.querySelector('.recharts-surface defs clipPath rect')
+      if (!clipRect) return
+      plotAreaRef.current = {
+        x: parseFloat(clipRect.getAttribute('x') || '0'),
+        y: parseFloat(clipRect.getAttribute('y') || '0'),
+        w: parseFloat(clipRect.getAttribute('width') || '0'),
+        h: parseFloat(clipRect.getAttribute('height') || '0'),
+      }
+    }, 50)
+    return () => clearTimeout(t)
+  }, [containerWidth, chartHeight, isMobile, scatterData.length])
+
+  // Convert a client-space mouse position to chart data coordinates.
+  const clientToData = (clientX, clientY) => {
+    const pa = plotAreaRef.current
+    if (!pa || pa.w === 0 || pa.h === 0) return null
+    const svg = containerRef.current?.querySelector('.recharts-surface')
+    if (!svg) return null
+    const rect = svg.getBoundingClientRect()
+    const svgX = clientX - rect.left
+    const svgY = clientY - rect.top
+    const [xMin, xMax] = zoom?.x ?? [resolvedDomain.xMin, resolvedDomain.xMax]
+    const [yMin, yMax] = zoom?.y ?? [resolvedDomain.yMin, resolvedDomain.yMax]
+    const xFrac = Math.max(0, Math.min(1, (svgX - pa.x) / pa.w))
+    const yFrac = Math.max(0, Math.min(1, (svgY - pa.y) / pa.h))
+    return {
+      x: xMin + xFrac * (xMax - xMin),
+      y: yMax - yFrac * (yMax - yMin),
+    }
+  }
+
   const diagonalData = useMemo(() => {
     if (scatterData.length === 0) return []
     const allVals = scatterData.flatMap(d => [d.x, d.y]).filter(v => v != null && !isNaN(v))
@@ -301,15 +368,22 @@ const SubstrateScatter = ({
     return [{ x: min - pad, y: min - pad }, { x: max + pad, y: max + pad }]
   }, [scatterData])
 
-  const handleChartMouseDown = state => {
-    if (!state || state.xValue == null || state.yValue == null) return
-    setDragStart({ x: state.xValue, y: state.yValue })
+  // In Recharts v3 the chart-level mouse handlers receive (nextState, event).
+  // nextState has no xValue/yValue for ScatterChart — the real coordinates come
+  // from the native mouse event in the second argument.
+  const handleChartMouseDown = (_nextState, event) => {
+    if (!event) return
+    const pt = clientToData(event.clientX, event.clientY)
+    if (!pt) return
+    setDragStart(pt)
     setDragEnd(null)
   }
 
-  const handleChartMouseMove = state => {
-    if (!dragStart || !state || state.xValue == null || state.yValue == null) return
-    setDragEnd({ x: state.xValue, y: state.yValue })
+  const handleChartMouseMove = (_nextState, event) => {
+    if (!dragStart || !event) return
+    const pt = clientToData(event.clientX, event.clientY)
+    if (!pt) return
+    setDragEnd(pt)
   }
 
   const handleChartMouseUp = () => {
@@ -341,7 +415,7 @@ const SubstrateScatter = ({
   const isZoomed = zoom !== null
 
   return (
-    <div id="substrate-scatter" className="card mb-8 relative">
+    <div id="substrate-scatter" className="card mb-8 relative" ref={containerRef}>
       <div className="flex justify-between items-start mb-4 flex-wrap gap-4 px-6 pt-6">
         <div>
           <h2 className="text-xl font-bold text-primary">
@@ -417,9 +491,9 @@ const SubstrateScatter = ({
         Drag a box on the chart to zoom in · click a dot to jump to its gene card
       </p>
 
-      <ResponsiveContainer width="100%" height={460}>
+      <ResponsiveContainer width="100%" height={chartHeight}>
         <ScatterChart
-          margin={{ top: 24, right: 48, left: 88, bottom: 88 }}
+          margin={chartMargin}
           onMouseDown={handleChartMouseDown}
           onMouseMove={handleChartMouseMove}
           onMouseUp={handleChartMouseUp}
@@ -432,12 +506,13 @@ const SubstrateScatter = ({
             domain={xDomain}
             allowDataOverflow={isZoomed}
             tickFormatter={formatTick}
+            tickCount={xTickCount}
             label={{
               value: `${axisLabel} — ${mediaLabels[scatterXAxis]}`,
-              position: "bottom", offset: 48,
-              style: { fontWeight: "700", fontSize: "0.85rem", fill: mediaColors[scatterXAxis], textAnchor: "middle" },
+              position: "bottom", offset: xLabelOffset,
+              style: { fontWeight: "700", fontSize: labelFontSize, fill: mediaColors[scatterXAxis], textAnchor: "middle" },
             }}
-            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            tick={{ fontSize: axisFontSize, fill: "var(--muted-foreground)" }}
             tickMargin={8}
             stroke="var(--border)"
           />
@@ -448,12 +523,12 @@ const SubstrateScatter = ({
             tickFormatter={formatTick}
             label={{
               value: `${axisLabel} — ${mediaLabels[scatterYAxis]}`,
-              angle: -90, position: "center", dx: -64,
-              style: { fontWeight: "700", fontSize: "0.85rem", fill: mediaColors[scatterYAxis], textAnchor: "middle" },
+              angle: -90, position: "center", dx: yLabelDx,
+              style: { fontWeight: "700", fontSize: labelFontSize, fill: mediaColors[scatterYAxis], textAnchor: "middle" },
             }}
-            tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+            tick={{ fontSize: axisFontSize, fill: "var(--muted-foreground)" }}
             tickMargin={8}
-            width={72}
+            width={yAxisWidth}
             stroke="var(--border)"
           />
           <ZAxis range={[50, 50]} />
