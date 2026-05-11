@@ -3,11 +3,9 @@ import { Link } from "gatsby"
 import { useTheme } from "../context/ThemeContext"
 
 const NAV_ITEMS = [
-  { label: "Sequence", path: "/fastaa", key: "sequence" },
+  { label: "Halo Assay", path: "/halo-assay", key: "halo-assay" },
   { label: "Enzymes", path: "/enzymes", key: "enzymes" },
   { label: "Search", path: "/search", key: "search" },
-  { label: "Substrate", path: "/substrate", key: "substrate" },
-  { label: "Metadata", path: "/metadata", key: "metadata" },
   { label: "Atlas", path: "/atlas", key: "atlas" },
 ]
 

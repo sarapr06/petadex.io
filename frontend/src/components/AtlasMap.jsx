@@ -79,6 +79,8 @@ export default function AtlasMap({ interactive = true, className = "" }) {
   const [hover, setHover] = useState(null)
   const [cam, setCam] = useState({ zoom: 1.0, cx: -0.20, cy: 0.05 })
   const dragRef = useRef(null)
+  const camRef = useRef({ zoom: 1.0, cx: -0.20, cy: 0.05 })
+  const pinchRef = useRef(null)
   const [apiPoints, setApiPoints] = useState(null)
 
   const points = useMemo(() => {
@@ -162,7 +164,8 @@ export default function AtlasMap({ interactive = true, className = "" }) {
   // Interaction handlers
   const onPointerDown = (e) => {
     if (!interactive) return
-    e.currentTarget.setPointerCapture?.(e.pointerId)
+    // Don't capture touch pointers — lets single-finger vertical swipes scroll the page natively
+    if (e.pointerType !== "touch") e.currentTarget.setPointerCapture?.(e.pointerId)
     dragRef.current = { x: e.clientX, y: e.clientY, cx: cam.cx, cy: cam.cy, moved: false }
   }
   const onPointerMove = (e) => {
@@ -181,6 +184,9 @@ export default function AtlasMap({ interactive = true, className = "" }) {
       return
     }
 
+    // No hover tooltip on touch — there's no finger-hover on mobile
+    if (e.pointerType === "touch") return
+
     if (!points) return
     let best = null, bestD = 64
     for (const p of points) {
@@ -192,14 +198,17 @@ export default function AtlasMap({ interactive = true, className = "" }) {
   }
   const onPointerUp = (e) => {
     const drag = dragRef.current
-    e.currentTarget.releasePointerCapture?.(e.pointerId)
+    if (e.pointerType !== "touch") e.currentTarget.releasePointerCapture?.(e.pointerId)
     dragRef.current = null
 
-    // Click (no drag) — navigate to family page
+    // Tap (no drag) — navigate to family page
     if (drag && !drag.moved && hover?.point?.familyId != null) {
       window.open(`/family/${hover.point.familyId}`, "_blank", "noopener,noreferrer")
     }
   }
+
+  // Keep camRef in sync so touch handlers can read the latest zoom without stale closures
+  useEffect(() => { camRef.current = cam }, [cam])
 
   // Wheel zoom
   useEffect(() => {
@@ -214,12 +223,42 @@ export default function AtlasMap({ interactive = true, className = "" }) {
     return () => el.removeEventListener("wheel", handler)
   })
 
+  // Pinch-to-zoom (touch)
+  useEffect(() => {
+    const el = canvasRef.current
+    if (!el || !interactive) return
+    const onTouchStart = (e) => {
+      if (e.touches.length === 2) {
+        const dx = e.touches[0].clientX - e.touches[1].clientX
+        const dy = e.touches[0].clientY - e.touches[1].clientY
+        pinchRef.current = { dist: Math.hypot(dx, dy), startZoom: camRef.current.zoom }
+      }
+    }
+    const onTouchMove = (e) => {
+      if (e.touches.length !== 2 || !pinchRef.current) return
+      e.preventDefault()
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const scale = Math.hypot(dx, dy) / pinchRef.current.dist
+      setCam(c => ({ ...c, zoom: Math.min(8, Math.max(0.5, pinchRef.current.startZoom * scale)) }))
+    }
+    const onTouchEnd = () => { pinchRef.current = null }
+    el.addEventListener("touchstart", onTouchStart, { passive: true })
+    el.addEventListener("touchmove", onTouchMove, { passive: false })
+    el.addEventListener("touchend", onTouchEnd, { passive: true })
+    return () => {
+      el.removeEventListener("touchstart", onTouchStart)
+      el.removeEventListener("touchmove", onTouchMove)
+      el.removeEventListener("touchend", onTouchEnd)
+    }
+  }, [interactive])
+
   return (
     <div className={`relative w-full h-full overflow-hidden ${className}`} ref={wrapRef}>
       <canvas
         ref={canvasRef}
         className="block w-full h-full select-none"
-        style={{ cursor: interactive ? (dragRef.current ? "grabbing" : hover?.point?.familyId != null ? "pointer" : "grab") : "default" }}
+        style={{ cursor: interactive ? (dragRef.current ? "grabbing" : hover?.point?.familyId != null ? "pointer" : "grab") : "default", touchAction: "pan-y" }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
