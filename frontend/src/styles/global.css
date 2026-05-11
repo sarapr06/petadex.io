@@ -329,10 +329,12 @@
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     scroll-behavior: smooth;
+    overflow-x: clip;
   }
 
   body {
     @apply bg-background text-foreground;
+    overflow-x: clip;
     transition:
       background-color var(--duration-normal) ease-in-out,
       color            var(--duration-normal) ease-in-out;

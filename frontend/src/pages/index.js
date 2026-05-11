@@ -315,21 +315,21 @@ function WhatsInside() {
             View the full schema →
           </a>
         </div>
-        <div className="card overflow-x-auto">
-          <table className="w-full text-sm min-w-140">
+        <div className="card overflow-hidden">
+          <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-muted-foreground text-2xs uppercase tracking-widest font-semibold">
-                <th className="px-5 py-3 w-[15%]">Layer</th>
-                <th className="px-5 py-3 w-[55%]">What's there</th>
-                <th className="px-5 py-3 w-[30%]">Tables / endpoints</th>
+                <th className="px-4 py-3 sm:px-5 w-1/3 sm:w-[15%]">Layer</th>
+                <th className="px-4 py-3 sm:px-5 sm:w-[55%]">What's there</th>
+                <th className="hidden sm:table-cell px-5 py-3 w-[30%]">Tables / endpoints</th>
               </tr>
             </thead>
             <tbody>
               {DATA_ROWS.map((r, i) => (
                 <tr key={i} className="hover:bg-surface-raised transition-colors">
-                  <td className="px-5 py-4 text-foreground font-medium">{r.t}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{r.d}</td>
-                  <td className="px-5 py-4 text-xs font-mono text-accent/85">{r.k}</td>
+                  <td className="px-4 py-3 sm:px-5 sm:py-4 text-foreground font-medium">{r.t}</td>
+                  <td className="px-4 py-3 sm:px-5 sm:py-4 text-muted-foreground">{r.d}</td>
+                  <td className="hidden sm:table-cell px-5 py-4 text-xs font-mono text-accent/85">{r.k}</td>
                 </tr>
               ))}
             </tbody>
@@ -392,7 +392,7 @@ function Citation() {
               )}
             </button>
           </div>
-          <pre className="font-mono text-xs leading-relaxed text-foreground px-4 py-4 m-0 overflow-x-auto whitespace-pre bg-transparent border-0 shadow-none rounded-none">
+          <pre className="font-mono text-xs leading-relaxed text-foreground px-4 py-4 m-0 whitespace-pre-wrap break-all bg-transparent border-0 shadow-none rounded-none">
 {`@misc{petadex2026,
   `}<span className="text-foreground font-semibold">title</span>{`  = {PETadex: an open atlas of plastic-degrading enzymes},
   `}<span className="text-foreground font-semibold">author</span>{` = {The PETadex contributors},

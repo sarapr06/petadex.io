@@ -207,6 +207,13 @@ export default function AtlasMap({ interactive = true, className = "" }) {
     }
   }
 
+  // Shift the initial view left on mobile so clusters sit better in the narrower viewport
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setCam(c => ({ ...c, cx: c.cx + 0.2, cy: c.cy - 0.08 }))
+    }
+  }, [])
+
   // Keep camRef in sync so touch handlers can read the latest zoom without stale closures
   useEffect(() => { camRef.current = cam }, [cam])
 
