@@ -1,0 +1,99 @@
+/**
+ * SIB feature-viewer: left row titles (`text.yaxis`) sit on a light polygon (#DFD5D3) — keep
+ * those dark. Sequence letters (`.AA`) use alternating #ccc/#eee fills in the library; on a
+ * dark site the panel `bg-background` reads as dark behind the strip, so `.AA` must switch to
+ * light ink in dark mode.
+ *
+ * Bottom x-axis ticks live on `g.x.axis` / `.Xaxis` on the page background — in dark mode use
+ * light ink; in-track rect descriptions (`*Text`) follow the same split.
+ */
+
+/* Row titles — always dark on light chevron */
+.fv-prototype svg text.yaxis {
+  fill: oklch(0.22 0 0) !important;
+}
+
+/* Sequence letters: dark on light UI; white when the site is dark */
+.light .fv-prototype svg text.AA {
+  fill: oklch(0.22 0 0) !important;
+}
+
+html:not(.light) .fv-prototype svg text.AA {
+  fill: oklch(0.95 0 0) !important;
+}
+
+/* neXtProt variant entry UI — not used in Petadex (library still injects it with toolbar). */
+.fv-prototype .single-variant-popup,
+.fv-prototype .multiple-variant-popup {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Do not open variant popup on residue click */
+.fv-prototype svg text.AA {
+  pointer-events: none;
+  cursor: default;
+}
+
+/* Light site theme: bottom scale ticks on light background */
+.light .fv-prototype svg g.x.axis text,
+.light .fv-prototype svg .Xaxis text {
+  fill: oklch(0.22 0 0) !important;
+}
+
+/* Dark site theme: bottom scale + in-track feature descriptions (not row titles) */
+html:not(.light) .fv-prototype svg g.x.axis text,
+html:not(.light) .fv-prototype svg .Xaxis text,
+html:not(.light) .fv-prototype svg text[class*="Text"] {
+  fill: oklch(0.95 0 0) !important;
+}
+
+/* Light theme: in-track labels on colored rects stay dark (library uses black) */
+.light .fv-prototype svg text[class*="Text"] {
+  fill: oklch(0.22 0 0) !important;
+}
+
+/* Default site theme is dark — axis rules stay light for contrast on dark panel chrome */
+html:not(.light) .fv-prototype svg .axis path,
+html:not(.light) .fv-prototype svg .axis line {
+  stroke: oklch(0.78 0 0);
+}
+
+/* HTML toolbar (Position / Zoom): inherit foreground; reinforce when html is dark */
+.fv-prototype .svgHeader {
+  color: var(--foreground);
+}
+
+html:not(.light) .fv-prototype .svgHeader .header-position,
+html:not(.light) .fv-prototype .svgHeader .header-zoom {
+  color: oklch(0.95 0 0);
+}
+
+/* D3 hover bubbles: library uses #eee — keep dark text */
+.fv-prototype .tooltip2,
+.fv-prototype .tooltip3 {
+  background-color: #eee !important;
+  color: #1a1a1a !important;
+  box-shadow: 0 2px 10px oklch(0 0 0 / 0.2) !important;
+}
+
+.fv-prototype .clear-button {
+  color: inherit;
+}
+
+html:not(.light) .fv-prototype .popover {
+  background-color: var(--popover);
+  border-color: var(--border);
+  color: var(--popover-foreground);
+}
+
+html:not(.light) .fv-prototype .popover-title {
+  background-color: var(--muted);
+  border-color: var(--border);
+  color: var(--foreground);
+}
+
+html:not(.light) .fv-prototype .popover-content {
+  color: var(--popover-foreground);
+}

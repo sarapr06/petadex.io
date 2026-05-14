@@ -438,4 +438,36 @@
 
   /* ── Divider ────────────────────────────────────────────────── */
   .divider { @apply border-0 border-t border-border my-0; }
+
+  /* ── Nightingale prototype (EBI) — dark strip wrapper only; let components use default SVG chrome */
+  .nightingale-dark-chrome {
+    border-radius: var(--radius-lg);
+    padding: 1rem;
+    border: 1px solid oklch(0.32 0 0);
+    background-color: oklch(0.14 0 0);
+    color: oklch(0.93 0 0);
+  }
+
+  .light .nightingale-dark-chrome {
+    border-color: oklch(0.28 0 0);
+  }
+
+  /* Slightly darken sequence tile band so #eee / #ccc letters stay readable on the strip */
+  .nightingale-dark-chrome svg g.background rect {
+    fill: oklch(0.20 0 0) !important;
+    opacity: 1 !important;
+  }
+
+  /* Amino-acid glyphs (nightingale-sequence: g.sequence text.base). Chrome is always a dark strip
+     in both app themes; SVG text defaults to black — force a light fill so letters stay readable. */
+  .nightingale-dark-chrome svg g.sequence text {
+    fill: oklch(0.99 0 0) !important;
+  }
+
+  /* Ruler / brush lines — same always-dark chrome */
+  .nightingale-dark-chrome svg .axis path,
+  .nightingale-dark-chrome svg .axis line,
+  .nightingale-dark-chrome svg line.cover {
+    stroke: oklch(0.72 0 0);
+  }
 }
