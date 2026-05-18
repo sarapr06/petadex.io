@@ -27,21 +27,17 @@ import {
   loadEnrichmentPayload,
   logicalTracksHaveFeatures,
 } from "../components/proteinViewerPrototype/enrichment/interproAlphaFoldData.js"
-
-const DISPLAY_MODE_STORAGE_KEY = "petadex-protein-viewer-display-mode"
-
-function initialDisplayMode() {
-  if (typeof window === "undefined") return "summary"
-  const v = window.localStorage.getItem(DISPLAY_MODE_STORAGE_KEY)
-  return v === "full" ? "full" : "summary"
-}
+import {
+  featureViewerPlddtDef,
+  logicalTracksWithPlddt,
+  mockPlddtScores,
+} from "../components/proteinViewerPrototype/plddtConfidence.js"
+import PlddtLegend from "../components/proteinViewerPrototype/PlddtLegend.jsx"
 
 const ProteinViewerPrototypePage = () => {
   const [accessions, setAccessions] = useState([])
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState(null)
-
-  const [displayMode, setDisplayMode] = useState(initialDisplayMode)
 
   const [ngChoice, setNgChoice] = useState(DEMO_OPTION_VALUE)
   const [fvChoice, setFvChoice] = useState(DEMO_OPTION_VALUE)
@@ -64,30 +60,29 @@ const ProteinViewerPrototypePage = () => {
     loading: false,
     logicalTracks: logicalTracksForSequenceLength(DEMO_SEQUENCE.length),
     lineData: null,
+    plddtScores: mockPlddtScores(DEMO_SEQUENCE.length),
     resolvedAccession: null,
     resolveMethod: "",
     resolveDetail: "",
     alphaFoldMessage: null,
     uniProtMessage: null,
     usingMockTracks: true,
+    usingMockPlddt: true,
   })
 
   const [fvEnrich, setFvEnrich] = useState({
     loading: false,
     logicalTracks: logicalTracksForSequenceLength(DEMO_SEQUENCE.length),
     lineData: null,
+    plddtScores: mockPlddtScores(DEMO_SEQUENCE.length),
     resolvedAccession: null,
     resolveMethod: "",
     resolveDetail: "",
     alphaFoldMessage: null,
     uniProtMessage: null,
     usingMockTracks: true,
+    usingMockPlddt: true,
   })
-
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    window.localStorage.setItem(DISPLAY_MODE_STORAGE_KEY, displayMode)
-  }, [displayMode])
 
   useEffect(() => {
     let cancelled = false
@@ -214,30 +209,39 @@ const ProteinViewerPrototypePage = () => {
           ? await loadEnrichmentPayload({
               uniProtAccession: resolve.accession,
               sequenceLength: ngSeq.length,
-              displayMode,
             })
           : {
               uniProtUsed: null,
               logicalTracks: [],
               lineData: null,
+              plddtScores: null,
               alphaFoldMessage: null,
               uniProtMessage: null,
             }
 
         const hasReal = logicalTracksHaveFeatures(payload.logicalTracks)
         const logical = hasReal ? payload.logicalTracks : mock
+        const mockPlddt =
+          !payload.plddtScores?.length && ngChoice === DEMO_OPTION_VALUE
+        const plddtScores = payload.plddtScores?.length
+          ? payload.plddtScores
+          : mockPlddt
+            ? mockPlddtScores(ngSeq.length)
+            : null
 
         if (!cancelled) {
           setNgEnrich({
             loading: false,
             logicalTracks: logical,
             lineData: payload.lineData,
+            plddtScores,
             resolvedAccession: resolve.accession,
             resolveMethod: resolve.method,
             resolveDetail: resolve.detail,
             alphaFoldMessage: payload.alphaFoldMessage,
             uniProtMessage: payload.uniProtMessage,
             usingMockTracks: !hasReal,
+            usingMockPlddt: mockPlddt,
           })
         }
       } catch (e) {
@@ -246,12 +250,15 @@ const ProteinViewerPrototypePage = () => {
             loading: false,
             logicalTracks: mock,
             lineData: null,
+            plddtScores:
+              ngChoice === DEMO_OPTION_VALUE ? mockPlddtScores(ngSeq.length) : null,
             resolvedAccession: null,
             resolveMethod: "error",
             resolveDetail: e?.message || String(e),
             alphaFoldMessage: null,
             uniProtMessage: null,
             usingMockTracks: true,
+            usingMockPlddt: ngChoice === DEMO_OPTION_VALUE,
           })
         }
       }
@@ -266,7 +273,6 @@ const ProteinViewerPrototypePage = () => {
     ngChoice,
     deferredNgManual,
     ngAutoMap,
-    displayMode,
   ])
 
   useEffect(() => {
@@ -289,30 +295,39 @@ const ProteinViewerPrototypePage = () => {
           ? await loadEnrichmentPayload({
               uniProtAccession: resolve.accession,
               sequenceLength: fvSeq.length,
-              displayMode,
             })
           : {
               uniProtUsed: null,
               logicalTracks: [],
               lineData: null,
+              plddtScores: null,
               alphaFoldMessage: null,
               uniProtMessage: null,
             }
 
         const hasReal = logicalTracksHaveFeatures(payload.logicalTracks)
         const logical = hasReal ? payload.logicalTracks : mock
+        const mockPlddt =
+          !payload.plddtScores?.length && fvChoice === DEMO_OPTION_VALUE
+        const plddtScores = payload.plddtScores?.length
+          ? payload.plddtScores
+          : mockPlddt
+            ? mockPlddtScores(fvSeq.length)
+            : null
 
         if (!cancelled) {
           setFvEnrich({
             loading: false,
             logicalTracks: logical,
             lineData: payload.lineData,
+            plddtScores,
             resolvedAccession: resolve.accession,
             resolveMethod: resolve.method,
             resolveDetail: resolve.detail,
             alphaFoldMessage: payload.alphaFoldMessage,
             uniProtMessage: payload.uniProtMessage,
             usingMockTracks: !hasReal,
+            usingMockPlddt: mockPlddt,
           })
         }
       } catch (e) {
@@ -321,12 +336,15 @@ const ProteinViewerPrototypePage = () => {
             loading: false,
             logicalTracks: mock,
             lineData: null,
+            plddtScores:
+              fvChoice === DEMO_OPTION_VALUE ? mockPlddtScores(fvSeq.length) : null,
             resolvedAccession: null,
             resolveMethod: "error",
             resolveDetail: e?.message || String(e),
             alphaFoldMessage: null,
             uniProtMessage: null,
             usingMockTracks: true,
+            usingMockPlddt: fvChoice === DEMO_OPTION_VALUE,
           })
         }
       }
@@ -341,18 +359,28 @@ const ProteinViewerPrototypePage = () => {
     fvChoice,
     deferredFvManual,
     fvAutoMap,
-    displayMode,
   ])
 
-  const ngTrackPayloads = useMemo(
-    () => nightingalePayloadFromLogicalTracks(ngEnrich.logicalTracks),
-    [ngEnrich.logicalTracks],
+  const ngTracksForView = useMemo(
+    () => logicalTracksWithPlddt(ngEnrich.logicalTracks, ngEnrich.plddtScores),
+    [ngEnrich.logicalTracks, ngEnrich.plddtScores],
   )
 
-  const fvRectDefs = useMemo(
-    () => featureViewerDefsFromLogicalTracks(fvEnrich.logicalTracks),
-    [fvEnrich.logicalTracks],
+  const ngTrackPayloads = useMemo(
+    () => nightingalePayloadFromLogicalTracks(ngTracksForView),
+    [ngTracksForView],
   )
+
+  const fvRectDefs = useMemo(() => {
+    const base = featureViewerDefsFromLogicalTracks(fvEnrich.logicalTracks).filter(
+      d => d.id !== "plddt",
+    )
+    if (!fvEnrich.plddtScores?.length) return base
+    return [featureViewerPlddtDef(fvEnrich.plddtScores), ...base]
+  }, [fvEnrich.logicalTracks, fvEnrich.plddtScores])
+
+  const showNgPlddt = (ngEnrich.plddtScores?.length ?? 0) > 0
+  const showFvPlddt = (fvEnrich.plddtScores?.length ?? 0) > 0
 
   return (
     <div className="py-10 md:py-14">
@@ -418,43 +446,9 @@ const ProteinViewerPrototypePage = () => {
             >
               A0A002
             </a>
-            . InterPro-N-only display modes from those docs are{" "}
-            <strong className="text-foreground">not</strong> reproduced here unless we later add
-            InterPro-N-specific data.
+            . UniProt annotation tracks always show full detail (no Summary / Full toggle).
           </p>
         </header>
-
-        <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 mb-10 flex flex-wrap items-center gap-3">
-          <span className="text-sm font-medium text-foreground">Feature display</span>
-          <div className="flex rounded-md border border-border overflow-hidden">
-            <button
-              type="button"
-              className={`px-3 py-1.5 text-sm ${
-                displayMode === "summary"
-                  ? "bg-accent text-accent-foreground"
-                  : "bg-background hover:bg-muted"
-              }`}
-              onClick={() => setDisplayMode("summary")}
-            >
-              Summary
-            </button>
-            <button
-              type="button"
-              className={`px-3 py-1.5 text-sm border-l border-border ${
-                displayMode === "full"
-                  ? "bg-accent text-accent-foreground"
-                  : "bg-background hover:bg-muted"
-              }`}
-              onClick={() => setDisplayMode("full")}
-            >
-              Full
-            </button>
-          </div>
-          <p className="text-xs text-muted-foreground max-w-2xl">
-            Summary trims long UniProt feature lists (longest segments first). Preference is saved
-            in localStorage for this page.
-          </p>
-        </div>
 
         <div className="grid gap-10 lg:grid-cols-2 lg:gap-8 items-start">
           <section className="flex flex-col gap-3">
@@ -483,10 +477,13 @@ const ProteinViewerPrototypePage = () => {
               </p>
               <ul className="mt-3 text-sm text-muted-foreground list-disc pl-5 space-y-1">
                 <li>
-                  Tracks (after pLDDT): Families/regions · Domains/repeats · Motifs/sites — from
-                  UniProt when mapping succeeds; otherwise scaled mock bars.
+                  Thin pLDDT colour gradient under the sequence when scores match sequence length
+                  (demo uses synthetic scores; real data needs UniProt + matching length).
                 </li>
-                <li>pLDDT line requires AlphaFold confidence length to match the Petadex sequence.</li>
+                <li>
+                  Tracks below: Families/regions · Domains/repeats · Motifs/sites — from UniProt
+                  when mapping succeeds; otherwise scaled mock bars.
+                </li>
               </ul>
             </div>
 
@@ -541,11 +538,14 @@ const ProteinViewerPrototypePage = () => {
 
             <EnrichmentNotes pack={ngEnrich} />
 
+            {showNgPlddt ? (
+              <PlddtLegend className="mb-1" />
+            ) : null}
+
             <NightingaleProteinPanel
               key={`ng-${ngChoice}`}
               sequence={ngError ? "" : ngSeq}
               trackPayloads={ngTrackPayloads}
-              linegraphData={ngEnrich.lineData}
               enrichmentLoading={ngEnrich.loading}
             />
           </section>
@@ -575,8 +575,8 @@ const ProteinViewerPrototypePage = () => {
                 </a>
               </p>
               <ul className="mt-3 text-sm text-muted-foreground list-disc pl-5 space-y-1">
-                <li>Same enrichment inputs as Nightingale; rects + optional pLDDT line.</li>
-                <li>D3 brush zoom + toolbar (no Nightingale navigation zoom).</li>
+                <li>Same pLDDT strip and UniProt tracks as Nightingale (coloured confidence bands).</li>
+                <li>Overview ruler + zoom toolbar above the tracks (no in-panel brush zoom).</li>
               </ul>
             </div>
 
@@ -631,11 +631,14 @@ const ProteinViewerPrototypePage = () => {
 
             <EnrichmentNotes pack={fvEnrich} />
 
+            {showFvPlddt ? (
+              <PlddtLegend className="mb-1" />
+            ) : null}
+
             <FeatureViewerPanel
               key={`fv-${fvChoice}`}
               sequence={fvError ? "" : fvSeq}
               rectTrackDefs={fvRectDefs}
-              lineData={fvEnrich.lineData}
               enrichmentLoading={fvEnrich.loading}
             />
           </section>
@@ -675,6 +678,11 @@ function EnrichmentNotes({ pack }) {
 
   if (pack.uniProtMessage) lines.push(pack.uniProtMessage)
   if (pack.alphaFoldMessage) lines.push(pack.alphaFoldMessage)
+  if (pack.usingMockPlddt) {
+    lines.push("pLDDT strip uses synthetic demo scores (not from AlphaFold).")
+  } else if (pack.plddtScores?.length) {
+    lines.push("pLDDT from AlphaFold confidence (length matches Petadex sequence).")
+  }
 
   if (!lines.length) return null
 

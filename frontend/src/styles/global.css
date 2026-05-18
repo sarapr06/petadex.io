@@ -454,18 +454,56 @@
     color: var(--foreground);
   }
 
-  /* Sequence residue tile band (overrides library #eee/#ccc) */
-  .nightingale-chrome svg g.background rect {
-    fill: oklch(0.20 0 0) !important;
-    opacity: 1 !important;
+  /* Integrated overview + tracks: stack children, avoid ruler/sequence overlap */
+  .nightingale-chrome-unified nightingale-manager {
+    display: block;
   }
 
-  .light .nightingale-chrome svg g.background rect:nth-child(odd) {
-    fill: oklch(0.97 0 0) !important;
+  .nightingale-chrome-unified nightingale-navigation {
+    display: block;
+    max-width: 100%;
+    overflow-x: clip;
+    overflow-y: visible;
   }
 
-  .light .nightingale-chrome svg g.background rect:nth-child(even) {
-    fill: oklch(0.90 0 0) !important;
+  .nightingale-chrome-unified nightingale-navigation svg.container {
+    display: block;
+    max-width: 100%;
+    overflow: visible;
+  }
+
+  .nightingale-chrome-unified nightingale-manager {
+    max-width: 100%;
+  }
+
+  .nightingale-chrome-unified nightingale-sequence {
+    display: block;
+    margin-block-start: 0;
+  }
+
+  /* Residue index callout above the highlighted sequence letter */
+  .nightingale-residue-position-label {
+    transform: translate(-50%, calc(-100% - 5px));
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 20;
+    color: oklch(0.98 0 0);
+    background: oklch(0.32 0.1 250);
+    border: 1px solid oklch(0.55 0.12 250 / 0.65);
+    box-shadow: 0 1px 6px oklch(0 0 0 / 0.35);
+  }
+
+  .light .nightingale-residue-position-label {
+    color: oklch(0.98 0 0);
+    background: oklch(0.42 0.12 250);
+    border-color: oklch(0.38 0.1 250 / 0.5);
+    box-shadow: 0 1px 4px oklch(0 0 0 / 0.12);
   }
 
   /* Rulers / brush connector lines */
@@ -481,18 +519,36 @@
     stroke: oklch(0.55 0 0);
   }
 
-  /* Navigation + sequence axis numbers (avoid bare `svg text` — would recolor feature labels) */
+  /* Navigation axis numbers (avoid bare `svg text` — would recolor feature labels) */
   .nightingale-chrome nightingale-navigation svg .axis .tick text,
-  .nightingale-chrome nightingale-sequence svg .axis .tick text,
   .nightingale-chrome nightingale-navigation svg text.start-label,
   .nightingale-chrome nightingale-navigation svg text.end-label {
     fill: oklch(0.93 0 0);
   }
 
   .light .nightingale-chrome nightingale-navigation svg .axis .tick text,
-  .light .nightingale-chrome nightingale-sequence svg .axis .tick text,
   .light .nightingale-chrome nightingale-navigation svg text.start-label,
   .light .nightingale-chrome nightingale-navigation svg text.end-label {
+    fill: var(--foreground);
+  }
+
+  /* Sequence ruler ticks: light when zoomed out only (letter mode uses host color + shadow theme) */
+  .nightingale-chrome
+    nightingale-sequence:not([data-petadex-letters-visible])
+    svg
+    .axis
+    .tick
+    text {
+    fill: oklch(0.93 0 0);
+  }
+
+  .light
+    .nightingale-chrome
+    nightingale-sequence:not([data-petadex-letters-visible])
+    svg
+    .axis
+    .tick
+    text {
     fill: var(--foreground);
   }
 
@@ -519,16 +575,51 @@
   }
 }
 
-/* Nightingale residue letters — unlayered so this wins over @layer components / Tailwind utilities.
+/* Nightingale residue letters — near-black in light and dark (readable on stripe bands).
    (Nightingale uses `g.sequence`; avoid a global `.sequence` utility on that group.) */
-.nightingale-chrome nightingale-sequence svg g.sequence text.base {
-  fill: oklch(0.99 0 0) !important;
-  color: oklch(0.99 0 0) !important;
+.nightingale-chrome nightingale-sequence svg g.sequence text.base,
+.light .nightingale-chrome nightingale-sequence svg g.sequence text.base {
+  fill: oklch(0.18 0 0) !important;
+  color: oklch(0.18 0 0) !important;
   font-family: var(--font-mono);
 }
 
-.light .nightingale-chrome nightingale-sequence svg g.sequence text.base {
-  fill: var(--foreground) !important;
-  color: var(--foreground) !important;
-  font-family: var(--font-mono);
+/* Nightingale hover position callout (React portal in panel — unlayered for reliable paint) */
+.nightingale-residue-position-label {
+  transform: translate(-50%, calc(-100% - 6px));
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  color: oklch(0.98 0 0);
+  background: oklch(0.32 0.1 250);
+  border: 1px solid oklch(0.55 0.12 250 / 0.65);
+  box-shadow: 0 1px 6px oklch(0 0 0 / 0.35);
+}
+
+.light .nightingale-residue-position-label {
+  background: oklch(0.42 0.12 250);
+  border-color: oklch(0.38 0.1 250 / 0.5);
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.12);
+}
+
+/*
+ * Sequence axis ink — custom property inherits into shadow DOM (D3 uses fill=currentColor).
+ * Unlayered so it beats .nightingale-chrome { color: oklch(0.93 …) } in @layer components.
+ */
+.nightingale-chrome nightingale-sequence {
+  --petadex-seq-axis-ink: oklch(0.92 0 0);
+}
+
+.light .nightingale-chrome nightingale-sequence {
+  --petadex-seq-axis-ink: oklch(0.32 0 0);
+}
+
+.nightingale-chrome nightingale-sequence[data-petadex-letters-visible] {
+  --petadex-seq-axis-ink: oklch(0.18 0 0) !important;
+  color: oklch(0.18 0 0) !important;
 }

@@ -1,3 +1,103 @@
+/* Fit panel to drawn tracks — library leaves a tall empty canvas below the axis */
+.fv-prototype {
+  position: relative;
+  min-height: 0 !important;
+  line-height: 0;
+}
+
+.fv-prototype svg {
+  display: block;
+}
+
+.fv-prototype .add-variant-btn,
+.fv-prototype .get-predictions-btn {
+  display: none !important;
+}
+
+/* Residue column highlight (InterPro-style vertical band) */
+.fv-residue-column-highlight {
+  position: absolute;
+  pointer-events: none;
+  z-index: 12;
+  border-radius: 1px;
+  box-shadow: inset 0 0 0 1px oklch(0.55 0.14 250 / 0.45);
+}
+
+/* Position callout above the highlighted column (matches Nightingale) */
+.fv-prototype .fv-residue-position-label {
+  transform: translate(-50%, calc(-100% - 5px));
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 13;
+  color: oklch(0.98 0 0);
+  background: oklch(0.32 0.1 250);
+  border: 1px solid oklch(0.55 0.12 250 / 0.65);
+  box-shadow: 0 1px 6px oklch(0 0 0 / 0.35);
+}
+
+.light .fv-prototype .fv-residue-position-label {
+  background: oklch(0.42 0.12 250);
+  border-color: oklch(0.38 0.1 250 / 0.5);
+  box-shadow: 0 1px 4px oklch(0 0 0 / 0.12);
+}
+
+/* Overview navigation (Nightingale-style draggable window) */
+.fv-overview-nav .fv-overview-track {
+  fill: oklch(0.22 0 0);
+}
+
+.fv-overview-nav .fv-overview-axis path,
+.fv-overview-nav .fv-overview-axis line {
+  stroke: oklch(0.55 0 0);
+}
+
+.fv-overview-nav .fv-overview-axis text {
+  fill: oklch(0.75 0 0);
+  font-size: 10px;
+}
+
+.fv-overview-nav .fv-overview-brush .selection {
+  fill: oklch(0.55 0 0);
+  fill-opacity: 0.28;
+  stroke: oklch(0.72 0 0);
+  stroke-width: 1px;
+}
+
+.fv-overview-nav .fv-overview-brush .handle {
+  fill: oklch(0.78 0 0);
+  stroke: oklch(0.55 0 0);
+}
+
+.light .fv-overview-nav .fv-overview-track {
+  fill: oklch(0.93 0 0);
+}
+
+.light .fv-overview-nav .fv-overview-axis path,
+.light .fv-overview-nav .fv-overview-axis line {
+  stroke: oklch(0.65 0 0);
+}
+
+.light .fv-overview-nav .fv-overview-axis text {
+  fill: oklch(0.38 0 0);
+}
+
+.light .fv-overview-nav .fv-overview-brush .selection {
+  fill: oklch(0.35 0 0);
+  fill-opacity: 0.14;
+  stroke: oklch(0.45 0 0);
+}
+
+.light .fv-overview-nav .fv-overview-brush .handle {
+  fill: oklch(0.32 0 0);
+  stroke: oklch(0.5 0 0);
+}
+
 /**
  * SIB feature-viewer: left row titles (`text.yaxis`) sit on a light polygon (#DFD5D3) — keep
  * those dark. Sequence letters (`.AA`) use alternating #ccc/#eee fills in the library; on a
@@ -30,9 +130,9 @@ html:not(.light) .fv-prototype svg text.AA {
   pointer-events: none !important;
 }
 
-/* Do not open variant popup on residue click */
+/* Hover letters for column highlight; block neXtProt variant popup on click */
 .fv-prototype svg text.AA {
-  pointer-events: none;
+  pointer-events: auto;
   cursor: default;
 }
 
@@ -60,14 +160,31 @@ html:not(.light) .fv-prototype svg .axis line {
   stroke: oklch(0.78 0 0);
 }
 
-/* HTML toolbar (Position / Zoom): inherit foreground; reinforce when html is dark */
-.fv-prototype .svgHeader {
-  color: var(--foreground);
+/* Built-in Position / Zoom readout duplicates our toolbar above the viewer */
+.fv-prototype .svgHeader,
+.fv-prototype .svgHeader .header-position,
+.fv-prototype .svgHeader .header-zoom {
+  display: none !important;
+  height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
 }
 
-html:not(.light) .fv-prototype .svgHeader .header-position,
-html:not(.light) .fv-prototype .svgHeader .header-zoom {
-  color: oklch(0.95 0 0);
+/* pLDDT: thin colour gradient strip (not a tall graph row) */
+.fv-prototype .fv-track-plddt rect,
+.fv-prototype g.fv-track-plddt rect {
+  stroke: none !important;
+}
+
+/* No drag-to-zoom brush inside the track panel — use overview nav instead */
+.fv-prototype .brush,
+.fv-prototype .brush .extent,
+.fv-prototype .brush .resize,
+.fv-prototype .background {
+  display: none !important;
+  pointer-events: none !important;
 }
 
 /* D3 hover bubbles: library uses #eee — keep dark text */

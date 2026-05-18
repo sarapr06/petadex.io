@@ -1,22 +1,45 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import FeatureViewerOverviewNav from "./FeatureViewerOverviewNav.jsx"
 import { featureViewerTrackDefinitions } from "./mockProteinData.js"
-import { formatMagnification } from "./zoomReadout.js"
+import { isLightTheme } from "./nightingaleStripeColors.js"
+import {
+  clearFeatureViewerColumnHighlight,
+  clientXToFeatureViewerPosition,
+  syncFeatureViewerColumnHighlight,
+} from "./residueColumnHighlight.js"
+import { formatMagnification, minimumViewportLength } from "./zoomReadout.js"
+import { syncFeatureViewerSequenceStyle } from "./featureViewerSequenceStripes.js"
+import { trimFeatureViewerSvgHeight } from "./trimFeatureViewerLayout.js"
 
 /** @see feature-viewer `self.events.ZOOM_EVENT` */
 const FV_ZOOM_EVENT = "feature-viewer-zoom-altered"
 
+/** Petadex-owned DOM under the feature-viewer host (not library mutations). */
+const FV_OWN_DECORATION =
+  ".fv-residue-column-highlight, .fv-residue-position-label, .petadex-fv-sequence-stripes, .petadex-fv-sequence-dots"
+
 /**
- * @param {Array<{ values?: Array<{ position: number, value: number }> }> | null | undefined} lineDataRows
- * @returns {Array<{ x: number, y: number, description: string }> | null}
+ * @param {Node} n
  */
-export function featureViewerPointsFromLineData(lineDataRows) {
-  const row = Array.isArray(lineDataRows) ? lineDataRows[0] : null
-  if (!row?.values?.length) return null
-  return row.values.map(({ position, value }) => ({
-    x: position,
-    y: value,
-    description: `pLDDT ${Number(value).toFixed(1)} (residue ${position})`,
-  }))
+function isFvOwnDecorationNode(n) {
+  return (
+    n instanceof Element &&
+    (n.matches(FV_OWN_DECORATION) || !!n.closest(FV_OWN_DECORATION))
+  )
+}
+
+/**
+ * @param {MutationRecord} m
+ */
+function isFvOwnDecorationMutation(m) {
+  if (isFvOwnDecorationNode(m.target)) return true
+  for (const n of m.addedNodes) {
+    if (isFvOwnDecorationNode(n)) return true
+  }
+  for (const n of m.removedNodes) {
+    if (isFvOwnDecorationNode(n)) return true
+  }
+  return false
 }
 
 /**
@@ -40,7 +63,11 @@ function viewportFromZoomDetail(d, seqLen) {
     return { lo: 1, hi: seqLen, zoom: 1 }
   }
 
-  return { lo: s + 1, hi: e - 1, zoom: z }
+  return {
+    lo: Math.max(1, Math.round(s)),
+    hi: Math.min(seqLen, Math.round(e)),
+    zoom: z,
+  }
 }
 
 /**
@@ -48,14 +75,12 @@ function viewportFromZoomDetail(d, seqLen) {
  * @param {{
  *   sequence: string,
  *   rectTrackDefs?: ReturnType<typeof import("./mockProteinData.js").featureViewerDefsFromLogicalTracks>,
- *   lineData?: Array<{ values?: Array<{ position: number, value: number }> }> | null,
  *   enrichmentLoading?: boolean,
  * }} props
  */
 export default function FeatureViewerPanel({
   sequence,
   rectTrackDefs,
-  lineData,
   enrichmentLoading,
 }) {
   const containerRef = useRef(null)
@@ -68,6 +93,8 @@ export default function FeatureViewerPanel({
     /** @type {{ lo: number, hi: number } | null} */ (null),
   )
   const zoomSvgRef = useRef(/** @type {SVGSVGElement | null} */ (null))
+  /** Last hovered residue (1-based); restored after layout / zoom repaints. */
+  const hoverPositionRef = useRef(/** @type {number | null} */ (null))
   const [mounted, setMounted] = useState(false)
   const [zoomScale, setZoomScale] = useState(1)
   const reactId = useId()
@@ -82,13 +109,25 @@ export default function FeatureViewerPanel({
 
   const defs = rectTrackDefs?.length ? rectTrackDefs : mockDefs
 
-  const linePts = useMemo(() => featureViewerPointsFromLineData(lineData), [lineData])
-
   /** Same cap as passed to feature-viewer; brushend only zooms when extent length exceeds this. */
-  const zoomMaxLib = useMemo(
-    () => Math.min(120, Math.max(30, Math.ceil(seqLen / 5))),
-    [seqLen],
-  )
+  const zoomMaxLib = useMemo(() => minimumViewportLength(seqLen), [seqLen])
+
+  const applyColumnHighlight = useCallback((/** @type {number | null} */ position) => {
+    hoverPositionRef.current = position
+    const host = containerRef.current
+    if (!host) return
+    if (position == null) {
+      clearFeatureViewerColumnHighlight(host)
+      return
+    }
+    syncFeatureViewerColumnHighlight(
+      host,
+      position,
+      viewportRef.current,
+      isLightTheme(),
+      sequence,
+    )
+  }, [sequence])
 
   const applyViewportFromEvent = useCallback(
     (/** @type {CustomEvent} */ ev) => {
@@ -230,8 +269,13 @@ export default function FeatureViewerPanel({
     el.id = fvDomId
 
     let cancelled = false
+    let layoutRaf = 0
     /** @type {MutationObserver | null} */
     let variantUiObserver = null
+    /** @type {((ev: Event) => void) | null} */
+    let onZoomLayout = null
+    /** @type {((ev: MouseEvent) => void) | null} */
+    let blockContextZoom = null
 
     ;(async () => {
       const mod = await import("feature-viewer")
@@ -243,7 +287,7 @@ export default function FeatureViewerPanel({
         showAxis: true,
         showSequence: true,
         brushActive: false,
-        toolbar: true,
+        toolbar: false,
         bubbleHelp: false,
         showvariant: false,
         zoomMax: zoomMaxLib,
@@ -254,24 +298,20 @@ export default function FeatureViewerPanel({
       setBrushExtent({ lo: 1, hi: seqLen })
       setZoomScale(1)
 
-      if (linePts?.length) {
-        ft.addFeature({
-          data: linePts,
-          name: "pLDDT (AlphaFold)",
-          className: "fv-track-plddt",
-          color: "#6366f1",
-          type: "line",
-          height: "12",
-          interpolation: "linear",
-        })
-      }
-
       defs.forEach(def => {
         ft.addFeature(def.feature)
       })
 
       zoomSvgRef.current = containerRef.current?.querySelector("svg") ?? null
       zoomSvgRef.current?.addEventListener(FV_ZOOM_EVENT, applyViewportFromEvent)
+
+      /* Right-click reset zoom lives on overview toolbar (1×), not inside the track panel */
+      const svgEl = zoomSvgRef.current
+      blockContextZoom = (/** @type {MouseEvent} */ e) => {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+      svgEl?.addEventListener("contextmenu", blockContextZoom, true)
 
       /* feature-viewer always injects neXtProt variant popups with the toolbar; remove them. */
       const host = containerRef.current
@@ -281,14 +321,69 @@ export default function FeatureViewerPanel({
             .querySelectorAll(".single-variant-popup, .multiple-variant-popup")
             .forEach(node => node.remove())
         }
-        stripVariantPopups()
-        variantUiObserver = new MutationObserver(stripVariantPopups)
-        variantUiObserver.observe(host, { childList: true, subtree: true })
+        const observeOpts = { childList: true, subtree: true }
+
+        const runLayoutPass = () => {
+          variantUiObserver?.disconnect()
+          try {
+            stripVariantPopups()
+            syncFeatureViewerSequenceStyle(host, viewportRef.current)
+            trimFeatureViewerSvgHeight(host)
+            if (hoverPositionRef.current != null) {
+              syncFeatureViewerColumnHighlight(
+                host,
+                hoverPositionRef.current,
+                viewportRef.current,
+                isLightTheme(),
+                sequence,
+              )
+            }
+          } finally {
+            if (!cancelled && variantUiObserver) {
+              variantUiObserver.observe(host, observeOpts)
+            }
+          }
+        }
+
+        const scheduleLayoutPass = () => {
+          cancelAnimationFrame(layoutRaf)
+          layoutRaf = requestAnimationFrame(() => {
+            layoutRaf = 0
+            runLayoutPass()
+          })
+        }
+
+        runLayoutPass()
+        requestAnimationFrame(scheduleLayoutPass)
+
+        variantUiObserver = new MutationObserver(mutations => {
+          if (
+            mutations.length > 0 &&
+            mutations.every(isFvOwnDecorationMutation)
+          ) {
+            return
+          }
+          scheduleLayoutPass()
+        })
+        variantUiObserver.observe(host, observeOpts)
+
+        const svg = zoomSvgRef.current
+        if (svg) {
+          onZoomLayout = () => scheduleLayoutPass()
+          svg.addEventListener(FV_ZOOM_EVENT, onZoomLayout)
+        }
       }
     })()
 
     return () => {
       cancelled = true
+      cancelAnimationFrame(layoutRaf)
+      if (onZoomLayout && zoomSvgRef.current) {
+        zoomSvgRef.current.removeEventListener(FV_ZOOM_EVENT, onZoomLayout)
+      }
+      if (blockContextZoom && zoomSvgRef.current) {
+        zoomSvgRef.current.removeEventListener("contextmenu", blockContextZoom, true)
+      }
       zoomSvgRef.current?.removeEventListener(FV_ZOOM_EVENT, applyViewportFromEvent)
       zoomSvgRef.current = null
       variantUiObserver?.disconnect()
@@ -309,7 +404,6 @@ export default function FeatureViewerPanel({
     sequence,
     seqLen,
     defs,
-    linePts,
     zoomMaxLib,
     applyViewportFromEvent,
   ])
@@ -319,6 +413,83 @@ export default function FeatureViewerPanel({
     setBrushExtent({ lo: 1, hi: seqLen })
     setZoomScale(1)
   }, [seqLen])
+
+  useEffect(() => {
+    const sc = scrollRef.current
+    const host = containerRef.current
+    if (!sc || !host || !mounted || seqLen === 0) return
+
+    let raf = 0
+    const onPointerMove = (/** @type {PointerEvent} */ e) => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const vp = viewportRef.current
+        const pos = clientXToFeatureViewerPosition(
+          host,
+          e.clientX,
+          vp,
+          e.clientY,
+        )
+        applyColumnHighlight(pos)
+      })
+    }
+
+    const onPointerLeave = () => {
+      applyColumnHighlight(null)
+    }
+
+    const blockVariantClick = (/** @type {MouseEvent} */ e) => {
+      const t = e.target
+      if (!(t instanceof Element)) return
+      const letter = t.closest("text.AA")
+      if (letter?.closest(".seqGroup")) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+      }
+    }
+
+    sc.addEventListener("pointermove", onPointerMove)
+    sc.addEventListener("pointerleave", onPointerLeave)
+    host.addEventListener("click", blockVariantClick, true)
+
+    return () => {
+      cancelAnimationFrame(raf)
+      sc.removeEventListener("pointermove", onPointerMove)
+      sc.removeEventListener("pointerleave", onPointerLeave)
+      host.removeEventListener("click", blockVariantClick, true)
+      hoverPositionRef.current = null
+      clearFeatureViewerColumnHighlight(host)
+    }
+  }, [mounted, seqLen, brushExtent, applyColumnHighlight])
+
+  useEffect(() => {
+    const host = containerRef.current
+    if (!host || !mounted || seqLen === 0) return
+
+    const run = () => {
+      syncFeatureViewerSequenceStyle(host, viewportRef.current)
+      if (hoverPositionRef.current != null) {
+        syncFeatureViewerColumnHighlight(
+          host,
+          hoverPositionRef.current,
+          viewportRef.current,
+          isLightTheme(),
+          sequence,
+        )
+      }
+    }
+    run()
+
+    const themeMo = new MutationObserver(() => {
+      requestAnimationFrame(run)
+    })
+    themeMo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    })
+
+    return () => themeMo.disconnect()
+  }, [mounted, seqLen, brushExtent, sequence])
 
   useEffect(() => {
     const sc = scrollRef.current
@@ -387,88 +558,43 @@ export default function FeatureViewerPanel({
         </p>
       ) : (
         <p className="text-xs text-muted-foreground mb-2">
-          Use + / − to zoom the residue window. When zoomed, horizontal trackpad scroll or
-          Shift+vertical scroll pans; « / » nudge the window. pLDDT appears as a line track when
-          AlphaFold length matches the Petadex sequence.
+          Use the overview ruler and zoom row above the tracks to change the visible window.
+          Hover a sequence letter (or move across tracks) to highlight the matching residue
+          column, like Nightingale.
+          Trackpad scroll pans when zoomed. pLDDT appears when AlphaFold length matches the
+          sequence.
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-2 mb-2 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">Zoom</span>
-        <button
-          type="button"
-          className="btn btn-secondary text-sm px-2 py-1 min-w-[2rem]"
-          onClick={handleZoomOut}
-          disabled={!canZoomOut}
-          aria-label="Zoom out"
-          title="Show more of the sequence"
-        >
-          −
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary text-sm px-2 py-1 min-w-[2rem]"
-          onClick={handleZoomIn}
-          disabled={!canZoomIn}
-          aria-label="Zoom in"
-          title="Magnify a shorter residue window"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary text-sm px-2 py-1 min-w-[2.25rem] disabled:opacity-40"
-          onClick={handleResetZoom}
-          disabled={!zoomedPastOne}
-          aria-label="Reset zoom to full sequence (1×)"
-          title={zoomedPastOne ? "Show the full sequence (1×)" : "Already showing the full sequence"}
-        >
-          1×
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary text-sm px-2 py-1 min-w-[2rem] disabled:opacity-40"
-          onClick={() => {
-            const { lo, hi } = viewportRef.current
-            const span = hi - lo
-            panByResidues(-Math.max(5, Math.floor(span * 0.12)))
-          }}
-          disabled={!zoomedPastOne}
-          aria-label="Pan view toward N-terminus"
-          title="Pan left (N-terminus)"
-        >
-          «
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary text-sm px-2 py-1 min-w-[2rem] disabled:opacity-40"
-          onClick={() => {
-            const { lo, hi } = viewportRef.current
-            const span = hi - lo
-            panByResidues(Math.max(5, Math.floor(span * 0.12)))
-          }}
-          disabled={!zoomedPastOne}
-          aria-label="Pan view toward C-terminus"
-          title="Pan right (C-terminus)"
-        >
-          »
-        </button>
-        <span
-          className="text-[11px] tabular-nums text-muted-foreground whitespace-nowrap"
-          aria-live="polite"
-        >
-          {fvZoomReadout}
-        </span>
-        <span className="text-[11px] max-w-md text-muted-foreground">
-          Scroll the track area horizontally (or Shift+scroll) when zoomed.
-        </span>
-      </div>
+      <FeatureViewerOverviewNav
+        seqLen={seqLen}
+        viewport={brushExtent}
+        zoomMaxLib={zoomMaxLib}
+        onViewportChange={runFeatureZoom}
+        zoomReadout={fvZoomReadout}
+        canZoomIn={canZoomIn}
+        canZoomOut={canZoomOut}
+        zoomedPastOne={zoomedPastOne}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
+        onResetZoom={handleResetZoom}
+        onPanLeft={() => {
+          const { lo, hi } = viewportRef.current
+          const span = hi - lo
+          panByResidues(-Math.max(5, Math.floor(span * 0.12)))
+        }}
+        onPanRight={() => {
+          const { lo, hi } = viewportRef.current
+          const span = hi - lo
+          panByResidues(Math.max(5, Math.floor(span * 0.12)))
+        }}
+      />
       <div
         ref={scrollRef}
-        className="overflow-x-auto rounded-lg border border-border bg-background"
+        className="overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-background"
       >
         <div
           ref={containerRef}
-          className="fv-prototype min-h-[320px] w-full min-w-0"
+          className="fv-prototype w-full min-w-0"
         />
       </div>
     </div>

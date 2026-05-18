@@ -93,15 +93,20 @@ export function logicalTracksFromTemplate(sequenceLength) {
  * @param {{ id: string, title: string, features: Array<{ label: string, start: number, end: number, color: string }> }} track
  */
 export function nightingaleInterproDataFromLogicalTrack(track) {
+  const isPlddt = track.id === "plddt"
   return {
     id: track.id,
     title: track.title,
     data: track.features.map(f => ({
-      accession: f.label,
+      accession: isPlddt ? "pLDDT" : f.label,
       locations: [{ fragments: [{ start: f.start, end: f.end }] }],
       color: f.color,
-      shape: "roundRectangle",
-      tooltipContent: `${f.label}: ${f.start}–${f.end}`,
+      shape: isPlddt ? "rectangle" : "roundRectangle",
+      tooltipContent: isPlddt
+        ? typeof f.score === "number"
+          ? `pLDDT ${f.score.toFixed(1)} (${f.start}${f.end > f.start ? `–${f.end}` : ""})`
+          : `${f.label} (${f.start}–${f.end})`
+        : `${f.label}: ${f.start}–${f.end}`,
     })),
   }
 }

@@ -1,6 +1,28 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { nightingaleFeaturesByTrack } from "./mockProteinData.js"
-import { residueWindowZoomLabel } from "./zoomReadout.js"
+import {
+  applyNightingaleChromeTheme,
+  refreshNavigationViewport,
+  refreshSequenceShadowTheme,
+} from "./nightingaleChromeTheme.js"
+import {
+  detachNightingaleSequenceStripeGuard,
+  mutationAffectsStripeGuard,
+  paintNightingaleSequenceChrome,
+} from "./nightingaleSequenceDots.js"
+import { measureNightingaleViewerWidth } from "./nightingalePlotMargins.js"
+import { isLightTheme } from "./nightingaleStripeColors.js"
+import {
+  buildNightingaleResidueLabel,
+  clearNightingaleResidueLabel,
+  clientXToNightingalePosition,
+  residuePositionFromNightingaleFeature,
+  syncNightingaleResidueHighlight,
+} from "./residueColumnHighlight.js"
+import {
+  minimumViewportLength,
+  residueWindowZoomLabel,
+} from "./zoomReadout.js"
 
 /**
  * @param {Record<string, unknown> | null | undefined} f
@@ -152,17 +174,17 @@ function nightingalePointerClientXY(d) {
   return null
 }
 
-/** Roomier layout than library defaults — reduces ruler / sequence / track overlap. */
-const NG_NAV_HEIGHT = 72
+/** Overview ruler + zoom wedge (library draws trapezoids in this band). */
+const NG_NAV_HEIGHT = 80
 const NG_SEQUENCE_HEIGHT = 56
-const NG_LINEGRAPH_HEIGHT = 88
 const NG_TRACK_HEIGHT = 136
+/** Thin gradient strip — not a full annotation row. */
+const NG_PLDDT_TRACK_HEIGHT = 12
 
 /** Client-only EBI Nightingale stack (web components). */
 export default function NightingaleProteinPanel({
   sequence,
   trackPayloads: trackPayloadsProp,
-  linegraphData,
   enrichmentLoading,
 }) {
   const wrapRef = useRef(null)
@@ -171,10 +193,14 @@ export default function NightingaleProteinPanel({
   const managerRef = useRef(null)
   const navRef = useRef(null)
   const seqRef = useRef(null)
-  const lineRef = useRef(null)
+  /** Mirrors display window for zoom / pan buttons (ref alone does not re-render). */
+  const viewportRef = useRef({ lo: 1, hi: 1 })
   const trackRefs = useRef([])
   const [libsReady, setLibsReady] = useState(false)
   const [hoverTip, setHoverTip] = useState(null)
+  const [residueLabel, setResidueLabel] = useState(
+    /** @type {{ text: string, left: number, top: number } | null} */ (null),
+  )
   /** Mirrors Nightingale `display-start` / `display-end` for toolbar readout. */
   const [displayWindow, setDisplayWindow] = useState(
     /** @type {{ start: number, end: number } | null} */ (null),
@@ -187,7 +213,9 @@ export default function NightingaleProteinPanel({
     return seqLen > 0 ? nightingaleFeaturesByTrack(seqLen) : []
   }, [seqLen, trackPayloadsProp])
 
-  const showLine = Array.isArray(linegraphData) && linegraphData.length > 0
+  const hasPlddtBar = trackPayloads.some(t => t.id === "plddt")
+
+  const zoomMaxLib = useMemo(() => minimumViewportLength(seqLen), [seqLen])
 
   useEffect(() => {
     let cancelled = false
@@ -197,7 +225,6 @@ export default function NightingaleProteinPanel({
         import("@nightingale-elements/nightingale-navigation"),
         import("@nightingale-elements/nightingale-sequence"),
         import("@nightingale-elements/nightingale-interpro-track"),
-        import("@nightingale-elements/nightingale-linegraph-track"),
       ])
       if (!cancelled) setLibsReady(true)
     })()
@@ -210,6 +237,70 @@ export default function NightingaleProteinPanel({
     trackRefs.current[index] = el
   }, [])
 
+  /** Last hovered residue (1-based); cleared when letters are hidden (zoomed-out dots). */
+  const hoverPositionRef = useRef(/** @type {number | null} */ (null))
+  /** Last pointer in viewport coords — reused when layout/sequence repaints omit pointer. */
+  const hoverPointerRef = useRef(/** @type {{ x: number, y: number } | null} */ (null))
+
+  const applyResidueColumnHighlight = useCallback(
+    (
+      /** @type {number | null} */ position,
+      /** @type {{ x: number, y: number } | undefined} */ pointer,
+    ) => {
+      hoverPositionRef.current = position
+      if (pointer) {
+        hoverPointerRef.current = pointer
+      } else if (position == null) {
+        hoverPointerRef.current = null
+      }
+
+      syncNightingaleResidueHighlight(
+        {
+          manager: managerRef.current,
+          navigation: navRef.current,
+          sequence: seqRef.current,
+          tracks: trackRefs.current,
+          chrome: nightingaleChromeRef.current,
+          wrap: wrapRef.current,
+        },
+        position,
+        isLightTheme(),
+        sequence,
+      )
+
+      const ptr = pointer ?? hoverPointerRef.current ?? undefined
+      setResidueLabel(prev => {
+        if (position == null) return null
+        const next = buildNightingaleResidueLabel(
+          seqRef.current,
+          position,
+          sequence,
+          ptr?.x,
+          ptr?.y,
+        )
+        return next ?? prev
+      })
+    },
+    [sequence],
+  )
+
+  const applyResidueColumnHighlightRef = useRef(applyResidueColumnHighlight)
+  applyResidueColumnHighlightRef.current = applyResidueColumnHighlight
+
+  const syncChromeTheme = useCallback(() => {
+    applyNightingaleChromeTheme(
+      {
+        navigation: navRef.current,
+        sequence: seqRef.current,
+        tracks: trackRefs.current,
+      },
+      sequence,
+    )
+  }, [sequence])
+
+  const syncChromeThemeRef = useRef(syncChromeTheme)
+  syncChromeThemeRef.current = syncChromeTheme
+
   /**
    * Push the same residue window to manager + every track (matches Nightingale
    * `zoomIn` / `zoomOut` math) without calling those methods — avoids D3 brush
@@ -218,8 +309,10 @@ export default function NightingaleProteinPanel({
   const applySharedViewport = useCallback(
     (displayStart, displayEnd) => {
       if (!sequence || seqLen === 0) return
-      const root = wrapRef.current
-      const w = Math.max(400, root?.offsetWidth || 960)
+      const w = measureNightingaleViewerWidth(
+        nightingaleChromeRef.current,
+        wrapRef.current,
+      )
       const len = seqLen
       let ds = Math.round(displayStart)
       let de = Math.round(displayEnd)
@@ -253,6 +346,8 @@ export default function NightingaleProteinPanel({
       if (nav) {
         nav.height = NG_NAV_HEIGHT
         nav.setAttribute("ruler-start", "1")
+        nav.setAttribute("margin-right", "12")
+        nav.setAttribute("show-highlight", "true")
       }
 
       const seqEl = seqRef.current
@@ -260,37 +355,42 @@ export default function NightingaleProteinPanel({
       if (seqEl) {
         seqEl.sequence = sequence
         seqEl.height = NG_SEQUENCE_HEIGHT
-      }
-
-      const lineEl = lineRef.current
-      apply(lineEl)
-      if (lineEl && showLine) {
-        lineEl.data = linegraphData
-        lineEl.height = NG_LINEGRAPH_HEIGHT
+        seqEl.setAttribute("margin-top", "6")
       }
 
       trackPayloads.forEach((track, i) => {
         const tel = trackRefs.current[i]
         if (!tel) return
         apply(tel)
-        tel.layout = "non-overlapping"
-        tel.shape = "roundRectangle"
-        tel["show-label"] = true
+        const isPlddt = track.id === "plddt"
+        tel.layout = isPlddt ? "overlapping" : "non-overlapping"
+        tel.shape = isPlddt ? "rectangle" : "roundRectangle"
+        tel["show-label"] = !isPlddt
         tel.data = track.data
-        tel.height = NG_TRACK_HEIGHT
+        tel.height = isPlddt ? NG_PLDDT_TRACK_HEIGHT : NG_TRACK_HEIGHT
       })
 
       setDisplayWindow({ start: ds, end: de })
+      viewportRef.current = { lo: ds, hi: de }
+      requestAnimationFrame(() => {
+        syncChromeThemeRef.current()
+        refreshNavigationViewport(navRef.current)
+        const pos = hoverPositionRef.current
+        if (pos != null) {
+          applyResidueColumnHighlightRef.current(pos, hoverPointerRef.current ?? undefined)
+        }
+      })
     },
-    [sequence, seqLen, trackPayloads, linegraphData, showLine],
+    [sequence, seqLen, trackPayloads],
   )
 
   /** Width/length/data only — never overwrites zoom window (display-start/end). */
   const syncLayoutGeometry = useCallback(() => {
     if (!sequence || seqLen === 0) return
-    const root = wrapRef.current
-    if (!root) return
-    const w = Math.max(400, root.offsetWidth || 960)
+    const w = measureNightingaleViewerWidth(
+      nightingaleChromeRef.current,
+      wrapRef.current,
+    )
     const len = seqLen
 
     const mgr = managerRef.current
@@ -314,6 +414,11 @@ export default function NightingaleProteinPanel({
     if (nav) {
       nav.height = NG_NAV_HEIGHT
       nav.setAttribute("ruler-start", "1")
+      nav.setAttribute("margin-right", "12")
+      nav.setAttribute("show-highlight", "true")
+      const { lo, hi } = viewportRef.current
+      nav.setAttribute("display-start", String(lo))
+      nav.setAttribute("display-end", String(hi))
     }
 
     const seqEl = seqRef.current
@@ -321,26 +426,26 @@ export default function NightingaleProteinPanel({
     if (seqEl) {
       seqEl.sequence = sequence
       seqEl.height = NG_SEQUENCE_HEIGHT
-    }
-
-    const lineEl = lineRef.current
-    applyGeom(lineEl)
-    if (lineEl && showLine) {
-      lineEl.data = linegraphData
-      lineEl.height = NG_LINEGRAPH_HEIGHT
+      seqEl.setAttribute("margin-top", "6")
     }
 
     trackPayloads.forEach((track, i) => {
       const tel = trackRefs.current[i]
       if (!tel) return
       applyGeom(tel)
-      tel.layout = "non-overlapping"
-      tel.shape = "roundRectangle"
-      tel["show-label"] = true
+      const isPlddt = track.id === "plddt"
+      tel.layout = isPlddt ? "overlapping" : "non-overlapping"
+      tel.shape = isPlddt ? "rectangle" : "roundRectangle"
+      tel["show-label"] = !isPlddt
       tel.data = track.data
-      tel.height = NG_TRACK_HEIGHT
+      tel.height = isPlddt ? NG_PLDDT_TRACK_HEIGHT : NG_TRACK_HEIGHT
     })
-  }, [sequence, seqLen, trackPayloads, linegraphData, showLine])
+
+    requestAnimationFrame(() => {
+      syncChromeThemeRef.current()
+      refreshNavigationViewport(navRef.current)
+    })
+  }, [sequence, seqLen, trackPayloads])
 
   const applyVpRef = useRef(applySharedViewport)
   applyVpRef.current = applySharedViewport
@@ -348,23 +453,78 @@ export default function NightingaleProteinPanel({
   useEffect(() => {
     if (!libsReady || seqLen === 0) return
     applyVpRef.current(1, seqLen)
+    requestAnimationFrame(() => syncChromeThemeRef.current())
   }, [libsReady, seqLen])
 
   useEffect(() => {
     if (!libsReady || seqLen === 0) return
+
+    let raf = 0
+    const scheduleSequencePaint = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        paintNightingaleSequenceChrome(seqRef.current, sequence)
+        refreshSequenceShadowTheme(seqRef.current)
+        const pos = hoverPositionRef.current
+        if (pos != null) {
+          applyResidueColumnHighlightRef.current(
+            pos,
+            hoverPointerRef.current ?? undefined,
+          )
+        }
+      })
+    }
+
+    scheduleSequencePaint()
+
+    const htmlMo = new MutationObserver(scheduleSequencePaint)
+    htmlMo.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    })
+
+    let seqMo = null
+    const attachSequenceObserver = () => {
+      const seq = seqRef.current
+      if (!seq?.shadowRoot || seqMo) return
+      seqMo = new MutationObserver(mutations => {
+        if (!mutations.some(mutationAffectsStripeGuard)) return
+        scheduleSequencePaint()
+      })
+      seqMo.observe(seq.shadowRoot, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ["style", "transform", "opacity", "fill"],
+      })
+    }
+
+    requestAnimationFrame(() => {
+      attachSequenceObserver()
+    })
+
+    return () => {
+      cancelAnimationFrame(raf)
+      htmlMo.disconnect()
+      seqMo?.disconnect()
+      detachNightingaleSequenceStripeGuard(seqRef.current)
+    }
+  }, [libsReady, seqLen, sequence])
+
+  useEffect(() => {
+    if (!libsReady || seqLen === 0) return
     syncLayoutGeometry()
-    const root = wrapRef.current
-    if (!root || typeof ResizeObserver === "undefined") return
+    const chrome = nightingaleChromeRef.current
+    if (!chrome || typeof ResizeObserver === "undefined") return
     const ro = new ResizeObserver(() => syncLayoutGeometry())
-    ro.observe(root)
+    ro.observe(chrome)
     return () => ro.disconnect()
-  }, [libsReady, seqLen, syncLayoutGeometry, showLine])
+  }, [libsReady, seqLen, syncLayoutGeometry, hasPlddtBar])
 
   /**
-   * When the overview brush is dragged, `nightingale-navigation` dispatches `change`
-   * on `nightingale-manager`. The manager sometimes re-applies a stale internal
-   * `display-start` / `display-end` to children, so tracks stay stuck while the
-   * brush moves. Re-push the window from the event detail so all tracks match.
+   * When the viewport changes, the manager sometimes re-applies a stale internal
+   * `display-start` / `display-end` to children. Re-push the window from the event
+   * detail so all tracks match.
    */
   const applyVpFromManagerEventRef = useRef(applySharedViewport)
   applyVpFromManagerEventRef.current = applySharedViewport
@@ -399,6 +559,9 @@ export default function NightingaleProteinPanel({
           Math.round(cs) === Math.round(ds) &&
           Math.round(ce) === Math.round(de)
         ) {
+          requestAnimationFrame(() => {
+            refreshNavigationViewport(navRef.current)
+          })
           return
         }
       }
@@ -410,47 +573,165 @@ export default function NightingaleProteinPanel({
     return () => mgr.removeEventListener("change", onManagerChange)
   }, [libsReady, seqLen])
 
-  const runZoom = useCallback(
-    direction => {
-      syncLayoutGeometry()
-      const nav = navRef.current
+  const handleResetZoom = useCallback(() => {
+    applySharedViewport(1, seqLen)
+    viewportRef.current = { lo: 1, hi: seqLen }
+  }, [applySharedViewport, seqLen])
+
+  const handleZoomIn = useCallback(() => {
+    const L = seqLen
+    const { lo, hi } = viewportRef.current
+    const span = hi - lo
+    if (L <= 0 || span <= zoomMaxLib + 0.02) return
+
+    const targetLen = Math.max(zoomMaxLib + 0.02, span * 0.62)
+    const mid = (lo + hi) / 2
+    let a = mid - targetLen / 2
+    let b = mid + targetLen / 2
+    if (a < 1) {
+      b += 1 - a
+      a = 1
+    }
+    if (b > L) {
+      a -= b - L
+      b = L
+    }
+    if (a < 1) a = 1
+    applySharedViewport(a, b)
+  }, [applySharedViewport, seqLen, zoomMaxLib])
+
+  const handleZoomOut = useCallback(() => {
+    const L = seqLen
+    const { lo, hi } = viewportRef.current
+    const span = hi - lo
+    if (L <= 0) return
+
+    if (span >= L - 0.5) {
+      handleResetZoom()
+      return
+    }
+
+    const targetLen = Math.min(L - 0.02, span / 0.62)
+    const mid = (lo + hi) / 2
+    let a = mid - targetLen / 2
+    let b = mid + targetLen / 2
+    if (a < 1) {
+      b += 1 - a
+      a = 1
+    }
+    if (b > L) {
+      a -= b - L
+      b = L
+    }
+    if (a < 1) a = 1
+    if (b > L) b = L
+    if (b - a >= L - 0.5) {
+      handleResetZoom()
+      return
+    }
+    applySharedViewport(a, b)
+  }, [applySharedViewport, handleResetZoom, seqLen])
+
+  const panByResidues = useCallback(
+    delta => {
       const L = seqLen
-      if (!nav || !L) return
+      const { lo, hi } = viewportRef.current
+      const span = hi - lo
+      if (L <= 0 || span >= L - 0.5 || delta === 0) return
 
-      requestAnimationFrame(() => {
-        const rs = Number(nav["ruler-start"]) || 1
-        const sf =
-          Number(nav["scale-factor"]) || Math.max(10, Math.floor(L / 5))
-        const start =
-          typeof nav.getStart === "function"
-            ? nav.getStart()
-            : Number(nav["display-start"]) || 1
-        const end =
-          typeof nav.getEnd === "function"
-            ? nav.getEnd()
-            : Number(nav["display-end"]) || L
-
-        let nds
-        let nde
-        if (direction === "in") {
-          const t = Math.min(start + sf, end - 1)
-          nds = t
-          nde = Math.max(end - sf, t + 1)
-        } else {
-          nds = Math.max(rs, start - sf)
-          nde = Math.min(L + rs - 1, end + sf)
-        }
-
-        nds = Math.max(1, Math.min(nds, L))
-        nde = Math.max(nds + 1, Math.min(nde, L))
-        applySharedViewport(nds, nde)
-      })
+      let a = lo + delta
+      let b = hi + delta
+      if (a < 1) {
+        b += 1 - a
+        a = 1
+      }
+      if (b > L) {
+        a -= b - L
+        b = L
+      }
+      if (a < 1) a = 1
+      if (b > L) b = L
+      applySharedViewport(a, b)
     },
-    [syncLayoutGeometry, seqLen, applySharedViewport],
+    [applySharedViewport, seqLen],
   )
 
-  const zoomOut = useCallback(() => runZoom("out"), [runZoom])
-  const zoomIn = useCallback(() => runZoom("in"), [runZoom])
+  useEffect(() => {
+    if (!libsReady || seqLen === 0) return
+    const chrome = nightingaleChromeRef.current
+    if (!chrome) return
+
+    chrome.querySelector(".ng-residue-column-highlight")?.remove()
+
+    let raf = 0
+    const onPointerMove = (/** @type {PointerEvent} */ ev) => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const r = chrome.getBoundingClientRect()
+        if (!pointInDomRect(ev.clientX, ev.clientY, r)) {
+          applyResidueColumnHighlightRef.current(null)
+          return
+        }
+        const { lo, hi } = viewportRef.current
+        const pos = clientXToNightingalePosition(
+          seqRef.current,
+          ev.clientX,
+          { lo, hi },
+          ev.clientY,
+        )
+        if (pos == null) return
+        applyResidueColumnHighlightRef.current(pos, {
+          x: ev.clientX,
+          y: ev.clientY,
+        })
+      })
+    }
+
+    const onPointerLeave = (/** @type {PointerEvent} */ ev) => {
+      // Shadow boundaries often yield null; window pointermove keeps hover in sync.
+      if (ev.relatedTarget == null) return
+      const next = ev.relatedTarget
+      if (next instanceof Node && chrome.contains(next)) return
+      applyResidueColumnHighlightRef.current(null)
+    }
+
+    // Window listener: Nightingale hosts use shadow DOM; retargeting can miss wrap capture.
+    window.addEventListener("pointermove", onPointerMove, { passive: true })
+    chrome.addEventListener("pointerleave", onPointerLeave, { capture: true })
+
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener("pointermove", onPointerMove)
+      chrome.removeEventListener("pointerleave", onPointerLeave, { capture: true })
+      applyResidueColumnHighlightRef.current(null)
+      clearNightingaleResidueLabel()
+    }
+  }, [libsReady, seqLen])
+
+  useEffect(() => {
+    if (!libsReady || seqLen === 0) return
+    const pos = hoverPositionRef.current
+    if (pos == null) return
+    const ptr = hoverPointerRef.current ?? undefined
+    let raf = requestAnimationFrame(() =>
+      applyResidueColumnHighlightRef.current(pos, ptr),
+    )
+    const chrome = nightingaleChromeRef.current
+    const ro =
+      typeof ResizeObserver !== "undefined" && chrome
+        ? new ResizeObserver(() => {
+            cancelAnimationFrame(raf)
+            raf = requestAnimationFrame(() =>
+              applyResidueColumnHighlightRef.current(pos, ptr),
+            )
+          })
+        : null
+    ro?.observe(chrome)
+    return () => {
+      cancelAnimationFrame(raf)
+      ro?.disconnect()
+    }
+  }, [libsReady, seqLen, displayWindow])
 
   useEffect(() => {
     if (!libsReady) return
@@ -504,6 +785,15 @@ export default function NightingaleProteinPanel({
       if (eventType !== "mouseover" || !d.feature) return
 
       const feat = /** @type {Record<string, unknown>} */ (d.feature)
+      const residuePos = residuePositionFromNightingaleFeature(feat)
+      if (residuePos != null) {
+        const xy = nightingalePointerClientXY(d)
+        applyResidueColumnHighlightRef.current(
+          residuePos,
+          xy ? { x: xy.x, y: xy.y } : undefined,
+        )
+        return
+      }
       if (!isDomainOrSectionHoverFeature(feat)) return
 
       const label = nightingaleHoverLabel(feat)
@@ -528,7 +818,7 @@ export default function NightingaleProteinPanel({
       tracking = null
       setHoverTip(null)
     }
-  }, [libsReady, seqLen])
+  }, [libsReady, seqLen, displayWindow])
 
   if (!libsReady) {
     return (
@@ -549,13 +839,32 @@ export default function NightingaleProteinPanel({
     )
   }
 
-  const zoomReadout =
+  const brushExtent = displayWindow
+    ? { lo: displayWindow.start, hi: displayWindow.end }
+    : { lo: 1, hi: seqLen }
+
+  const zoomScale =
+    seqLen > 0
+      ? seqLen / Math.max(1, brushExtent.hi - brushExtent.lo + 1)
+      : 1
+
+  const extentLen =
+    brushExtent.hi > brushExtent.lo
+      ? brushExtent.hi - brushExtent.lo
+      : Math.max(0, seqLen - 1)
+
+  const zoomedPastOne = zoomScale > 1.001
+  const canZoomIn =
+    seqLen > zoomMaxLib + 1 && extentLen > zoomMaxLib + 1.5
+  const canZoomOut = zoomedPastOne
+
+  const ngZoomReadout =
     displayWindow != null
       ? residueWindowZoomLabel(seqLen, displayWindow.start, displayWindow.end)
       : residueWindowZoomLabel(seqLen, 1, seqLen)
 
   return (
-    <div ref={wrapRef} className="nightingale-prototype relative w-full min-w-0 overflow-x-auto pb-1">
+    <div ref={wrapRef} className="nightingale-prototype relative w-full min-w-0 pb-1">
       {hoverTip ? (
         <div
           className="pointer-events-none fixed z-[600] max-w-xs rounded-md border border-border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-lg"
@@ -566,51 +875,113 @@ export default function NightingaleProteinPanel({
           {hoverTip.label}
         </div>
       ) : null}
-      <div className="flex flex-wrap items-center gap-2 mb-2 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">Zoom</span>
-        <button
-          type="button"
-          className="btn btn-secondary text-sm px-2 py-1 min-w-[2rem]"
-          onClick={zoomOut}
-          aria-label="Zoom out"
+      {residueLabel ? (
+        <div
+          className="nightingale-residue-position-label pointer-events-none fixed z-[9999]"
+          style={{ left: residueLabel.left, top: residueLabel.top }}
+          aria-hidden="true"
         >
-          −
-        </button>
-        <button
-          type="button"
-          className="btn btn-secondary text-sm px-2 py-1 min-w-[2rem]"
-          onClick={zoomIn}
-          aria-label="Zoom in"
+          {residueLabel.text}
+        </div>
+      ) : null}
+      {enrichmentLoading ? (
+        <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">
+          Updating enrichment…
+        </p>
+      ) : null}
+      <div className="w-full min-w-0 max-w-[min(100%,52rem)] px-4 mb-2 space-y-2">
+        <div
+          className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+          aria-label="Sequence zoom controls"
         >
-          +
-        </button>
-        <span
-          className="text-[11px] tabular-nums text-muted-foreground whitespace-nowrap"
-          aria-live="polite"
-        >
-          {zoomReadout}
-        </span>
-        <span className="text-[11px] max-w-md">
-          Adjusts the residue window on all tracks. Drag the shaded window on the overview
-          ruler to pan; drag its edges to zoom that region.
-        </span>
-        {enrichmentLoading ? (
-          <span className="text-amber-600 dark:text-amber-400">Updating enrichment…</span>
-        ) : null}
+          <span className="font-medium text-foreground">Zoom</span>
+          <button
+            type="button"
+            className="btn btn-secondary text-sm px-2 py-1 min-w-[2rem]"
+            onClick={handleZoomOut}
+            disabled={!canZoomOut}
+            aria-label="Zoom out"
+            title="Show more of the sequence"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary text-sm px-2 py-1 min-w-[2rem]"
+            onClick={handleZoomIn}
+            disabled={!canZoomIn}
+            aria-label="Zoom in"
+            title="Magnify a shorter residue window"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary text-sm px-2 py-1 min-w-[2.25rem] disabled:opacity-40"
+            onClick={handleResetZoom}
+            disabled={!zoomedPastOne}
+            aria-label="Reset zoom to full sequence (1×)"
+            title={
+              zoomedPastOne
+                ? "Show the full sequence (1×)"
+                : "Already showing the full sequence"
+            }
+          >
+            1×
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary text-sm px-2 py-1 min-w-[2rem] disabled:opacity-40"
+            onClick={() => {
+              const { lo, hi } = viewportRef.current
+              const span = hi - lo
+              panByResidues(-Math.max(5, Math.floor(span * 0.12)))
+            }}
+            disabled={!zoomedPastOne}
+            aria-label="Pan view toward N-terminus"
+            title="Pan left (N-terminus)"
+          >
+            «
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary text-sm px-2 py-1 min-w-[2rem] disabled:opacity-40"
+            onClick={() => {
+              const { lo, hi } = viewportRef.current
+              const span = hi - lo
+              panByResidues(Math.max(5, Math.floor(span * 0.12)))
+            }}
+            disabled={!zoomedPastOne}
+            aria-label="Pan view toward C-terminus"
+            title="Pan right (C-terminus)"
+          >
+            »
+          </button>
+          <span
+            className="text-[11px] tabular-nums text-muted-foreground whitespace-nowrap"
+            aria-live="polite"
+          >
+            {ngZoomReadout}
+          </span>
+        </div>
+        <p className="text-[11px] text-muted-foreground max-w-3xl">
+          Drag the shaded window on the overview ruler to pan or resize the visible range.
+          Hover a residue to highlight its column across tracks and show its position.
+        </p>
       </div>
-      <div ref={nightingaleChromeRef} className="nightingale-chrome min-w-[min(100%,52rem)]">
+      <div
+        ref={nightingaleChromeRef}
+        className="nightingale-chrome nightingale-chrome-unified relative mx-4 min-w-0 max-w-[min(100%,52rem)] rounded-lg border border-border bg-background"
+      >
         <nightingale-manager ref={managerRef} style={{ display: "block" }}>
           <nightingale-navigation ref={navRef} />
           <nightingale-sequence ref={seqRef} />
-          {showLine ? (
-            <nightingale-linegraph-track ref={lineRef} />
-          ) : null}
-        {trackPayloads.map((track, i) => (
-          <nightingale-interpro-track
-            key={`${track.id}-${i}`}
-            ref={el => setTrackRef(i, el)}
-          />
-        ))}
+          {trackPayloads.map((track, i) => (
+            <nightingale-interpro-track
+              key={`${track.id}-${i}`}
+              ref={el => setTrackRef(i, el)}
+            />
+          ))}
         </nightingale-manager>
       </div>
     </div>

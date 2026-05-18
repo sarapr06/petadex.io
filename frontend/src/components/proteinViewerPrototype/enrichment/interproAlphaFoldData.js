@@ -3,10 +3,10 @@
  * Sequence coordinates remain from Petadex; annotations are keyed by UniProt accession.
  */
 
-/** @typedef {'summary' | 'full'} DisplayMode */
+import { nightingaleLinegraphFromScores } from "../plddtConfidence.js"
 
-const SUMMARY_CAP = 10
-const FULL_HARD_CAP = 150
+/** Max UniProt features per track row (full detail). */
+const FEATURE_CAP = 150
 
 const DOMAIN_TYPES = new Set(["DOMAIN", "REPEAT"])
 
@@ -96,9 +96,8 @@ function pickColor(bucketIdx, fi, palette) {
 /**
  * @param {any[]} features raw UniProt `features` array
  * @param {number} seqLen
- * @param {DisplayMode} mode
  */
-export function logicalTracksFromUniProtFeatures(features, seqLen, mode) {
+export function logicalTracksFromUniProtFeatures(features, seqLen) {
   const buckets = { domains: [], families: [], sites: [] }
   if (!Array.isArray(features)) return []
 
@@ -112,19 +111,11 @@ export function logicalTracksFromUniProtFeatures(features, seqLen, mode) {
       label: labelForFeature(f),
       start: span.start,
       end: span.end,
-      _width: span.end - span.start + 1,
     })
   }
 
-  const cap = mode === "summary" ? SUMMARY_CAP : FULL_HARD_CAP
-
   return TRACK_META.map(meta => {
-    let rows = buckets[meta.bucket]
-    if (mode === "summary") {
-      rows = [...rows].sort((a, b) => b._width - a._width).slice(0, cap)
-    } else {
-      rows = rows.slice(0, cap)
-    }
+    const rows = buckets[meta.bucket].slice(0, FEATURE_CAP)
     return {
       id: meta.id,
       title: meta.title,
@@ -151,7 +142,7 @@ export async function fetchUniProtEntryJson(accession) {
 }
 
 /**
- * AlphaFold confidence JSON → Nightingale linegraph `data` rows.
+ * AlphaFold confidence JSON → coloured pLDDT track data.
  * Strict length match with Petadex sequence (enrichment is advisory).
  *
  * @param {string} accession UniProt accession
@@ -163,6 +154,7 @@ export async function fetchAlphaFoldPLDDTLineData(accession, sequenceLength) {
       ok: false,
       message: null,
       lineData: null,
+      scores: null,
     }
   }
 
@@ -174,6 +166,7 @@ export async function fetchAlphaFoldPLDDTLineData(accession, sequenceLength) {
         ok: false,
         message: "AlphaFold API returned no prediction for this accession.",
         lineData: null,
+        scores: null,
       }
     }
     const predictions = await predRes.json()
@@ -183,6 +176,7 @@ export async function fetchAlphaFoldPLDDTLineData(accession, sequenceLength) {
         ok: false,
         message: "No AlphaFold pLDDT document URL for this protein.",
         lineData: null,
+        scores: null,
       }
     }
 
@@ -192,6 +186,7 @@ export async function fetchAlphaFoldPLDDTLineData(accession, sequenceLength) {
         ok: false,
         message: "Could not download AlphaFold confidence JSON.",
         lineData: null,
+        scores: null,
       }
     }
     const doc = await confRes.json()
@@ -201,32 +196,22 @@ export async function fetchAlphaFoldPLDDTLineData(accession, sequenceLength) {
         ok: false,
         message: `AlphaFold pLDDT length (${scores?.length ?? 0}) does not match Petadex sequence length (${sequenceLength}); pLDDT track hidden.`,
         lineData: null,
+        scores: null,
       }
     }
-
-    const residueNumbers = Array.isArray(doc.residueNumber) ? doc.residueNumber : []
-    const values = scores.map((value, i) => ({
-      position: typeof residueNumbers[i] === "number" ? residueNumbers[i] : i + 1,
-      value,
-    }))
 
     return {
       ok: true,
       message: null,
-      lineData: [
-        {
-          name: "pLDDT (AlphaFold)",
-          range: [0, 100],
-          color: "#6366f1",
-          values,
-        },
-      ],
+      scores,
+      lineData: nightingaleLinegraphFromScores(scores),
     }
   } catch (e) {
     return {
       ok: false,
       message: e?.message || String(e),
       lineData: null,
+      scores: null,
     }
   }
 }
@@ -241,16 +226,16 @@ export function logicalTracksHaveFeatures(tracks) {
  * @param {{
  *   uniProtAccession: string | null,
  *   sequenceLength: number,
- *   displayMode: DisplayMode,
  * }} opts
  */
 export async function loadEnrichmentPayload(opts) {
-  const { uniProtAccession, sequenceLength, displayMode } = opts
+  const { uniProtAccession, sequenceLength } = opts
   const empty = {
     uniProtUsed: null,
     uniProtEntry: null,
     logicalTracks: [],
     lineData: null,
+    plddtScores: null,
     alphaFoldMessage: null,
     uniProtMessage: null,
   }
@@ -265,7 +250,6 @@ export async function loadEnrichmentPayload(opts) {
     logicalTracks = logicalTracksFromUniProtFeatures(
       entry.features,
       sequenceLength,
-      displayMode,
     )
     const total = logicalTracks.reduce((n, t) => n + t.features.length, 0)
     if (total === 0) {
@@ -287,6 +271,7 @@ export async function loadEnrichmentPayload(opts) {
     uniProtEntry: entry,
     logicalTracks,
     lineData: af.lineData,
+    plddtScores: af.ok ? af.scores : null,
     alphaFoldMessage: af.ok ? null : af.message,
     uniProtMessage,
   }
