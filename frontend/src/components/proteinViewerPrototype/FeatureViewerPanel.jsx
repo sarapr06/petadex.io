@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { featureViewerTrackDefinitions } from "./mockProteinData.js"
+import { formatMagnification } from "./zoomReadout.js"
 
 /** @see feature-viewer `self.events.ZOOM_EVENT` */
 const FV_ZOOM_EVENT = "feature-viewer-zoom-altered"
@@ -355,6 +356,13 @@ export default function FeatureViewerPanel({
   const canZoomIn = seqLen > zoomMaxLib + 1 && extentLen > zoomMaxLib + 1.5
   const canZoomOut = zoomedPastOne
 
+  const fvZoomReadout =
+    seqLen > 0
+      ? brushExtent
+        ? `${brushExtent.lo}–${brushExtent.hi} · ${formatMagnification(zoomScale)}`
+        : `1–${seqLen} · ${formatMagnification(1)}`
+      : ""
+
   if (!mounted) {
     return (
       <div className="min-h-[280px] rounded-lg border border-border bg-muted/30 flex items-center justify-center text-sm text-muted-foreground">
@@ -444,6 +452,12 @@ export default function FeatureViewerPanel({
         >
           »
         </button>
+        <span
+          className="text-[11px] tabular-nums text-muted-foreground whitespace-nowrap"
+          aria-live="polite"
+        >
+          {fvZoomReadout}
+        </span>
         <span className="text-[11px] max-w-md text-muted-foreground">
           Scroll the track area horizontally (or Shift+scroll) when zoomed.
         </span>

@@ -144,7 +144,7 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
       {cleanSeq && (
         <div className="w-full bg-surface-sunken border rounded-lg p-3">
           <span className="label block mb-1">Query sequence ({cleanSeq.length} aa)</span>
-          <span className="sequence text-2xs">{formatSeq(cleanSeq)}</span>
+          <span className="sequence-display text-2xs">{formatSeq(cleanSeq)}</span>
         </div>
       )}
 

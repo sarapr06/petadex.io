@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { nightingaleFeaturesByTrack } from "./mockProteinData.js"
+import { residueWindowZoomLabel } from "./zoomReadout.js"
 
 /**
  * @param {Record<string, unknown> | null | undefined} f
@@ -70,6 +71,34 @@ function clamp(n, lo, hi) {
 /** @param {number} x @param {number} y @param {DOMRect} r */
 function pointInDomRect(x, y, r) {
   return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+}
+
+/**
+ * True when the pointer is on an InterPro bar or its on-canvas label (`show-label`).
+ * Used so the tooltip does not stay visible over empty track / ruler / sequence area.
+ * @param {number} clientX
+ * @param {number} clientY
+ */
+function pointerOverInterproAnnotationHit(clientX, clientY) {
+  let stack
+  try {
+    stack = document.elementsFromPoint(clientX, clientY)
+  } catch {
+    return false
+  }
+  for (const node of stack) {
+    if (!(node instanceof Element)) continue
+    if (!node.closest("nightingale-interpro-track")) continue
+    const cls = typeof node.getAttribute === "function" ? node.getAttribute("class") || "" : ""
+    if (
+      node.matches("path.feature") ||
+      node.matches("text.feature-label") ||
+      (node.matches("path") && cls.includes("feature"))
+    ) {
+      return true
+    }
+  }
+  return false
 }
 
 /**
@@ -146,6 +175,10 @@ export default function NightingaleProteinPanel({
   const trackRefs = useRef([])
   const [libsReady, setLibsReady] = useState(false)
   const [hoverTip, setHoverTip] = useState(null)
+  /** Mirrors Nightingale `display-start` / `display-end` for toolbar readout. */
+  const [displayWindow, setDisplayWindow] = useState(
+    /** @type {{ start: number, end: number } | null} */ (null),
+  )
 
   const seqLen = sequence?.length ?? 0
 
@@ -246,6 +279,8 @@ export default function NightingaleProteinPanel({
         tel.data = track.data
         tel.height = NG_TRACK_HEIGHT
       })
+
+      setDisplayWindow({ start: ds, end: de })
     },
     [sequence, seqLen, trackPayloads, linegraphData, showLine],
   )
@@ -440,6 +475,10 @@ export default function NightingaleProteinPanel({
           return
         }
       }
+      if (!pointerOverInterproAnnotationHit(ev.clientX, ev.clientY)) {
+        clearHover()
+        return
+      }
       setHoverTip({
         label: tracking.label,
         ...tooltipPositionFixed(ev.clientX, ev.clientY),
@@ -510,6 +549,11 @@ export default function NightingaleProteinPanel({
     )
   }
 
+  const zoomReadout =
+    displayWindow != null
+      ? residueWindowZoomLabel(seqLen, displayWindow.start, displayWindow.end)
+      : residueWindowZoomLabel(seqLen, 1, seqLen)
+
   return (
     <div ref={wrapRef} className="nightingale-prototype relative w-full min-w-0 overflow-x-auto pb-1">
       {hoverTip ? (
@@ -540,6 +584,12 @@ export default function NightingaleProteinPanel({
         >
           +
         </button>
+        <span
+          className="text-[11px] tabular-nums text-muted-foreground whitespace-nowrap"
+          aria-live="polite"
+        >
+          {zoomReadout}
+        </span>
         <span className="text-[11px] max-w-md">
           Adjusts the residue window on all tracks. Drag the shaded window on the overview
           ruler to pan; drag its edges to zoom that region.
@@ -548,7 +598,7 @@ export default function NightingaleProteinPanel({
           <span className="text-amber-600 dark:text-amber-400">Updating enrichment…</span>
         ) : null}
       </div>
-      <div ref={nightingaleChromeRef} className="nightingale-dark-chrome min-w-[min(100%,52rem)]">
+      <div ref={nightingaleChromeRef} className="nightingale-chrome min-w-[min(100%,52rem)]">
         <nightingale-manager ref={managerRef} style={{ display: "block" }}>
           <nightingale-navigation ref={navRef} />
           <nightingale-sequence ref={seqRef} />
