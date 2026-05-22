@@ -5,6 +5,7 @@ import {
   CATH_HUE,
   hslToRgb,
 } from "../../utils/cathColors"
+import TerminalLoader from "../common/TerminalLoader"
 
 // ── colour helpers ──────────────────────────────────────────────────────────
 
@@ -1098,21 +1099,11 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       )}
 
       {/* loading */}
-      {loading && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#94a3b8",
-            fontSize: "1rem",
-          }}
-        >
-          Loading atlas…
-        </div>
-      )}
+      <TerminalLoader
+        loading={loading}
+        title="ENZYME ATLAS v2.0"
+        lines={["initializing enzyme atlas...", "loading 64,730 protein families..."]}
+      />
 
       {/* error */}
       {error && (

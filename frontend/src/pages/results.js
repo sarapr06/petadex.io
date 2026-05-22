@@ -9,6 +9,7 @@ import { addJobId } from "../utils/session"
 import SearchHistory from "../components/search/SearchHistory"
 import ResultsView from "../components/search/ResultsView"
 import Container from "../components/common/Container"
+import { LOADING_PROMPTS } from "../components/common/TerminalLoader"
 import { formatSeq } from "../utils/lib"
 
 const GITHUB_REPO = "ababaian/petadex.io"
@@ -66,6 +67,14 @@ function transformResults(rawResults, queryLength) {
 const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
   const [stageIdx, setStageIdx] = useState(0)
   const [barPct, setBarPct] = useState(5)
+  const [promptIdx, setPromptIdx] = useState(() => Math.floor(Math.random() * LOADING_PROMPTS.length))
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPromptIdx(i => (i + 1) % LOADING_PROMPTS.length)
+    }, 2500)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     const thresholds = [0, 3, 8, 15, 30]
@@ -98,6 +107,7 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
         <p className="text-sm text-secondary-foreground">
           MMseqs2 is scanning millions of sequences for similar enzymes
         </p>
+        <p className="text-xs text-muted-foreground font-mono">› {LOADING_PROMPTS[promptIdx]}</p>
       </div>
 
       {/* Progress bar */}
