@@ -16,6 +16,7 @@ router.get('/umap', async (req, res, next) => {
               cath_domain, domain_name
        FROM family_atlas`
     );
+    res.set('Cache-Control', 'public, max-age=3600');
     res.json({ points: rows });
   } catch (err) {
     next(err);
