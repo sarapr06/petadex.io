@@ -2,19 +2,13 @@
  * Temporary route for comparing protein feature viewers (remove when done).
  * URL: /protein-viewer-prototype/
  */
-import React, {
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useState,
-} from "react"
+import React, { useCallback, useEffect, useMemo, useState } from "react"
 import Seo from "../components/seo"
 import Container from "../components/common/Container"
 import config from "../config"
 import {
   DEMO_SEQUENCE,
   featureViewerDefsFromLogicalTracks,
-  logicalTracksForSequenceLength,
   nightingalePayloadFromLogicalTracks,
 } from "../components/proteinViewerPrototype/mockProteinData.js"
 import NightingaleProteinPanel from "../components/proteinViewerPrototype/NightingaleProteinPanel.jsx"
@@ -22,67 +16,60 @@ import FeatureViewerPanel from "../components/proteinViewerPrototype/FeatureView
 import ProteinSelector, {
   DEMO_OPTION_VALUE,
 } from "../components/proteinViewerPrototype/ProteinSelector.jsx"
-import { resolveEnrichmentAccession } from "../components/proteinViewerPrototype/enrichment/resolveUniProt.js"
+import EnrichmentNotes from "../components/proteinViewerPrototype/enrichment/EnrichmentNotes.jsx"
+import { useProteinEnrichment } from "../components/proteinViewerPrototype/enrichment/useProteinEnrichment.js"
 import {
-  loadEnrichmentPayload,
-  logicalTracksHaveFeatures,
-} from "../components/proteinViewerPrototype/enrichment/interproAlphaFoldData.js"
+  DEMO_MODE_ACCESSIONS,
+  DEMO_REAL_UNIPROT_ACCESSIONS,
+  isDemoModeAccession,
+} from "../components/proteinViewerPrototype/demoProteinAccessions.js"
 import {
   featureViewerPlddtDef,
   logicalTracksWithPlddt,
-  mockPlddtScores,
 } from "../components/proteinViewerPrototype/plddtConfidence.js"
 import PlddtLegend from "../components/proteinViewerPrototype/PlddtLegend.jsx"
+
+const DEMO_MODE_DEFAULT_ACCESSION = DEMO_REAL_UNIPROT_ACCESSIONS[0]
 
 const ProteinViewerPrototypePage = () => {
   const [accessions, setAccessions] = useState([])
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState(null)
+  const [demoMode, setDemoMode] = useState(true)
 
-  const [ngChoice, setNgChoice] = useState(DEMO_OPTION_VALUE)
-  const [fvChoice, setFvChoice] = useState(DEMO_OPTION_VALUE)
-  const [ngSeq, setNgSeq] = useState(DEMO_SEQUENCE)
-  const [fvSeq, setFvSeq] = useState(DEMO_SEQUENCE)
-  const [ngLoading, setNgLoading] = useState(false)
-  const [fvLoading, setFvLoading] = useState(false)
+  const [ngChoice, setNgChoice] = useState(DEMO_MODE_DEFAULT_ACCESSION)
+  const [fvChoice, setFvChoice] = useState(DEMO_MODE_DEFAULT_ACCESSION)
+  const [ngSeq, setNgSeq] = useState("")
+  const [fvSeq, setFvSeq] = useState("")
+  const [ngLoading, setNgLoading] = useState(true)
+  const [fvLoading, setFvLoading] = useState(true)
   const [ngError, setNgError] = useState(null)
   const [fvError, setFvError] = useState(null)
 
-  const [ngManualUniProt, setNgManualUniProt] = useState("")
-  const [fvManualUniProt, setFvManualUniProt] = useState("")
-  const [ngAutoMap, setNgAutoMap] = useState(false)
-  const [fvAutoMap, setFvAutoMap] = useState(false)
+  const selectorAccessions = useMemo(() => {
+    if (!demoMode) return accessions
+    const allow = new Set(DEMO_MODE_ACCESSIONS)
+    const byAcc = new Map(
+      accessions.map(row => [row.accession, row]),
+    )
+    return DEMO_MODE_ACCESSIONS.map(acc => byAcc.get(acc)).filter(Boolean)
+  }, [accessions, demoMode])
 
-  const deferredNgManual = useDeferredValue(ngManualUniProt.trim())
-  const deferredFvManual = useDeferredValue(fvManualUniProt.trim())
-
-  const [ngEnrich, setNgEnrich] = useState({
-    loading: false,
-    logicalTracks: logicalTracksForSequenceLength(DEMO_SEQUENCE.length),
-    lineData: null,
-    plddtScores: mockPlddtScores(DEMO_SEQUENCE.length),
-    resolvedAccession: null,
-    resolveMethod: "",
-    resolveDetail: "",
-    alphaFoldMessage: null,
-    uniProtMessage: null,
-    usingMockTracks: true,
-    usingMockPlddt: true,
-  })
-
-  const [fvEnrich, setFvEnrich] = useState({
-    loading: false,
-    logicalTracks: logicalTracksForSequenceLength(DEMO_SEQUENCE.length),
-    lineData: null,
-    plddtScores: mockPlddtScores(DEMO_SEQUENCE.length),
-    resolvedAccession: null,
-    resolveMethod: "",
-    resolveDetail: "",
-    alphaFoldMessage: null,
-    uniProtMessage: null,
-    usingMockTracks: true,
-    usingMockPlddt: true,
-  })
+  const handleDemoModeChange = useCallback(
+    enabled => {
+      setDemoMode(enabled)
+      if (!enabled) return
+      const resetIfNeeded = choice => {
+        if (choice === DEMO_OPTION_VALUE || isDemoModeAccession(choice)) {
+          return choice
+        }
+        return DEMO_MODE_DEFAULT_ACCESSION
+      }
+      setNgChoice(c => resetIfNeeded(c))
+      setFvChoice(c => resetIfNeeded(c))
+    },
+    [],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -189,177 +176,21 @@ const ProteinViewerPrototypePage = () => {
     }
   }, [fvChoice])
 
-  useEffect(() => {
-    let cancelled = false
-    if (!ngSeq.length || ngLoading) return
+  const ngEnrich = useProteinEnrichment({
+    petadexAccession: ngChoice === DEMO_OPTION_VALUE ? "" : ngChoice,
+    sequence: ngSeq,
+    sequenceLoading: ngLoading,
+    isDemo: ngChoice === DEMO_OPTION_VALUE,
+    autoMap: true,
+  })
 
-    setNgEnrich(prev => ({ ...prev, loading: true }))
-
-    ;(async () => {
-      const mock = logicalTracksForSequenceLength(ngSeq.length)
-      try {
-        const resolve = await resolveEnrichmentAccession({
-          petadexAccession:
-            ngChoice === DEMO_OPTION_VALUE ? "" : ngChoice,
-          manualUniProtInput: deferredNgManual,
-          autoMap: ngAutoMap,
-        })
-
-        const payload = resolve.accession
-          ? await loadEnrichmentPayload({
-              uniProtAccession: resolve.accession,
-              sequenceLength: ngSeq.length,
-            })
-          : {
-              uniProtUsed: null,
-              logicalTracks: [],
-              lineData: null,
-              plddtScores: null,
-              alphaFoldMessage: null,
-              uniProtMessage: null,
-            }
-
-        const hasReal = logicalTracksHaveFeatures(payload.logicalTracks)
-        const logical = hasReal ? payload.logicalTracks : mock
-        const mockPlddt =
-          !payload.plddtScores?.length && ngChoice === DEMO_OPTION_VALUE
-        const plddtScores = payload.plddtScores?.length
-          ? payload.plddtScores
-          : mockPlddt
-            ? mockPlddtScores(ngSeq.length)
-            : null
-
-        if (!cancelled) {
-          setNgEnrich({
-            loading: false,
-            logicalTracks: logical,
-            lineData: payload.lineData,
-            plddtScores,
-            resolvedAccession: resolve.accession,
-            resolveMethod: resolve.method,
-            resolveDetail: resolve.detail,
-            alphaFoldMessage: payload.alphaFoldMessage,
-            uniProtMessage: payload.uniProtMessage,
-            usingMockTracks: !hasReal,
-            usingMockPlddt: mockPlddt,
-          })
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setNgEnrich({
-            loading: false,
-            logicalTracks: mock,
-            lineData: null,
-            plddtScores:
-              ngChoice === DEMO_OPTION_VALUE ? mockPlddtScores(ngSeq.length) : null,
-            resolvedAccession: null,
-            resolveMethod: "error",
-            resolveDetail: e?.message || String(e),
-            alphaFoldMessage: null,
-            uniProtMessage: null,
-            usingMockTracks: true,
-            usingMockPlddt: ngChoice === DEMO_OPTION_VALUE,
-          })
-        }
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [
-    ngSeq,
-    ngLoading,
-    ngChoice,
-    deferredNgManual,
-    ngAutoMap,
-  ])
-
-  useEffect(() => {
-    let cancelled = false
-    if (!fvSeq.length || fvLoading) return
-
-    setFvEnrich(prev => ({ ...prev, loading: true }))
-
-    ;(async () => {
-      const mock = logicalTracksForSequenceLength(fvSeq.length)
-      try {
-        const resolve = await resolveEnrichmentAccession({
-          petadexAccession:
-            fvChoice === DEMO_OPTION_VALUE ? "" : fvChoice,
-          manualUniProtInput: deferredFvManual,
-          autoMap: fvAutoMap,
-        })
-
-        const payload = resolve.accession
-          ? await loadEnrichmentPayload({
-              uniProtAccession: resolve.accession,
-              sequenceLength: fvSeq.length,
-            })
-          : {
-              uniProtUsed: null,
-              logicalTracks: [],
-              lineData: null,
-              plddtScores: null,
-              alphaFoldMessage: null,
-              uniProtMessage: null,
-            }
-
-        const hasReal = logicalTracksHaveFeatures(payload.logicalTracks)
-        const logical = hasReal ? payload.logicalTracks : mock
-        const mockPlddt =
-          !payload.plddtScores?.length && fvChoice === DEMO_OPTION_VALUE
-        const plddtScores = payload.plddtScores?.length
-          ? payload.plddtScores
-          : mockPlddt
-            ? mockPlddtScores(fvSeq.length)
-            : null
-
-        if (!cancelled) {
-          setFvEnrich({
-            loading: false,
-            logicalTracks: logical,
-            lineData: payload.lineData,
-            plddtScores,
-            resolvedAccession: resolve.accession,
-            resolveMethod: resolve.method,
-            resolveDetail: resolve.detail,
-            alphaFoldMessage: payload.alphaFoldMessage,
-            uniProtMessage: payload.uniProtMessage,
-            usingMockTracks: !hasReal,
-            usingMockPlddt: mockPlddt,
-          })
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setFvEnrich({
-            loading: false,
-            logicalTracks: mock,
-            lineData: null,
-            plddtScores:
-              fvChoice === DEMO_OPTION_VALUE ? mockPlddtScores(fvSeq.length) : null,
-            resolvedAccession: null,
-            resolveMethod: "error",
-            resolveDetail: e?.message || String(e),
-            alphaFoldMessage: null,
-            uniProtMessage: null,
-            usingMockTracks: true,
-            usingMockPlddt: fvChoice === DEMO_OPTION_VALUE,
-          })
-        }
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [
-    fvSeq,
-    fvLoading,
-    fvChoice,
-    deferredFvManual,
-    fvAutoMap,
-  ])
+  const fvEnrich = useProteinEnrichment({
+    petadexAccession: fvChoice === DEMO_OPTION_VALUE ? "" : fvChoice,
+    sequence: fvSeq,
+    sequenceLoading: fvLoading,
+    isDemo: fvChoice === DEMO_OPTION_VALUE,
+    autoMap: true,
+  })
 
   const ngTracksForView = useMemo(
     () => logicalTracksWithPlddt(ngEnrich.logicalTracks, ngEnrich.plddtScores),
@@ -399,9 +230,8 @@ const ProteinViewerPrototypePage = () => {
           <p className="mt-3 text-muted-foreground max-w-3xl">
             <strong className="text-foreground">Sequence</strong> always comes from Petadex (
             <code className="text-xs bg-muted px-1 rounded">{config.apiUrl}/fastaa</code>
-            ). <strong className="text-foreground">Annotations</strong> below optionally use a{" "}
-            <strong className="text-foreground">UniProt accession</strong> you enter, or a
-            best-effort GenBank→UniProt mapping (
+            ). For each selected protein, <strong className="text-foreground">annotations</strong>{" "}
+            auto-map the Petadex accession to UniProt when possible (
             <a
               className="text-accent underline-offset-4 hover:underline"
               href="https://www.uniprot.org/help/id_mapping"
@@ -410,7 +240,7 @@ const ProteinViewerPrototypePage = () => {
             >
               UniProt ID mapping
             </a>
-            ), then{" "}
+            ), then load{" "}
             <a
               className="text-accent underline-offset-4 hover:underline"
               href="https://rest.uniprot.org/"
@@ -428,27 +258,25 @@ const ProteinViewerPrototypePage = () => {
             >
               AlphaFold
             </a>{" "}
-            pLDDT — without touching global Petadex IDs. UX reference:{" "}
-            <a
-              className="text-accent underline-offset-4 hover:underline"
-              href="https://interpro-documentation.readthedocs.io/en/latest/protein_viewer.html"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              InterPro protein viewer (docs)
-            </a>
-            , example protein{" "}
-            <a
-              className="text-accent underline-offset-4 hover:underline"
-              href="https://www.ebi.ac.uk/interpro/protein/UniProt/A0A002/#table"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              A0A002
-            </a>
-            . UniProt annotation tracks always show full detail (no Summary / Full toggle).
+            pLDDT. If mapping or features fail, scaled mock bars are shown instead.
           </p>
         </header>
+
+        <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 mb-10">
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={demoMode}
+              onChange={e => handleDemoModeChange(e.target.checked)}
+            />
+            <span className="text-sm text-foreground">
+              <strong>Demo mode</strong> — show curated proteins only (
+              {DEMO_REAL_UNIPROT_ACCESSIONS.length} with real UniProt tracks + 1 mock
+              fallback)
+            </span>
+          </label>
+        </div>
 
         <div className="grid gap-10 lg:grid-cols-2 lg:gap-8 items-start">
           <section className="flex flex-col gap-3">
@@ -477,12 +305,11 @@ const ProteinViewerPrototypePage = () => {
               </p>
               <ul className="mt-3 text-sm text-muted-foreground list-disc pl-5 space-y-1">
                 <li>
-                  Thin pLDDT colour gradient under the sequence when scores match sequence length
-                  (demo uses synthetic scores; real data needs UniProt + matching length).
+                  Thin pLDDT colour gradient under the sequence when scores match sequence length.
                 </li>
                 <li>
                   Tracks below: Families/regions · Domains/repeats · Motifs/sites — from UniProt
-                  when mapping succeeds; otherwise scaled mock bars.
+                  when auto-mapping succeeds; otherwise scaled mock bars.
                 </li>
               </ul>
             </div>
@@ -492,32 +319,11 @@ const ProteinViewerPrototypePage = () => {
               label="Protein for Nightingale"
               value={ngChoice}
               onChange={setNgChoice}
-              accessions={accessions}
+              accessions={selectorAccessions}
               listLoading={listLoading}
               listError={listError}
+              demoMode={demoMode}
             />
-
-            <div className="flex flex-col gap-2 rounded-md border border-border bg-background px-3 py-2">
-              <label className="text-xs font-medium text-foreground" htmlFor="ng-uniprot-override">
-                UniProt accession for tracks / pLDDT (optional)
-              </label>
-              <input
-                id="ng-uniprot-override"
-                className="input w-full font-mono text-sm"
-                placeholder="e.g. A0A002 — overrides mapping when set"
-                value={ngManualUniProt}
-                onChange={e => setNgManualUniProt(e.target.value)}
-                autoComplete="off"
-              />
-              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={ngAutoMap}
-                  onChange={e => setNgAutoMap(e.target.checked)}
-                />
-                Try UniProt ID mapping from the Petadex accession when the field above is empty
-              </label>
-            </div>
 
             {ngChoice !== DEMO_OPTION_VALUE ? (
               <p className="text-xs font-mono text-muted-foreground">
@@ -532,11 +338,14 @@ const ProteinViewerPrototypePage = () => {
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Demo sequence · {DEMO_SEQUENCE.length} aa — enter UniProt above for real tracks.
+                Built-in demo · {DEMO_SEQUENCE.length} aa — mock bars (no Petadex accession to map).
               </p>
             )}
 
-            <EnrichmentNotes pack={ngEnrich} />
+            <EnrichmentNotes
+              pack={ngEnrich}
+              isDemo={ngChoice === DEMO_OPTION_VALUE}
+            />
 
             {showNgPlddt ? (
               <PlddtLegend className="mb-1" />
@@ -575,7 +384,9 @@ const ProteinViewerPrototypePage = () => {
                 </a>
               </p>
               <ul className="mt-3 text-sm text-muted-foreground list-disc pl-5 space-y-1">
-                <li>Same pLDDT strip and UniProt tracks as Nightingale (coloured confidence bands).</li>
+                <li>
+                  Same pLDDT strip and UniProt tracks as Nightingale (coloured confidence bands).
+                </li>
                 <li>Overview ruler + zoom toolbar above the tracks (no in-panel brush zoom).</li>
               </ul>
             </div>
@@ -585,32 +396,11 @@ const ProteinViewerPrototypePage = () => {
               label="Protein for feature-viewer"
               value={fvChoice}
               onChange={setFvChoice}
-              accessions={accessions}
+              accessions={selectorAccessions}
               listLoading={listLoading}
               listError={listError}
+              demoMode={demoMode}
             />
-
-            <div className="flex flex-col gap-2 rounded-md border border-border bg-background px-3 py-2">
-              <label className="text-xs font-medium text-foreground" htmlFor="fv-uniprot-override">
-                UniProt accession for tracks / pLDDT (optional)
-              </label>
-              <input
-                id="fv-uniprot-override"
-                className="input w-full font-mono text-sm"
-                placeholder="e.g. A0A002 — overrides mapping when set"
-                value={fvManualUniProt}
-                onChange={e => setFvManualUniProt(e.target.value)}
-                autoComplete="off"
-              />
-              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={fvAutoMap}
-                  onChange={e => setFvAutoMap(e.target.checked)}
-                />
-                Try UniProt ID mapping from the Petadex accession when the field above is empty
-              </label>
-            </div>
 
             {fvChoice !== DEMO_OPTION_VALUE ? (
               <p className="text-xs font-mono text-muted-foreground">
@@ -625,11 +415,14 @@ const ProteinViewerPrototypePage = () => {
               </p>
             ) : (
               <p className="text-xs text-muted-foreground">
-                Demo sequence · {DEMO_SEQUENCE.length} aa — enter UniProt above for real tracks.
+                Built-in demo · {DEMO_SEQUENCE.length} aa — mock bars (no Petadex accession to map).
               </p>
             )}
 
-            <EnrichmentNotes pack={fvEnrich} />
+            <EnrichmentNotes
+              pack={fvEnrich}
+              isDemo={fvChoice === DEMO_OPTION_VALUE}
+            />
 
             {showFvPlddt ? (
               <PlddtLegend className="mb-1" />
@@ -644,53 +437,6 @@ const ProteinViewerPrototypePage = () => {
           </section>
         </div>
       </Container>
-    </div>
-  )
-}
-
-function EnrichmentNotes({ pack }) {
-  const lines = []
-  if (pack.resolveMethod === "manual" && pack.resolvedAccession) {
-    lines.push(`UniProt for enrichment: ${pack.resolvedAccession} (manual).`)
-  } else if (pack.resolveMethod === "idmapping" && pack.resolvedAccession) {
-    lines.push(`UniProt for enrichment: ${pack.resolvedAccession} (ID mapping).`)
-  } else if (pack.resolveMethod === "direct" && pack.resolvedAccession) {
-    lines.push(`UniProt for enrichment: ${pack.resolvedAccession} (accession looks like UniProt).`)
-  } else if (pack.resolveMethod === "cache" && pack.resolvedAccession) {
-    lines.push(`UniProt for enrichment: ${pack.resolvedAccession} (cached mapping).`)
-  } else if (pack.resolveMethod === "off") {
-    lines.push("Enrichment off: enable mapping or enter UniProt.")
-  } else if (pack.resolveMethod === "manual-invalid") {
-    lines.push(`UniProt field invalid: ${pack.resolveDetail}`)
-  } else if (pack.resolveMethod === "failed" || pack.resolveMethod === "none") {
-    lines.push(`No UniProt mapping — ${pack.resolveDetail || "mock bars only"}.`)
-  } else if (pack.resolveMethod === "error") {
-    lines.push(`Enrichment error — ${pack.resolveDetail}`)
-  }
-
-  if (pack.usingMockTracks && pack.resolvedAccession) {
-    lines.push(
-      "No UniProt features matched — showing scaled mock rectangles (same as demo proportions).",
-    )
-  } else if (pack.usingMockTracks && !pack.resolvedAccession) {
-    lines.push("Showing mock annotation bars (scaled to sequence length).")
-  }
-
-  if (pack.uniProtMessage) lines.push(pack.uniProtMessage)
-  if (pack.alphaFoldMessage) lines.push(pack.alphaFoldMessage)
-  if (pack.usingMockPlddt) {
-    lines.push("pLDDT strip uses synthetic demo scores (not from AlphaFold).")
-  } else if (pack.plddtScores?.length) {
-    lines.push("pLDDT from AlphaFold confidence (length matches Petadex sequence).")
-  }
-
-  if (!lines.length) return null
-
-  return (
-    <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground space-y-1">
-      {lines.map((t, i) => (
-        <p key={i}>{t}</p>
-      ))}
     </div>
   )
 }

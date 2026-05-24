@@ -37,7 +37,7 @@ export async function resolveEnrichmentAccession({
     return {
       accession: null,
       method: "off",
-      detail: "Turn on auto-mapping or enter a UniProt accession above.",
+      detail: "Auto-mapping disabled — enter a UniProt accession override.",
     }
   }
 

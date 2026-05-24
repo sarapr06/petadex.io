@@ -3,8 +3,6 @@
  * Sequence coordinates remain from Petadex; annotations are keyed by UniProt accession.
  */
 
-import { nightingaleLinegraphFromScores } from "../plddtConfidence.js"
-
 /** Max UniProt features per track row (full detail). */
 const FEATURE_CAP = 150
 
@@ -204,7 +202,7 @@ export async function fetchAlphaFoldPLDDTLineData(accession, sequenceLength) {
       ok: true,
       message: null,
       scores,
-      lineData: nightingaleLinegraphFromScores(scores),
+      lineData: null,
     }
   } catch (e) {
     return {
