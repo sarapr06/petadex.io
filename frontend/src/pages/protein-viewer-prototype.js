@@ -1,5 +1,5 @@
 /**
- * Temporary route for comparing protein feature viewers (remove when done).
+ * Temporary route for protein feature viewer prototype (remove when done).
  * URL: /protein-viewer-prototype/
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react"
@@ -9,9 +9,7 @@ import config from "../config"
 import {
   DEMO_SEQUENCE,
   featureViewerDefsFromLogicalTracks,
-  nightingalePayloadFromLogicalTracks,
 } from "../components/proteinViewerPrototype/mockProteinData.js"
-import NightingaleProteinPanel from "../components/proteinViewerPrototype/NightingaleProteinPanel.jsx"
 import FeatureViewerPanel from "../components/proteinViewerPrototype/FeatureViewerPanel.jsx"
 import ProteinSelector, {
   DEMO_OPTION_VALUE,
@@ -25,30 +23,33 @@ import {
 } from "../components/proteinViewerPrototype/demoProteinAccessions.js"
 import {
   featureViewerPlddtDef,
-  logicalTracksWithPlddt,
 } from "../components/proteinViewerPrototype/plddtConfidence.js"
 import PlddtLegend from "../components/proteinViewerPrototype/PlddtLegend.jsx"
+import SaraViewerNotes from "../components/proteinViewerPrototype/sara/SaraViewerNotes.jsx"
+import { useSaraViewer } from "../components/proteinViewerPrototype/sara/useSaraViewer.js"
 
 const DEMO_MODE_DEFAULT_ACCESSION = DEMO_REAL_UNIPROT_ACCESSIONS[0]
+
+/** @typedef {"fastaa_uniprot" | "sara_orf"} AnnotationSource */
 
 const ProteinViewerPrototypePage = () => {
   const [accessions, setAccessions] = useState([])
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState(null)
   const [demoMode, setDemoMode] = useState(true)
+  /** @type {[AnnotationSource, React.Dispatch<React.SetStateAction<AnnotationSource>>]} */
+  const [annotationSource, setAnnotationSource] = useState("fastaa_uniprot")
 
-  const [ngChoice, setNgChoice] = useState(DEMO_MODE_DEFAULT_ACCESSION)
-  const [fvChoice, setFvChoice] = useState(DEMO_MODE_DEFAULT_ACCESSION)
-  const [ngSeq, setNgSeq] = useState("")
-  const [fvSeq, setFvSeq] = useState("")
-  const [ngLoading, setNgLoading] = useState(true)
-  const [fvLoading, setFvLoading] = useState(true)
-  const [ngError, setNgError] = useState(null)
-  const [fvError, setFvError] = useState(null)
+  const [choice, setChoice] = useState(DEMO_MODE_DEFAULT_ACCESSION)
+  const [seq, setSeq] = useState("")
+  const [seqLoading, setSeqLoading] = useState(true)
+  const [seqError, setSeqError] = useState(null)
+
+  const [orfId, setOrfId] = useState(1)
+  const sara = useSaraViewer(orfId, annotationSource === "sara_orf")
 
   const selectorAccessions = useMemo(() => {
     if (!demoMode) return accessions
-    const allow = new Set(DEMO_MODE_ACCESSIONS)
     const byAcc = new Map(
       accessions.map(row => [row.accession, row]),
     )
@@ -59,14 +60,10 @@ const ProteinViewerPrototypePage = () => {
     enabled => {
       setDemoMode(enabled)
       if (!enabled) return
-      const resetIfNeeded = choice => {
-        if (choice === DEMO_OPTION_VALUE || isDemoModeAccession(choice)) {
-          return choice
-        }
+      setChoice(c => {
+        if (c === DEMO_OPTION_VALUE || isDemoModeAccession(c)) return c
         return DEMO_MODE_DEFAULT_ACCESSION
-      }
-      setNgChoice(c => resetIfNeeded(c))
-      setFvChoice(c => resetIfNeeded(c))
+      })
     },
     [],
   )
@@ -93,21 +90,22 @@ const ProteinViewerPrototypePage = () => {
   }, [])
 
   useEffect(() => {
-    if (ngChoice === DEMO_OPTION_VALUE) {
-      setNgSeq(DEMO_SEQUENCE)
-      setNgError(null)
-      setNgLoading(false)
+    if (annotationSource !== "fastaa_uniprot") return
+    if (choice === DEMO_OPTION_VALUE) {
+      setSeq(DEMO_SEQUENCE)
+      setSeqError(null)
+      setSeqLoading(false)
       return
     }
-    setNgLoading(true)
-    setNgError(null)
-    setNgSeq("")
+    setSeqLoading(true)
+    setSeqError(null)
+    setSeq("")
     let cancelled = false
-    fetch(`${config.apiUrl}/fastaa/${encodeURIComponent(ngChoice)}`)
+    fetch(`${config.apiUrl}/fastaa/${encodeURIComponent(choice)}`)
       .then(r => {
         if (!r.ok) {
           throw new Error(
-            r.status === 404 ? `Not found: ${ngChoice}` : `HTTP ${r.status}`,
+            r.status === 404 ? `Not found: ${choice}` : `HTTP ${r.status}`,
           )
         }
         return r.json()
@@ -118,107 +116,58 @@ const ProteinViewerPrototypePage = () => {
         if (typeof s !== "string" || !s.length) {
           throw new Error("Empty or invalid sequence in API response")
         }
-        setNgSeq(s)
+        setSeq(s)
       })
       .catch(err => {
         if (!cancelled) {
-          setNgError(err.message || String(err))
-          setNgSeq("")
+          setSeqError(err.message || String(err))
+          setSeq("")
         }
       })
       .finally(() => {
-        if (!cancelled) setNgLoading(false)
+        if (!cancelled) setSeqLoading(false)
       })
     return () => {
       cancelled = true
     }
-  }, [ngChoice])
+  }, [choice, annotationSource])
 
-  useEffect(() => {
-    if (fvChoice === DEMO_OPTION_VALUE) {
-      setFvSeq(DEMO_SEQUENCE)
-      setFvError(null)
-      setFvLoading(false)
-      return
-    }
-    setFvLoading(true)
-    setFvError(null)
-    setFvSeq("")
-    let cancelled = false
-    fetch(`${config.apiUrl}/fastaa/${encodeURIComponent(fvChoice)}`)
-      .then(r => {
-        if (!r.ok) {
-          throw new Error(
-            r.status === 404 ? `Not found: ${fvChoice}` : `HTTP ${r.status}`,
-          )
-        }
-        return r.json()
-      })
-      .then(data => {
-        if (cancelled) return
-        const s = data.sequence
-        if (typeof s !== "string" || !s.length) {
-          throw new Error("Empty or invalid sequence in API response")
-        }
-        setFvSeq(s)
-      })
-      .catch(err => {
-        if (!cancelled) {
-          setFvError(err.message || String(err))
-          setFvSeq("")
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setFvLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [fvChoice])
-
-  const ngEnrich = useProteinEnrichment({
-    petadexAccession: ngChoice === DEMO_OPTION_VALUE ? "" : ngChoice,
-    sequence: ngSeq,
-    sequenceLoading: ngLoading,
-    isDemo: ngChoice === DEMO_OPTION_VALUE,
+  const enrich = useProteinEnrichment({
+    petadexAccession:
+      annotationSource === "fastaa_uniprot" && choice !== DEMO_OPTION_VALUE
+        ? choice
+        : "",
+    sequence: annotationSource === "fastaa_uniprot" ? seq : "",
+    sequenceLoading:
+      annotationSource === "fastaa_uniprot" ? seqLoading : true,
+    isDemo:
+      annotationSource === "fastaa_uniprot" && choice === DEMO_OPTION_VALUE,
     autoMap: true,
   })
 
-  const fvEnrich = useProteinEnrichment({
-    petadexAccession: fvChoice === DEMO_OPTION_VALUE ? "" : fvChoice,
-    sequence: fvSeq,
-    sequenceLoading: fvLoading,
-    isDemo: fvChoice === DEMO_OPTION_VALUE,
-    autoMap: true,
-  })
+  const isSara = annotationSource === "sara_orf"
+  const displaySeq = isSara ? (sara.error ? "" : sara.sequence) : seqError ? "" : seq
+  const displayLoading = isSara ? sara.loading : seqLoading
+  const displayError = isSara ? sara.error : seqError
 
-  const ngTracksForView = useMemo(
-    () => logicalTracksWithPlddt(ngEnrich.logicalTracks, ngEnrich.plddtScores),
-    [ngEnrich.logicalTracks, ngEnrich.plddtScores],
-  )
-
-  const ngTrackPayloads = useMemo(
-    () => nightingalePayloadFromLogicalTracks(ngTracksForView),
-    [ngTracksForView],
-  )
-
-  const fvRectDefs = useMemo(() => {
-    const base = featureViewerDefsFromLogicalTracks(fvEnrich.logicalTracks).filter(
+  const rectDefs = useMemo(() => {
+    const tracks = isSara ? sara.logicalTracks : enrich.logicalTracks
+    const base = featureViewerDefsFromLogicalTracks(tracks).filter(
       d => d.id !== "plddt",
     )
-    if (!fvEnrich.plddtScores?.length) return base
-    return [featureViewerPlddtDef(fvEnrich.plddtScores), ...base]
-  }, [fvEnrich.logicalTracks, fvEnrich.plddtScores])
+    if (isSara || !enrich.plddtScores?.length) return base
+    return [featureViewerPlddtDef(enrich.plddtScores), ...base]
+  }, [isSara, sara.logicalTracks, enrich.logicalTracks, enrich.plddtScores])
 
-  const showNgPlddt = (ngEnrich.plddtScores?.length ?? 0) > 0
-  const showFvPlddt = (fvEnrich.plddtScores?.length ?? 0) > 0
+  const showPlddt = !isSara && (enrich.plddtScores?.length ?? 0) > 0
+  const viewerKey = isSara ? `sara-${orfId}` : `fv-${choice}`
 
   return (
     <div className="py-10 md:py-14">
       <Container size="wide">
         <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-foreground mb-8">
-          <strong className="font-semibold">Temporary prototype.</strong> This page is for
-          comparing libraries only and will be removed. Not linked from the main nav; bookmark{" "}
+          <strong className="font-semibold">Temporary prototype.</strong> neXtProt-style
+          feature-viewer for domain and site tracks. Not linked from the main nav; bookmark{" "}
           <code className="text-xs bg-muted px-1 rounded">/protein-viewer-prototype/</code> to
           return.
         </div>
@@ -228,214 +177,179 @@ const ProteinViewerPrototypePage = () => {
             Protein feature strip (prototype)
           </h1>
           <p className="mt-3 text-muted-foreground max-w-3xl">
-            <strong className="text-foreground">Sequence</strong> always comes from Petadex (
-            <code className="text-xs bg-muted px-1 rounded">{config.apiUrl}/fastaa</code>
-            ). For each selected protein, <strong className="text-foreground">annotations</strong>{" "}
-            auto-map the Petadex accession to UniProt when possible (
-            <a
-              className="text-accent underline-offset-4 hover:underline"
-              href="https://www.uniprot.org/help/id_mapping"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              UniProt ID mapping
-            </a>
-            ), then load{" "}
-            <a
-              className="text-accent underline-offset-4 hover:underline"
-              href="https://rest.uniprot.org/"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              UniProt features
-            </a>{" "}
-            and{" "}
-            <a
-              className="text-accent underline-offset-4 hover:underline"
-              href="https://alphafold.ebi.ac.uk/"
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              AlphaFold
-            </a>{" "}
-            pLDDT. If mapping or features fail, scaled mock bars are shown instead.
+            <strong className="text-foreground">feature-viewer</strong> (SIB / neXtProt) with
+            annotation tracks from Petadex + UniProt, or from Drylab SQL tables keyed by{" "}
+            <code className="text-xs bg-muted px-1 rounded">orf_id</code>.
           </p>
         </header>
 
-        <div className="rounded-lg border border-border bg-muted/20 px-4 py-3 mb-10">
-          <label className="flex items-start gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={demoMode}
-              onChange={e => handleDemoModeChange(e.target.checked)}
-            />
-            <span className="text-sm text-foreground">
-              <strong>Demo mode</strong> — show curated proteins only (
-              {DEMO_REAL_UNIPROT_ACCESSIONS.length} with real UniProt tracks + 1 mock
-              fallback)
-            </span>
-          </label>
+        <div className="rounded-lg border border-border bg-muted/20 px-4 py-4 mb-10 space-y-4">
+          <fieldset>
+            <legend className="text-sm font-medium text-foreground mb-2">
+              Annotation source
+            </legend>
+            <div className="flex flex-col sm:flex-row gap-4 text-sm">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="annotation-source"
+                  className="mt-0.5"
+                  checked={annotationSource === "fastaa_uniprot"}
+                  onChange={() => setAnnotationSource("fastaa_uniprot")}
+                />
+                <span>
+                  <strong className="text-foreground">Petadex + UniProt</strong> — sequence from{" "}
+                  <code className="text-xs bg-muted px-1 rounded">/fastaa</code>, features via
+                  UniProt ID mapping and AlphaFold pLDDT when available.
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="annotation-source"
+                  className="mt-0.5"
+                  checked={annotationSource === "sara_orf"}
+                  onChange={() => setAnnotationSource("sara_orf")}
+                />
+                <span>
+                  <strong className="text-foreground">Drylab SQL (orf_id)</strong> —{" "}
+                  <code className="text-xs bg-muted px-1 rounded">sara_domains</code>,{" "}
+                  <code className="text-xs bg-muted px-1 rounded">sara_important_motfis</code>,{" "}
+                  <code className="text-xs bg-muted px-1 rounded">sara_signal_sequences</code>.
+                </span>
+              </label>
+            </div>
+          </fieldset>
+
+          {annotationSource === "fastaa_uniprot" ? (
+            <label className="flex items-start gap-3 cursor-pointer border-t border-border pt-4">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={demoMode}
+                onChange={e => handleDemoModeChange(e.target.checked)}
+              />
+              <span className="text-sm text-foreground">
+                <strong>Demo mode</strong> — show curated proteins only (
+                {DEMO_REAL_UNIPROT_ACCESSIONS.length} with real UniProt tracks + 1 mock
+                fallback)
+              </span>
+            </label>
+          ) : null}
         </div>
 
-        <div className="grid gap-10 lg:grid-cols-2 lg:gap-8 items-start">
-          <section className="flex flex-col gap-3">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">
-                Nightingale (EBI web components)
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                <a
-                  className="text-accent underline-offset-4 hover:underline"
-                  href="https://github.com/ebi-webcomponents/nightingale"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  ebi-webcomponents/nightingale
-                </a>
-                {" · "}
-                <a
-                  className="text-accent underline-offset-4 hover:underline"
-                  href="https://ebi-webcomponents.github.io/nightingale/"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  Docs / Storybook
-                </a>
-              </p>
-              <ul className="mt-3 text-sm text-muted-foreground list-disc pl-5 space-y-1">
-                <li>
-                  Thin pLDDT colour gradient under the sequence when scores match sequence length.
-                </li>
-                <li>
-                  Tracks below: Families/regions · Domains/repeats · Motifs/sites — from UniProt
-                  when auto-mapping succeeds; otherwise scaled mock bars.
-                </li>
-              </ul>
+        <section className="flex flex-col gap-3 max-w-5xl">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">
+              feature-viewer (SIB / neXtProt)
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              <a
+                className="text-accent underline-offset-4 hover:underline"
+                href="https://github.com/calipho-sib/feature-viewer"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                calipho-sib/feature-viewer
+              </a>
+              {" · "}
+              <a
+                className="text-accent underline-offset-4 hover:underline"
+                href="http://calipho-sib.github.io/feature-viewer/examples/"
+                target="_blank"
+                rel="noreferrer noopener"
+              >
+                Examples
+              </a>
+            </p>
+          </div>
+
+          {isSara ? (
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="orf-id-select"
+                className="text-sm font-medium text-foreground"
+              >
+                ORF id
+              </label>
+              <select
+                id="orf-id-select"
+                className="input w-full max-w-xs font-mono text-sm"
+                value={orfId}
+                onChange={e => setOrfId(Number(e.target.value))}
+                disabled={sara.orfListLoading}
+              >
+                {(sara.orfIds.length ? sara.orfIds : [1]).map(id => (
+                  <option key={id} value={id}>
+                    orf_id {id}
+                  </option>
+                ))}
+              </select>
+              {sara.orfListError ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  ORF list: {sara.orfListError} (using orf_id 1)
+                </p>
+              ) : null}
             </div>
-
-            <ProteinSelector
-              idPrefix="ng"
-              label="Protein for Nightingale"
-              value={ngChoice}
-              onChange={setNgChoice}
-              accessions={selectorAccessions}
-              listLoading={listLoading}
-              listError={listError}
-              demoMode={demoMode}
-            />
-
-            {ngChoice !== DEMO_OPTION_VALUE ? (
-              <p className="text-xs font-mono text-muted-foreground">
-                Showing: <span className="text-foreground">{ngChoice}</span> ·{" "}
-                {ngLoading ? (
-                  <span className="text-amber-600 dark:text-amber-400">loading…</span>
-                ) : ngError ? (
-                  <span className="text-destructive">{ngError}</span>
-                ) : (
-                  <span>{ngSeq.length} aa</span>
-                )}
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Built-in demo · {DEMO_SEQUENCE.length} aa — mock bars (no Petadex accession to map).
-              </p>
-            )}
-
-            <EnrichmentNotes
-              pack={ngEnrich}
-              isDemo={ngChoice === DEMO_OPTION_VALUE}
-            />
-
-            {showNgPlddt ? (
-              <PlddtLegend className="mb-1" />
-            ) : null}
-
-            <NightingaleProteinPanel
-              key={`ng-${ngChoice}`}
-              sequence={ngError ? "" : ngSeq}
-              trackPayloads={ngTrackPayloads}
-              enrichmentLoading={ngEnrich.loading}
-            />
-          </section>
-
-          <section className="flex flex-col gap-3">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">
-                feature-viewer (SIB / neXtProt)
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                <a
-                  className="text-accent underline-offset-4 hover:underline"
-                  href="https://github.com/calipho-sib/feature-viewer"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  calipho-sib/feature-viewer
-                </a>
-                {" · "}
-                <a
-                  className="text-accent underline-offset-4 hover:underline"
-                  href="http://calipho-sib.github.io/feature-viewer/examples/"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  Examples
-                </a>
-              </p>
-              <ul className="mt-3 text-sm text-muted-foreground list-disc pl-5 space-y-1">
-                <li>
-                  Same pLDDT strip and UniProt tracks as Nightingale (coloured confidence bands).
-                </li>
-                <li>Overview ruler + zoom toolbar above the tracks (no in-panel brush zoom).</li>
-              </ul>
-            </div>
-
+          ) : (
             <ProteinSelector
               idPrefix="fv"
-              label="Protein for feature-viewer"
-              value={fvChoice}
-              onChange={setFvChoice}
+              label="Protein"
+              value={choice}
+              onChange={setChoice}
               accessions={selectorAccessions}
               listLoading={listLoading}
               listError={listError}
               demoMode={demoMode}
             />
+          )}
 
-            {fvChoice !== DEMO_OPTION_VALUE ? (
-              <p className="text-xs font-mono text-muted-foreground">
-                Showing: <span className="text-foreground">{fvChoice}</span> ·{" "}
-                {fvLoading ? (
-                  <span className="text-amber-600 dark:text-amber-400">loading…</span>
-                ) : fvError ? (
-                  <span className="text-destructive">{fvError}</span>
-                ) : (
-                  <span>{fvSeq.length} aa</span>
-                )}
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Built-in demo · {DEMO_SEQUENCE.length} aa — mock bars (no Petadex accession to map).
-              </p>
-            )}
+          {isSara ? (
+            <p className="text-xs font-mono text-muted-foreground">
+              Showing: <span className="text-foreground">orf_id {orfId}</span> ·{" "}
+              {displayLoading ? (
+                <span className="text-amber-600 dark:text-amber-400">loading…</span>
+              ) : displayError ? (
+                <span className="text-destructive">{displayError}</span>
+              ) : (
+                <span>{displaySeq.length} aa (synthetic)</span>
+              )}
+            </p>
+          ) : choice !== DEMO_OPTION_VALUE ? (
+            <p className="text-xs font-mono text-muted-foreground">
+              Showing: <span className="text-foreground">{choice}</span> ·{" "}
+              {displayLoading ? (
+                <span className="text-amber-600 dark:text-amber-400">loading…</span>
+              ) : displayError ? (
+                <span className="text-destructive">{displayError}</span>
+              ) : (
+                <span>{displaySeq.length} aa</span>
+              )}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Built-in demo · {DEMO_SEQUENCE.length} aa — mock bars (no Petadex accession to map).
+            </p>
+          )}
 
+          {isSara ? (
+            <SaraViewerNotes meta={sara.meta} error={sara.error} />
+          ) : (
             <EnrichmentNotes
-              pack={fvEnrich}
-              isDemo={fvChoice === DEMO_OPTION_VALUE}
+              pack={enrich}
+              isDemo={choice === DEMO_OPTION_VALUE}
             />
+          )}
 
-            {showFvPlddt ? (
-              <PlddtLegend className="mb-1" />
-            ) : null}
+          {showPlddt ? <PlddtLegend className="mb-1" /> : null}
 
-            <FeatureViewerPanel
-              key={`fv-${fvChoice}`}
-              sequence={fvError ? "" : fvSeq}
-              rectTrackDefs={fvRectDefs}
-              enrichmentLoading={fvEnrich.loading}
-            />
-          </section>
-        </div>
+          <FeatureViewerPanel
+            key={viewerKey}
+            sequence={displaySeq}
+            rectTrackDefs={rectDefs}
+            enrichmentLoading={isSara ? sara.loading : enrich.loading}
+          />
+        </section>
       </Container>
     </div>
   )
@@ -446,6 +360,6 @@ export default ProteinViewerPrototypePage
 export const Head = () => (
   <Seo
     title="Protein viewer prototype"
-    description="Temporary comparison of Nightingale vs feature-viewer for protein annotations."
+    description="neXtProt feature-viewer prototype with Petadex UniProt or Drylab SQL annotations."
   />
 )
