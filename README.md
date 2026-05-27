@@ -28,27 +28,37 @@ petadex.io/
 ```
 
 ### Production architecture
-```
-┌───────────────┐        HTTPS           ┌────────────────┐       TCP 5432      ┌───────────────┐
-│  GitHub Pages │     petadex.net    ─▶  │  NGINX @ EC2   │  ──►   AWS RDS      │ PostgreSQL DB │
-│  (Gatsby)     │                        │ api.petadex.net│                     │   petadex     │
-└───────────────┘                        └────────────────┘                     └───────────────┘
-                                              │
-                                              └─> PM2‑managed Node/Express (backend/)
+
+The backend runs **serverless** on AWS Lambda behind API Gateway (no EC2/NGINX/PM2 — see issue #79 for the EC2→Lambda migration).
 
 ```
-- **GitHub Pages** hosts the static site built from `/frontend`.
-- **EC2** runs NGINX which terminates SSL (`/etc/letsencrypt/live/api.petadex.net/*`) and proxies `/api/*` to the Express server on port 3001.
-- **PostgreSQL RDS** stores enzyme sequences (`fastaa` table) and future datasets.
+┌───────────────┐    HTTPS    ┌──────────────┐      ┌─────────────────────┐   5432   ┌───────────────┐
+│  GitHub Pages │  petadex.net│  API Gateway │ ───► │  Lambda (in VPC)    │ ───────► │ PostgreSQL RDS│
+│  (Gatsby)     │ ──────────► │  (HTTP API)  │      │  petadex-backend    │          │   petadex     │
+└──────┬────────┘             └──────────────┘      │  Express via        │          └───────────────┘
+       │                                            │  serverless-http    │
+       │ atlas (large payload)                      └───────┬─────────────┘
+       ▼                                                    │ invoke / read+write
+┌──────────────────────────┐                        ┌───────▼──────────────┐
+│ S3 (petadex bucket)      │ ◀── atlas/umap.json.gz │ MMseqs2 search Lambda │
+│ public, gzipped, CORS    │                        │ + S3 results bucket   │
+└──────────────────────────┘                        └───────────────────────┘
+```
+
+- **GitHub Pages** hosts the static site built from `/frontend`; `GATSBY_API_URL` points at the API Gateway endpoint.
+- **API Gateway (HTTP API)** routes every path/method (`/{proxy+}`, `/`) to a single Lambda.
+- **Lambda `petadex-backend`** runs the Express app via a serverless handler (`src/handler.js`); VPC-bound (`timeout: 29s`, `memorySize: 512`, DB pool `max: 2`, read-only DB user).
+- **PostgreSQL RDS** stores enzyme sequences (`fastaa` table) and related datasets.
+- **S3 (`petadex` bucket)** serves the large family-atlas UMAP payload as a gzipped static object (`atlas/umap.json.gz`) — it exceeds Lambda's 6 MB response limit, so it bypasses the API. Regenerate with `cd backend && npm run export-atlas`. Sequence search results also live in S3.
 
 #### CI/CD overview
 
-| Workflow                   | Path                | Purpose                                                                            |
-| -------------------------- | ------------------- | ---------------------------------------------------------------------------------- |
-| **frontend-ci-deploy.yml** | `.github/workflows` | Builds Gatsby from `/frontend`, injects `GATSBY_API_URL`, deploys to GitHub Pages. |
-| **backend-deploy.yml**     | `.github/workflows` | SSHes into EC2, pulls latest `/backend` code, `npm ci`, `pm2 restart`.             |
+| Workflow                   | Path                | Purpose                                                                                          |
+| -------------------------- | ------------------- | ------------------------------------------------------------------------------------------------ |
+| **frontend-ci-deploy.yml** | `.github/workflows` | Builds Gatsby from `/frontend`, injects `GATSBY_API_URL`, deploys to GitHub Pages.               |
+| **backend-ci-deploy.yml**  | `.github/workflows` | On push to `backend/**`: `npm ci` + `npm test`, then `npx serverless@3 deploy` to AWS Lambda.    |
 
-All sensitive values (DB creds, API URL, EC2 SSH key) live in **GitHub Secrets**.
+All sensitive values (DB creds, API URL, AWS keys) live in **GitHub Secrets**.
 
 ### Contributing
 PETadex community — feel free to open issues & PRs!
