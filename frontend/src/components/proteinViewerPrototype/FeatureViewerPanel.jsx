@@ -2,11 +2,21 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import FeatureViewerOverviewNav from "./FeatureViewerOverviewNav.jsx"
 import { featureViewerTrackDefinitions } from "./mockProteinData.js"
 import { isLightTheme } from "./nightingaleStripeColors.js"
+import ResidueSelectionPanel from "./ResidueSelectionPanel.jsx"
 import {
   clearFeatureViewerColumnHighlight,
+  clearFeatureViewerSelectionHighlights,
   clientXToFeatureViewerPosition,
+  readFeatureViewerViewport,
   syncFeatureViewerColumnHighlight,
+  syncFeatureViewerSelectionHighlights,
 } from "./residueColumnHighlight.js"
+import {
+  addRange,
+  removeRange,
+  selectionRowsFromSet,
+  togglePosition,
+} from "./residueSelection.js"
 import { formatMagnification, minimumViewportLength } from "./zoomReadout.js"
 import { syncFeatureViewerSequenceStyle } from "./featureViewerSequenceStripes.js"
 import { trimFeatureViewerSvgHeight } from "./trimFeatureViewerLayout.js"
@@ -16,7 +26,7 @@ const FV_ZOOM_EVENT = "feature-viewer-zoom-altered"
 
 /** Petadex-owned DOM under the feature-viewer host (not library mutations). */
 const FV_OWN_DECORATION =
-  ".fv-residue-column-highlight, .fv-residue-position-label, .petadex-fv-sequence-stripes, .petadex-fv-sequence-dots"
+  ".fv-residue-column-highlight, .fv-residue-position-label, .fv-residue-selection-layer, .fv-residue-selection-highlight, .petadex-fv-sequence-stripes, .petadex-fv-sequence-dots"
 
 /**
  * @param {Node} n
@@ -95,6 +105,20 @@ export default function FeatureViewerPanel({
   const zoomSvgRef = useRef(/** @type {SVGSVGElement | null} */ (null))
   /** Last hovered residue (1-based); restored after layout / zoom repaints. */
   const hoverPositionRef = useRef(/** @type {number | null} */ (null))
+  /** Anchor for shift+click range (1-based). */
+  const selectionAnchorRef = useRef(/** @type {number | null} */ (null))
+  /** @type {React.MutableRefObject<{ active: boolean, anchor: number | null, preDrag: Set<number>, moved: boolean, shiftKey: boolean }>} */
+  const dragSelectRef = useRef({
+    active: false,
+    anchor: null,
+    preDrag: new Set(),
+    moved: false,
+    shiftKey: false,
+  })
+  const [selectedPositions, setSelectedPositions] = useState(
+    () => new Set(),
+  )
+  const selectedPositionsRef = useRef(selectedPositions)
   const [mounted, setMounted] = useState(false)
   const [zoomScale, setZoomScale] = useState(1)
   const reactId = useId()
@@ -112,22 +136,92 @@ export default function FeatureViewerPanel({
   /** Same cap as passed to feature-viewer; brushend only zooms when extent length exceeds this. */
   const zoomMaxLib = useMemo(() => minimumViewportLength(seqLen), [seqLen])
 
-  const applyColumnHighlight = useCallback((/** @type {number | null} */ position) => {
-    hoverPositionRef.current = position
+  const selectedSorted = useMemo(
+    () => [...selectedPositions].sort((a, b) => a - b),
+    [selectedPositions],
+  )
+
+  const selectionRows = useMemo(
+    () => selectionRowsFromSet(selectedPositions, sequence),
+    [selectedPositions, sequence],
+  )
+
+  useEffect(() => {
+    selectedPositionsRef.current = selectedPositions
+  }, [selectedPositions])
+
+  const repaintVisuals = useCallback(
+    (/** @type {number | null} */ hoverPos) => {
+      const host = containerRef.current
+      if (!host) return
+      const light = isLightTheme()
+      const vp = readFeatureViewerViewport(
+        host,
+        seqLen,
+        brushExtent ?? viewportRef.current,
+        sequence,
+      )
+      if (selectedSorted.length === 0) {
+        clearFeatureViewerSelectionHighlights(host)
+      } else {
+        syncFeatureViewerSelectionHighlights(host, selectedSorted, vp, light)
+      }
+      if (hoverPos == null) {
+        clearFeatureViewerColumnHighlight(host)
+        return
+      }
+      syncFeatureViewerColumnHighlight(
+        host,
+        hoverPos,
+        vp,
+        light,
+        sequence,
+      )
+    },
+    [selectedSorted, sequence, seqLen, brushExtent],
+  )
+
+  const applyColumnHighlight = useCallback(
+    (/** @type {number | null} */ position) => {
+      hoverPositionRef.current = position
+      repaintVisuals(position)
+    },
+    [repaintVisuals],
+  )
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedPositions(new Set())
+    selectionAnchorRef.current = null
+    repaintVisuals(hoverPositionRef.current)
+  }, [repaintVisuals])
+
+  const handleRemoveSelectionEntry = useCallback(
+    (lo, hi) => {
+      setSelectedPositions(prev => removeRange(prev, lo, hi))
+      repaintVisuals(hoverPositionRef.current)
+    },
+    [repaintVisuals],
+  )
+
+  useEffect(() => {
+    setSelectedPositions(new Set())
+    selectionAnchorRef.current = null
     const host = containerRef.current
-    if (!host) return
-    if (position == null) {
+    if (host) {
+      clearFeatureViewerSelectionHighlights(host)
       clearFeatureViewerColumnHighlight(host)
-      return
     }
-    syncFeatureViewerColumnHighlight(
-      host,
-      position,
-      viewportRef.current,
-      isLightTheme(),
-      sequence,
-    )
   }, [sequence])
+
+  useEffect(() => {
+    if (seqLen <= 0) return
+    setSelectedPositions(prev => {
+      const next = new Set(
+        [...prev].filter(p => Number.isFinite(p) && p >= 1 && p <= seqLen),
+      )
+      return next.size === prev.size ? prev : next
+    })
+  }, [seqLen])
 
   const applyViewportFromEvent = useCallback(
     (/** @type {CustomEvent} */ ev) => {
@@ -171,6 +265,10 @@ export default function FeatureViewerPanel({
       if (b - a <= minLen) {
         a = Math.max(1, b - minLen - 0.02)
       }
+      const span = Math.max(1, b - a)
+      viewportRef.current = { lo: a, hi: b }
+      setBrushExtent({ lo: a, hi: b })
+      setZoomScale(L / span)
       try {
         ft.zoom(a, b)
       } catch {
@@ -329,14 +427,30 @@ export default function FeatureViewerPanel({
             stripVariantPopups()
             syncFeatureViewerSequenceStyle(host, viewportRef.current)
             trimFeatureViewerSvgHeight(host)
+            const sel = [...selectedPositionsRef.current].sort(
+              (a, b) => a - b,
+            )
+            const light = isLightTheme()
+            const vp = readFeatureViewerViewport(
+              host,
+              seqLen,
+              viewportRef.current,
+            )
+            if (sel.length === 0) {
+              clearFeatureViewerSelectionHighlights(host)
+            } else {
+              syncFeatureViewerSelectionHighlights(host, sel, vp, light)
+            }
             if (hoverPositionRef.current != null) {
               syncFeatureViewerColumnHighlight(
                 host,
                 hoverPositionRef.current,
-                viewportRef.current,
-                isLightTheme(),
+                vp,
+                light,
                 sequence,
               )
+            } else {
+              clearFeatureViewerColumnHighlight(host)
             }
           } finally {
             if (!cancelled && variantUiObserver) {
@@ -420,47 +534,153 @@ export default function FeatureViewerPanel({
     if (!sc || !host || !mounted || seqLen === 0) return
 
     let raf = 0
+
+    const resolvePosition = (/** @type {PointerEvent} */ e) => {
+      const vp = brushExtent ?? viewportRef.current
+      return clientXToFeatureViewerPosition(
+        host,
+        e.clientX,
+        vp,
+        e.clientY,
+        seqLen,
+        sequence,
+      )
+    }
+
+    const isSequenceLetter = (/** @type {EventTarget | null} */ target) => {
+      if (!(target instanceof Element)) return false
+      return !!target.closest(".seqGroup text.AA")
+    }
+
+    const finishDrag = (/** @type {PointerEvent} */ e) => {
+      const drag = dragSelectRef.current
+      if (!drag.active) return
+
+      drag.active = false
+      const pos = resolvePosition(e) ?? drag.anchor
+      if (pos == null) return
+
+      if (!drag.moved) {
+        setSelectedPositions(prev => togglePosition(prev, pos))
+        selectionAnchorRef.current = pos
+      } else if (drag.anchor != null) {
+        setSelectedPositions(addRange(drag.preDrag, drag.anchor, pos))
+        selectionAnchorRef.current = pos
+      }
+
+      if (sc.hasPointerCapture(e.pointerId)) {
+        try {
+          sc.releasePointerCapture(e.pointerId)
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
+    const onPointerDown = (/** @type {PointerEvent} */ e) => {
+      if (e.button !== 0 || !isSequenceLetter(e.target)) return
+
+      e.preventDefault()
+      e.stopPropagation()
+
+      const pos = resolvePosition(e)
+      if (pos == null) return
+
+      // Preserve the most recent concrete residue immediately, even if pointerup gets lost.
+      if (!e.shiftKey || selectionAnchorRef.current == null) {
+        selectionAnchorRef.current = pos
+      }
+
+      if (e.shiftKey && selectionAnchorRef.current != null) {
+        const rangeStart = selectionAnchorRef.current
+        setSelectedPositions(prev =>
+          addRange(prev, rangeStart, pos),
+        )
+        selectionAnchorRef.current = pos
+        dragSelectRef.current = {
+          active: false,
+          anchor: pos,
+          preDrag: new Set(),
+          moved: false,
+          shiftKey: true,
+        }
+        return
+      }
+
+      dragSelectRef.current = {
+        active: true,
+        anchor: pos,
+        preDrag: new Set(selectedPositionsRef.current),
+        moved: false,
+        shiftKey: false,
+      }
+
+      try {
+        sc.setPointerCapture(e.pointerId)
+      } catch {
+        /* ignore */
+      }
+    }
+
     const onPointerMove = (/** @type {PointerEvent} */ e) => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        const vp = viewportRef.current
-        const pos = clientXToFeatureViewerPosition(
-          host,
-          e.clientX,
-          vp,
-          e.clientY,
-        )
+        const pos = resolvePosition(e)
+        const drag = dragSelectRef.current
+
+        if (drag.active && drag.anchor != null && pos != null) {
+          if (pos !== drag.anchor) drag.moved = true
+          setSelectedPositions(
+            addRange(drag.preDrag, drag.anchor, pos),
+          )
+        }
+
         applyColumnHighlight(pos)
       })
     }
 
     const onPointerLeave = () => {
-      applyColumnHighlight(null)
-    }
-
-    const blockVariantClick = (/** @type {MouseEvent} */ e) => {
-      const t = e.target
-      if (!(t instanceof Element)) return
-      const letter = t.closest("text.AA")
-      if (letter?.closest(".seqGroup")) {
-        e.preventDefault()
-        e.stopImmediatePropagation()
+      if (!dragSelectRef.current.active) {
+        applyColumnHighlight(null)
       }
     }
 
+    const onPointerUp = (/** @type {PointerEvent} */ e) => {
+      finishDrag(e)
+    }
+
+    const blockVariantClick = (/** @type {MouseEvent} */ e) => {
+      if (!isSequenceLetter(e.target)) return
+      e.preventDefault()
+      e.stopImmediatePropagation()
+    }
+
+    sc.addEventListener("pointerdown", onPointerDown)
     sc.addEventListener("pointermove", onPointerMove)
     sc.addEventListener("pointerleave", onPointerLeave)
+    window.addEventListener("pointerup", onPointerUp)
+    window.addEventListener("pointercancel", onPointerUp)
     host.addEventListener("click", blockVariantClick, true)
 
     return () => {
       cancelAnimationFrame(raf)
+      dragSelectRef.current.active = false
+      sc.removeEventListener("pointerdown", onPointerDown)
       sc.removeEventListener("pointermove", onPointerMove)
       sc.removeEventListener("pointerleave", onPointerLeave)
+      window.removeEventListener("pointerup", onPointerUp)
+      window.removeEventListener("pointercancel", onPointerUp)
       host.removeEventListener("click", blockVariantClick, true)
       hoverPositionRef.current = null
       clearFeatureViewerColumnHighlight(host)
+      clearFeatureViewerSelectionHighlights(host)
     }
   }, [mounted, seqLen, brushExtent, applyColumnHighlight])
+
+  useEffect(() => {
+    if (!mounted || seqLen === 0) return
+    repaintVisuals(hoverPositionRef.current)
+  }, [mounted, seqLen, brushExtent, selectedSorted, repaintVisuals])
 
   useEffect(() => {
     const host = containerRef.current
@@ -468,15 +688,7 @@ export default function FeatureViewerPanel({
 
     const run = () => {
       syncFeatureViewerSequenceStyle(host, viewportRef.current)
-      if (hoverPositionRef.current != null) {
-        syncFeatureViewerColumnHighlight(
-          host,
-          hoverPositionRef.current,
-          viewportRef.current,
-          isLightTheme(),
-          sequence,
-        )
-      }
+      repaintVisuals(hoverPositionRef.current)
     }
     run()
 
@@ -489,7 +701,7 @@ export default function FeatureViewerPanel({
     })
 
     return () => themeMo.disconnect()
-  }, [mounted, seqLen, brushExtent, sequence])
+  }, [mounted, seqLen, brushExtent, sequence, repaintVisuals])
 
   useEffect(() => {
     const sc = scrollRef.current
@@ -558,43 +770,51 @@ export default function FeatureViewerPanel({
         </p>
       ) : (
         <p className="text-xs text-muted-foreground mb-2">
-          Use the overview ruler and zoom row above the tracks to change the visible window.
-          Hover a sequence letter (or move across tracks) to highlight the matching residue
-          column, like Nightingale.
-          Trackpad scroll pans when zoomed. pLDDT appears when AlphaFold length matches the
-          sequence.
+          Click a letter first, then Shift+click another to select the range between them
+          (or drag across letters). Adjacent picks show as one range in the panel.
+          Hover for a preview column.
         </p>
       )}
-      <FeatureViewerOverviewNav
-        seqLen={seqLen}
-        viewport={brushExtent}
-        zoomMaxLib={zoomMaxLib}
-        onViewportChange={runFeatureZoom}
-        zoomReadout={fvZoomReadout}
-        canZoomIn={canZoomIn}
-        canZoomOut={canZoomOut}
-        zoomedPastOne={zoomedPastOne}
-        onZoomIn={handleZoomIn}
-        onZoomOut={handleZoomOut}
-        onResetZoom={handleResetZoom}
-        onPanLeft={() => {
-          const { lo, hi } = viewportRef.current
-          const span = hi - lo
-          panByResidues(-Math.max(5, Math.floor(span * 0.12)))
-        }}
-        onPanRight={() => {
-          const { lo, hi } = viewportRef.current
-          const span = hi - lo
-          panByResidues(Math.max(5, Math.floor(span * 0.12)))
-        }}
-      />
-      <div
-        ref={scrollRef}
-        className="overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-background"
-      >
-        <div
-          ref={containerRef}
-          className="fv-prototype w-full min-w-0"
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_280px] gap-4 items-start">
+        <div className="min-w-0">
+          <FeatureViewerOverviewNav
+            seqLen={seqLen}
+            viewport={brushExtent}
+            zoomMaxLib={zoomMaxLib}
+            onViewportChange={runFeatureZoom}
+            zoomReadout={fvZoomReadout}
+            canZoomIn={canZoomIn}
+            canZoomOut={canZoomOut}
+            zoomedPastOne={zoomedPastOne}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onResetZoom={handleResetZoom}
+            onPanLeft={() => {
+              const { lo, hi } = viewportRef.current
+              const span = hi - lo
+              panByResidues(-Math.max(5, Math.floor(span * 0.12)))
+            }}
+            onPanRight={() => {
+              const { lo, hi } = viewportRef.current
+              const span = hi - lo
+              panByResidues(Math.max(5, Math.floor(span * 0.12)))
+            }}
+          />
+          <div
+            ref={scrollRef}
+            className="overflow-x-auto overflow-y-hidden rounded-lg border border-border bg-background"
+          >
+            <div
+              ref={containerRef}
+              className="fv-prototype w-full min-w-0"
+            />
+          </div>
+        </div>
+        <ResidueSelectionPanel
+          rows={selectionRows}
+          totalCount={selectedSorted.length}
+          onClearAll={handleClearSelection}
+          onRemoveEntry={handleRemoveSelectionEntry}
         />
       </div>
     </div>

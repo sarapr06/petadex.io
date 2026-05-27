@@ -39,19 +39,19 @@ const SITE_TYPES = new Set([
 const TRACK_META = [
   {
     id: "families",
-    title: "Families / regions (UniProt)",
+    title: "Families / regions",
     bucket: "families",
     palette: ["#0d9488", "#14b8a6", "#5eead4", "#99f6e4"],
   },
   {
     id: "domains",
-    title: "Domains / repeats (UniProt)",
+    title: "Domains / repeats",
     bucket: "domains",
     palette: ["#2563eb", "#3b82f6", "#60a5fa", "#93c5fd"],
   },
   {
     id: "sites",
-    title: "Motifs / sites (UniProt)",
+    title: "Motifs / sites",
     bucket: "sites",
     palette: ["#c2410c", "#ea580c", "#fb923c", "#fdba74"],
   },

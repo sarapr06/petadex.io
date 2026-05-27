@@ -238,7 +238,7 @@ const ProteinViewerPrototypePage = () => {
           ) : null}
         </div>
 
-        <section className="flex flex-col gap-3 max-w-5xl">
+        <section className="flex flex-col gap-3 max-w-6xl">
           <div>
             <h2 className="text-xl font-semibold text-foreground">
               feature-viewer (SIB / neXtProt)
