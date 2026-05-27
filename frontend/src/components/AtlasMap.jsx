@@ -89,7 +89,7 @@ export default function AtlasMap({ interactive = true, className = "" }) {
 
   // Fetch real atlas data
   useEffect(() => {
-    fetch(`${config.apiUrl}/atlas/umap`)
+    fetch(config.atlasDataUrl)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.points?.length) setApiPoints(data.points) })
       .catch(() => {}) // fallback to generated points

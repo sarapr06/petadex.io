@@ -467,7 +467,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
         const timeoutId = setTimeout(() => controller.abort(), 30000)
         const endpoint = highlightFamilyId != null
           ? `${config.apiUrl}/family/${highlightFamilyId}/umap`
-          : `${config.apiUrl}/atlas/umap`
+          : config.atlasDataUrl
         let res
         try {
           res = await fetch(endpoint, { signal: controller.signal })
