@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "description": "Prototype residue annotations inspired by PyMOL session styling.",
+  "records": [
+    {
+      "accession": "P52956",
+      "displayName": "P52956 annotated demo",
+      "stylePreset": {
+        "cartoonColor": "#e8e8e8",
+        "annotationColor": "#ff2ea6",
+        "labelColor": "#ffffff"
+      },
+      "groups": [
+        {
+          "id": "catalytic",
+          "label": "Catalytic residues",
+          "color": "#ff2ea6"
+        },
+        {
+          "id": "binding",
+          "label": "Substrate pocket",
+          "color": "#f59e0b"
+        }
+      ],
+      "residues": [
+        {
+          "seqPos": 154,
+          "aa": "G",
+          "group": "catalytic",
+          "label": "Catalytic anchor",
+          "note": "Prototype marker from Quigley style reference"
+        },
+        {
+          "seqPos": 160,
+          "aa": "A",
+          "group": "catalytic",
+          "label": "Catalytic neighbor",
+          "note": "Candidate residue near active pocket"
+        },
+        {
+          "seqPos": 163,
+          "aa": "G",
+          "group": "binding",
+          "label": "Pocket contact",
+          "note": "Example substrate-side residue"
+        }
+      ]
+    },
+    {
+      "accession": "B0FLR6",
+      "displayName": "B0FLR6 annotated demo",
+      "stylePreset": {
+        "cartoonColor": "#e8e8e8",
+        "annotationColor": "#ff2ea6",
+        "labelColor": "#ffffff"
+      },
+      "groups": [
+        {
+          "id": "catalytic",
+          "label": "Catalytic residues",
+          "color": "#ff2ea6"
+        }
+      ],
+      "residues": [
+        {
+          "seqPos": 87,
+          "aa": "S",
+          "group": "catalytic",
+          "label": "Catalytic S",
+          "note": "Placeholder catalytic site for prototype controls"
+        },
+        {
+          "seqPos": 203,
+          "aa": "D",
+          "group": "catalytic",
+          "label": "Catalytic D",
+          "note": "Placeholder acidic partner"
+        }
+      ]
+    }
+  ]
+}

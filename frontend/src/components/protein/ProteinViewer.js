@@ -9,7 +9,11 @@ const ProteinViewer = ({
   showControls = true,
   initialStyle = "cartoon",
   enableMeasurement = true,
-  enableSelection = true
+  enableSelection = true,
+  annotations = [],
+  annotationGroups = [],
+  annotationStylePreset = null,
+  showAnnotationLabels = false,
 }) => {
   const containerRef = useRef(null);
   const pluginRef = useRef(null);
@@ -113,15 +117,21 @@ const ProteinViewer = ({
         const model = await plugin.builders.structure.createModel(trajectory);
         const structure = await plugin.builders.structure.createStructure(model);
 
+        const cartoonColor =
+          annotationStylePreset?.cartoonColor || '#f5f5f5';
+
+        const { Color } = await import('molstar/lib/mol-util/color');
+        const cartoonColorValue = Color.fromHexStyle(cartoonColor);
+
         // Apply representation based on initialStyle
         let reprParams = {};
-        switch(initialStyle) {
+        switch (initialStyle) {
           case 'cartoon':
             reprParams = {
               type: 'cartoon',
               typeParams: {},
-              color: 'sequence-id',
-              colorParams: {}
+              color: 'uniform',
+              colorParams: { value: cartoonColorValue },
             };
             break;
           case 'surface':
@@ -144,12 +154,23 @@ const ProteinViewer = ({
             reprParams = {
               type: 'cartoon',
               typeParams: {},
-              color: 'sequence-id',
-              colorParams: {}
+              color: 'uniform',
+              colorParams: { value: cartoonColorValue },
             };
         }
 
         await plugin.builders.structure.representation.addRepresentation(structure, reprParams);
+
+        if (annotations?.length) {
+          const { applyAnnotationRepresentations } = await import('./molstarAnnotations.js');
+          await applyAnnotationRepresentations(
+            plugin,
+            structure,
+            annotations,
+            annotationStylePreset,
+            annotationGroups,
+          );
+        }
 
         // Auto-focus on structure
         const { Structure } = await import('molstar/lib/mol-model/structure');
@@ -187,7 +208,16 @@ const ProteinViewer = ({
         pluginRef.current = null;
       }
     };
-  }, [accession, showControls, initialStyle, enableMeasurement, enableSelection]);
+  }, [
+    accession,
+    showControls,
+    initialStyle,
+    enableMeasurement,
+    enableSelection,
+    annotationStylePreset?.cartoonColor,
+    annotations,
+    annotationGroups,
+  ]);
 
   // Hide header when hovering over structure viewer (only when controls are shown - i.e., on detail pages)
   const handleMouseEnter = () => {
@@ -234,6 +264,41 @@ const ProteinViewer = ({
           className='w-full h-full absolute top-0 left-0 flex items-center justify-center bg-surface text-primary text-xs z-10 text-center p-2'
         >
           Structure unavailable
+        </div>
+      )}
+
+      {showAnnotationLabels && annotations.length > 0 && !loading && !error && (
+        <div
+          className='absolute top-2 right-2 z-20 max-w-[260px] rounded-md border border-border bg-background/80 backdrop-blur px-2 py-2'
+        >
+          <p className='m-0 text-[11px] font-semibold text-foreground mb-1'>
+            Annotated residues
+          </p>
+          <div className='flex flex-wrap gap-1'>
+            {annotations.slice(0, 20).map((a, idx) => {
+              const group = a.group
+                ? annotationGroups.find(g => g.id === a.group)
+                : null
+              const bg =
+                group?.color ||
+                annotationStylePreset?.annotationColor ||
+                "#ff2ea6"
+              return (
+                <span
+                  key={`${a.seqPos}-${a.group || "none"}-${idx}`}
+                  title={a.note || a.label || ""}
+                  className='inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono text-white'
+                  style={{ backgroundColor: bg }}
+                >
+                  {a.seqPos}
+                  {a.aa ? ` ${a.aa}` : ""}
+                </span>
+              )
+            })}
+            {annotations.length > 20 ? (
+              <span className='text-[10px] text-muted-foreground'>+{annotations.length - 20} more</span>
+            ) : null}
+          </div>
         </div>
       )}
     </div>

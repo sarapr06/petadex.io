@@ -23,6 +23,8 @@ const TRACK_COLORS = {
  * @param {number} seqLen
  */
 function clampInterval(start, end, seqLen) {
+  // start and end are the start and end of the interval, seqLen is the length of the sequence
+  // we need to clamp the interval to the sequence length
   const L = Math.max(1, seqLen);
   let s = Math.max(1, Math.round(Number(start)));
   let e = Math.max(s, Math.round(Number(end)));
@@ -41,6 +43,9 @@ function clampInterval(start, end, seqLen) {
  * @param {number} seqLen
  */
 function logicalTracksFromRows(domainRows, motifRows, signalRows, seqLen) {
+  // domainRows, motifRows, and signalRows are arrays of objects with start_aa and end_aa properties
+  // we need to convert these to features that can be displayed in the viewer
+  // seqLen is the length of the sequence 
   const tracks = [];
 
   const domainFeatures = domainRows.map((row) => {
