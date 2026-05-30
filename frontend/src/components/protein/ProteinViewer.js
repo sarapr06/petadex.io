@@ -1,6 +1,16 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import config from "../../config";
+import AnnotationResidueCallout from "./AnnotationResidueCallout";
+import { computeCalloutLayout } from "./molstarAnnotationCallout";
+import {
+  attachAnnotationInteractivity,
+  attachCameraReproject,
+  detachAnnotationInteractivity,
+} from "./molstarAnnotationInteractivity";
 import "../../styles/molstar-custom.css";
+
+const HOVER_BOX = { w: 220, h: 80 };
+const PINNED_BOX = { w: 300, h: 160 };
 
 const ProteinViewer = ({
   accession,
@@ -13,12 +23,74 @@ const ProteinViewer = ({
   annotations = [],
   annotationGroups = [],
   annotationStylePreset = null,
-  showAnnotationLabels = false,
 }) => {
   const containerRef = useRef(null);
   const pluginRef = useRef(null);
+  const interactivitySubsRef = useRef([]);
+  const cameraSubRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [hoverTip, setHoverTip] = useState(null);
+  const [pinnedAnnotation, setPinnedAnnotation] = useState(null);
+  const [layoutTick, setLayoutTick] = useState(0);
+
+  const bumpLayout = useCallback(() => {
+    setLayoutTick(t => t + 1);
+  }, []);
+
+  const groupMap = useMemo(
+    () => new Map((annotationGroups || []).map(g => [g.id, g])),
+    [annotationGroups],
+  );
+
+  const hoverLayout = useMemo(() => {
+    if (!hoverTip?.worldPos || !pluginRef.current || !containerRef.current) {
+      return null;
+    }
+    return computeCalloutLayout(
+      pluginRef.current,
+      containerRef.current,
+      hoverTip.worldPos,
+      HOVER_BOX,
+    );
+  }, [hoverTip, layoutTick, loading]);
+
+  const pinnedLayout = useMemo(() => {
+    if (!pinnedAnnotation?.worldPos || !pluginRef.current || !containerRef.current) {
+      return null;
+    }
+    return computeCalloutLayout(
+      pluginRef.current,
+      containerRef.current,
+      pinnedAnnotation.worldPos,
+      PINNED_BOX,
+    );
+  }, [pinnedAnnotation, layoutTick, loading]);
+
+  useEffect(() => {
+    if (!hoverTip && !pinnedAnnotation) {
+      if (cameraSubRef.current) {
+        cameraSubRef.current.unsubscribe();
+        cameraSubRef.current = null;
+      }
+      return;
+    }
+
+    const plugin = pluginRef.current;
+    if (!plugin) return;
+
+    if (cameraSubRef.current) {
+      cameraSubRef.current.unsubscribe();
+    }
+    cameraSubRef.current = attachCameraReproject(plugin, bumpLayout);
+
+    return () => {
+      if (cameraSubRef.current) {
+        cameraSubRef.current.unsubscribe();
+        cameraSubRef.current = null;
+      }
+    };
+  }, [hoverTip, pinnedAnnotation, bumpLayout, loading]);
 
   useEffect(() => {
     if (!accession || typeof window === 'undefined') return;
@@ -30,22 +102,19 @@ const ProteinViewer = ({
       try {
         setLoading(true);
         setError(null);
+        setHoverTip(null);
+        setPinnedAnnotation(null);
 
-        // Import Molstar CSS first
         await import('molstar/lib/mol-plugin-ui/skin/light.scss');
 
-        // Import Molstar modules with React 18 renderer
         const { createPluginUI } = await import('molstar/lib/mol-plugin-ui');
         const { renderReact18 } = await import('molstar/lib/mol-plugin-ui/react18');
         const { DefaultPluginUISpec } = await import('molstar/lib/mol-plugin-ui/spec');
 
         if (!isMounted || !containerRef.current) {
-          console.log('Component unmounted, aborting');
           return;
         }
 
-
-        // Ensure container has explicit pixel dimensions
         const rect = containerRef.current.getBoundingClientRect();
 
         if (rect.width === 0 || rect.height === 0) {
@@ -55,11 +124,8 @@ const ProteinViewer = ({
         containerRef.current.style.width = `${rect.width}px`;
         containerRef.current.style.height = `${rect.height}px`;
 
-        // Create plugin with React 18 renderer
-        // Configure spec based on whether we want controls
         const spec = DefaultPluginUISpec();
         if (!showControls) {
-          // For small viewers, disable all UI panels
           spec.layout = {
             initial: {
               isExpanded: false,
@@ -81,9 +147,7 @@ const ProteinViewer = ({
 
         pluginRef.current = plugin;
 
-        // Get PDB info from backend
         const pdbUrl = `${config.apiUrl}/pdb/accession/${accession}`;
-
         const response = await fetch(pdbUrl);
 
         if (!response.ok) {
@@ -92,12 +156,8 @@ const ProteinViewer = ({
 
         const pdbInfo = await response.json();
 
-        if (!isMounted) {
-          console.log('Component unmounted, aborting');
-          return;
-        }
+        if (!isMounted) return;
 
-        // Fetch PDB file
         const pdbResponse = await fetch(pdbInfo.pdb_url);
         if (!pdbResponse.ok) {
           throw new Error(`Failed to load PDB file: ${pdbResponse.status}`);
@@ -107,7 +167,6 @@ const ProteinViewer = ({
 
         if (!isMounted) return;
 
-        // Load structure into Molstar
         const data = await plugin.builders.data.rawData({
           data: pdbData,
           label: `${accession} Structure`
@@ -123,7 +182,6 @@ const ProteinViewer = ({
         const { Color } = await import('molstar/lib/mol-util/color');
         const cartoonColorValue = Color.fromHexStyle(cartoonColor);
 
-        // Apply representation based on initialStyle
         let reprParams = {};
         switch (initialStyle) {
           case 'cartoon':
@@ -172,21 +230,39 @@ const ProteinViewer = ({
           );
         }
 
-        // Auto-focus on structure
         const { Structure } = await import('molstar/lib/mol-model/structure');
         const loci = Structure.toStructureElementLoci(structure.cell.obj.data);
         await plugin.managers.camera.focusLoci(loci);
 
-        // Enable measurement tools if requested
-        if (enableMeasurement && plugin.managers.structure.measurement) {
-          console.log('Enabling measurement tools');
-          // Measurement tools are available through the UI when controls are shown
-        }
-
-        // Enable selection tools if requested
-        if (enableSelection && plugin.managers.structure.selection) {
-          console.log('Enabling selection tools');
-          // Selection is enabled by default in Molstar
+        if (isMounted && annotations?.length) {
+          detachAnnotationInteractivity(interactivitySubsRef.current);
+          interactivitySubsRef.current = attachAnnotationInteractivity(plugin, {
+            annotations,
+            onHover: payload => {
+              if (!isMounted) return;
+              if (!payload) {
+                setHoverTip(null);
+                return;
+              }
+              setHoverTip({
+                annotation: payload.annotation,
+                worldPos: payload.worldPos,
+              });
+              bumpLayout();
+            },
+            onClick: payload => {
+              if (!isMounted) return;
+              if (!payload) {
+                setPinnedAnnotation(null);
+                return;
+              }
+              setPinnedAnnotation({
+                annotation: payload.annotation,
+                worldPos: payload.worldPos,
+              });
+              bumpLayout();
+            },
+          });
         }
 
         setLoading(false);
@@ -203,6 +279,12 @@ const ProteinViewer = ({
 
     return () => {
       isMounted = false;
+      detachAnnotationInteractivity(interactivitySubsRef.current);
+      interactivitySubsRef.current = [];
+      if (cameraSubRef.current) {
+        cameraSubRef.current.unsubscribe();
+        cameraSubRef.current = null;
+      }
       if (pluginRef.current) {
         pluginRef.current.dispose();
         pluginRef.current = null;
@@ -217,11 +299,11 @@ const ProteinViewer = ({
     annotationStylePreset?.cartoonColor,
     annotations,
     annotationGroups,
+    bumpLayout,
   ]);
 
-  // Hide header when hovering over structure viewer (only when controls are shown - i.e., on detail pages)
   const handleMouseEnter = () => {
-    if (!showControls) return; // Don't hide header for small preview viewers
+    if (!showControls) return;
 
     const header = document.querySelector('.ui-section-header');
     if (header && window.pageYOffset > 100) {
@@ -229,10 +311,20 @@ const ProteinViewer = ({
     }
   };
 
+  const handleViewerMouseLeave = () => {
+    setHoverTip(null);
+  };
+
+  const showHover =
+    hoverTip &&
+    hoverLayout &&
+    (!pinnedAnnotation ||
+      pinnedAnnotation.annotation?.seqPos !== hoverTip.annotation?.seqPos);
+
   return (
-    // eslint-disable-next-line jsx-a11y/no-static-element-interactions
     <div
       onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleViewerMouseLeave}
       className={!showControls ? 'molstar-compact' : ''}
       style={{
         width,
@@ -240,16 +332,14 @@ const ProteinViewer = ({
         position: 'relative',
         borderRadius: '8px',
         overflow: 'hidden',
-        isolation: 'isolate' // Create stacking context to contain Molstar UI
+        isolation: 'isolate'
       }}
     >
-      {/* Molstar plugin container */}
       <div
         ref={containerRef}
         className='w-full h-full absolute top-0 left-0 overflow-hidden'
       />
 
-      {/* Loading overlay */}
       {loading && (
         <div
           className='w-full h-full absolute top-0 left-0 flex items-center justify-center bg-surface text-primary text-sm z-10'
@@ -258,7 +348,6 @@ const ProteinViewer = ({
         </div>
       )}
 
-      {/* Error overlay */}
       {error && !loading && (
         <div
           className='w-full h-full absolute top-0 left-0 flex items-center justify-center bg-surface text-primary text-xs z-10 text-center p-2'
@@ -267,40 +356,32 @@ const ProteinViewer = ({
         </div>
       )}
 
-      {showAnnotationLabels && annotations.length > 0 && !loading && !error && (
-        <div
-          className='absolute top-2 right-2 z-20 max-w-[260px] rounded-md border border-border bg-background/80 backdrop-blur px-2 py-2'
-        >
-          <p className='m-0 text-[11px] font-semibold text-foreground mb-1'>
-            Annotated residues
-          </p>
-          <div className='flex flex-wrap gap-1'>
-            {annotations.slice(0, 20).map((a, idx) => {
-              const group = a.group
-                ? annotationGroups.find(g => g.id === a.group)
-                : null
-              const bg =
-                group?.color ||
-                annotationStylePreset?.annotationColor ||
-                "#ff2ea6"
-              return (
-                <span
-                  key={`${a.seqPos}-${a.group || "none"}-${idx}`}
-                  title={a.note || a.label || ""}
-                  className='inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-mono text-white'
-                  style={{ backgroundColor: bg }}
-                >
-                  {a.seqPos}
-                  {a.aa ? ` ${a.aa}` : ""}
-                </span>
-              )
-            })}
-            {annotations.length > 20 ? (
-              <span className='text-[10px] text-muted-foreground'>+{annotations.length - 20} more</span>
-            ) : null}
-          </div>
-        </div>
-      )}
+      {showHover && !loading && !error ? (
+        <AnnotationResidueCallout
+          mode="hover"
+          annotation={hoverTip.annotation}
+          group={
+            hoverTip.annotation?.group
+              ? groupMap.get(hoverTip.annotation.group)
+              : null
+          }
+          layout={hoverLayout}
+        />
+      ) : null}
+
+      {pinnedAnnotation && pinnedLayout && !loading && !error ? (
+        <AnnotationResidueCallout
+          mode="pinned"
+          annotation={pinnedAnnotation.annotation}
+          group={
+            pinnedAnnotation.annotation?.group
+              ? groupMap.get(pinnedAnnotation.annotation.group)
+              : null
+          }
+          layout={pinnedLayout}
+          onDismiss={() => setPinnedAnnotation(null)}
+        />
+      ) : null}
     </div>
   );
 };

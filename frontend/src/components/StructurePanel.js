@@ -22,6 +22,7 @@ export default function StructurePanel({ accession }) {
               record={record}
               height="500px"
               showControls={true}
+              variant="embedded"
             />
           </div>
         ) : (
@@ -41,7 +42,7 @@ export default function StructurePanel({ accession }) {
       <div className='mt-6 p-4 bg-blue-300 rounded-lg border-l-info border-l-4'>
         <p className='m-0 text-sm text-primary dark:text-secondary'>
           <strong>Tip:</strong> Click and drag to rotate the structure. Scroll to zoom in/out.
-          {record ? " This accession includes prototype annotation notes." : ""}
+          {record ? " Hover or click highlighted residues to read annotation notes." : ""}
         </p>
       </div>
     </div>

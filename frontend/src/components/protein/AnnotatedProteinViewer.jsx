@@ -7,6 +7,7 @@ import ProteinViewer from "./ProteinViewer"
  *   record: import("./annotation-reference/annotations.js").AnnotationRecord | null,
  *   height?: string,
  *   showControls?: boolean,
+ *   variant?: "embedded" | "full",
  * }} props
  */
 export default function AnnotatedProteinViewer({
@@ -14,6 +15,7 @@ export default function AnnotatedProteinViewer({
   record,
   height = "560px",
   showControls = true,
+  variant = "embedded",
 }) {
   const groupDefaults = useMemo(() => {
     const entries = (record?.groups ?? []).map(g => [g.id, true])
@@ -35,19 +37,49 @@ export default function AnnotatedProteinViewer({
     })
   }, [record, enabledGroups])
 
-  const groupMap = useMemo(
-    () => new Map((record?.groups ?? []).map(g => [g.id, g])),
-    [record],
-  )
+  const isEmbedded = variant === "embedded"
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] items-start">
-      <div className="rounded-2xl border-border overflow-hidden bg-surface-overlay">
-        <div className="p-3 border-b border-border bg-surface-raised text-sm text-muted-foreground">
-          <strong className="text-foreground">Annotated style prototype</strong> · accession{" "}
-          <span className="font-mono">{accession}</span>
+    <div className={isEmbedded ? "space-y-3" : "grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] items-start"}>
+      {record?.groups?.length ? (
+        <div className="flex flex-wrap items-center gap-3 px-1">
+          <span className="text-xs text-muted-foreground">Show groups:</span>
+          {record.groups.map(group => (
+            <label
+              key={group.id}
+              className="inline-flex items-center gap-1.5 text-sm text-foreground cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={enabledGroups[group.id] !== false}
+                onChange={e =>
+                  setEnabledGroups(prev => ({
+                    ...prev,
+                    [group.id]: e.target.checked,
+                  }))
+                }
+              />
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full"
+                style={{ backgroundColor: group.color || "#ff2ea6" }}
+              />
+              <span>{group.label}</span>
+            </label>
+          ))}
         </div>
-        <div className="w-full bg-secondary molstar-annotated-canvas" style={{ height }}>
+      ) : null}
+
+      <div className="rounded-2xl border-border overflow-hidden bg-surface-overlay">
+        {!isEmbedded ? (
+          <div className="p-3 border-b border-border bg-surface-raised text-sm text-muted-foreground">
+            <strong className="text-foreground">Annotated structure</strong> · accession{" "}
+            <span className="font-mono">{accession}</span>
+          </div>
+        ) : null}
+        <div
+          className={`w-full bg-secondary molstar-annotated-canvas ${isEmbedded ? "" : ""}`}
+          style={{ height }}
+        >
           <ProteinViewer
             accession={accession}
             width="100%"
@@ -58,85 +90,27 @@ export default function AnnotatedProteinViewer({
             annotations={visibleResidues}
             annotationGroups={record?.groups ?? []}
             annotationStylePreset={record?.stylePreset ?? null}
-            showAnnotationLabels={false}
           />
         </div>
+        {isEmbedded && visibleResidues.length > 0 ? (
+          <p className="m-0 px-3 py-2 text-xs text-muted-foreground border-t border-border">
+            Hover highlighted residues for a callout; click to pin notes. Callouts stay offset from the structure as you zoom.
+          </p>
+        ) : null}
       </div>
 
-      <aside className="rounded-2xl border border-border bg-surface-overlay">
-        <div className="px-4 py-3 border-b border-border">
-          <h3 className="m-0 text-base text-foreground font-semibold">
-            Annotation notes
-          </h3>
-          <p className="m-0 mt-1 text-xs text-muted-foreground">
-            PyMOL-inspired residue marks + discussion notes
-          </p>
-        </div>
-
-        {record?.groups?.length ? (
-          <div className="px-4 py-3 border-b border-border space-y-2">
-            <p className="m-0 text-xs text-muted-foreground">Toggle groups</p>
-            {record.groups.map(group => (
-              <label
-                key={group.id}
-                className="flex items-center gap-2 text-sm text-foreground"
-              >
-                <input
-                  type="checkbox"
-                  checked={enabledGroups[group.id] !== false}
-                  onChange={e =>
-                    setEnabledGroups(prev => ({
-                      ...prev,
-                      [group.id]: e.target.checked,
-                    }))
-                  }
-                />
-                <span
-                  className="inline-block w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: group.color || "#ff2ea6" }}
-                />
-                <span>{group.label}</span>
-              </label>
-            ))}
+      {!isEmbedded && record ? (
+        <aside className="rounded-2xl border border-border bg-surface-overlay">
+          <div className="px-4 py-3 border-b border-border">
+            <h3 className="m-0 text-base text-foreground font-semibold">
+              Annotation notes
+            </h3>
           </div>
-        ) : null}
-
-        <div className="px-4 py-3 max-h-[400px] overflow-auto">
-          {!visibleResidues.length ? (
-            <p className="m-0 text-sm text-muted-foreground">
-              No annotations for this accession yet.
-            </p>
-          ) : (
-            <ul className="m-0 p-0 list-none space-y-2">
-              {visibleResidues.map((r, i) => {
-                const group = r.group ? groupMap.get(r.group) : null
-                return (
-                  <li
-                    key={`${r.seqPos}-${r.group || "none"}-${i}`}
-                    className="rounded-md border border-border bg-muted/20 p-2"
-                  >
-                    <p className="m-0 text-sm font-mono text-foreground">
-                      {r.seqPos}
-                      {r.aa ? ` ${r.aa}` : ""}
-                      {r.label ? ` · ${r.label}` : ""}
-                    </p>
-                    {group?.label ? (
-                      <p className="m-0 mt-1 text-xs text-muted-foreground">
-                        Group: {group.label}
-                      </p>
-                    ) : null}
-                    {r.note ? (
-                      <p className="m-0 mt-1 text-xs text-muted-foreground">
-                        {r.note}
-                      </p>
-                    ) : null}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-      </aside>
+          <div className="px-4 py-3 max-h-[400px] overflow-auto text-sm text-muted-foreground">
+            Notes appear on the structure when you hover or click highlighted residues.
+          </div>
+        </aside>
+      ) : null}
     </div>
   )
 }
