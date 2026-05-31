@@ -22,6 +22,7 @@ router.get('/umap', async (req, res, next) => {
       ? UMAP_POINTS_FROM_FAMILY_ATLAS
       : UMAP_POINTS_FROM_BASE_TABLES;
     const { rows } = await pool.query(sql);
+    res.set('Cache-Control', 'public, max-age=3600');
     res.json({ points: rows });
   } catch (err) {
     next(err);

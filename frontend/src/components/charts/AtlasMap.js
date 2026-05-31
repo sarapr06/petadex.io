@@ -5,6 +5,7 @@ import {
   CATH_HUE,
   hslToRgb,
 } from "../../utils/cathColors"
+import TerminalLoader from "../common/TerminalLoader"
 
 // ── colour helpers ──────────────────────────────────────────────────────────
 
@@ -298,6 +299,8 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
   const [searchMatches,        setSearchMatches]        = useState([])
   const [searchMatchIdx,       setSearchMatchIdx]       = useState(0)
   const [searchPanel,          setSearchPanel]          = useState(null)  // current match point
+  const [isMobile,             setIsMobile]             = useState(false)
+  const [legendOpen,           setLegendOpen]           = useState(false)
 
   const zoomToHighlight = useCallback(() => {
     if (!deckRef.current || !highlightPosRef.current) return
@@ -439,6 +442,14 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
     })
   }, [updateLayer])
 
+  // ── mobile detection ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener("resize", check)
+    return () => window.removeEventListener("resize", check)
+  }, [])
+
   // ── initial load ──────────────────────────────────────────────────────────
   useEffect(() => {
     let initialized = false
@@ -456,7 +467,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
         const timeoutId = setTimeout(() => controller.abort(), 30000)
         const endpoint = highlightFamilyId != null
           ? `${config.apiUrl}/family/${highlightFamilyId}/umap`
-          : `${config.apiUrl}/atlas/umap`
+          : config.atlasDataUrl
         let res
         try {
           res = await fetch(endpoint, { signal: controller.signal })
@@ -738,7 +749,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
                 color: "#e2e8f0",
                 fontSize: "12px",
                 fontFamily: "inherit",
-                width: "200px",
+                width: isMobile ? "140px" : "200px",
                 outline: "none",
               }}
             />
@@ -763,12 +774,12 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
         <div style={{
           position: "absolute",
           top: "14px",
-          left: fullscreen ? "234px" : "14px",
+          left: fullscreen && !isMobile ? "234px" : "14px",
           zIndex: 10,
           pointerEvents: "none",
         }}>
           <div style={{ color: "#f1f5f9", fontSize: "15px", fontWeight: 700, lineHeight: 1.2 }}>Family Atlas</div>
-          <div style={{ color: "#64748b", fontSize: "11px", marginTop: "2px" }}>UMAP embedding of plastic-degrading enzyme families (30% centroids)</div>
+          {!isMobile && <div style={{ color: "#64748b", fontSize: "11px", marginTop: "2px" }}>UMAP embedding of plastic-degrading enzyme families (30% centroids)</div>}
         </div>
       )}
 
@@ -778,7 +789,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
           style={{
             position: "absolute",
             top: compact ? "48px" : "70px",
-            left: fullscreen ? "234px" : "14px",
+            left: fullscreen && !isMobile ? "234px" : "14px",
             display: "flex",
             alignItems: "center",
             gap: "6px",
@@ -811,9 +822,19 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       )}
 
       {/* text legend — flat (domain/phylum) */}
-      {Array.isArray(legend) && legend.length > 0 && (
+      {Array.isArray(legend) && legend.length > 0 && (!fullscreen || !isMobile || legendOpen) && (
         <div
-          style={fullscreen ? {
+          style={fullscreen && isMobile ? {
+            position: "absolute",
+            bottom: 0, left: 0, right: 0,
+            maxHeight: "45vh",
+            overflowY: "auto",
+            padding: "12px 16px",
+            background: "rgba(15,23,42,0.97)",
+            borderTop: "1px solid #1e293b",
+            borderRadius: "12px 12px 0 0",
+            zIndex: 25,
+          } : fullscreen ? {
             position: "absolute",
             top: 0, left: 0, bottom: 0,
             display: "flex",
@@ -894,9 +915,19 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       )}
 
       {/* grouped legend — component mode (CATH → components) */}
-      {legend && legend.grouped && (
+      {legend && legend.grouped && (!fullscreen || !isMobile || legendOpen) && (
         <div
-          style={fullscreen ? {
+          style={fullscreen && isMobile ? {
+            position: "absolute",
+            bottom: 0, left: 0, right: 0,
+            maxHeight: "45vh",
+            overflowY: "auto",
+            padding: "12px 16px",
+            background: "rgba(15,23,42,0.97)",
+            borderTop: "1px solid #1e293b",
+            borderRadius: "12px 12px 0 0",
+            zIndex: 25,
+          } : fullscreen ? {
             position: "absolute",
             top: 0, left: 0, bottom: 0,
             display: "flex",
@@ -1068,21 +1099,11 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       )}
 
       {/* loading */}
-      {loading && (
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#94a3b8",
-            fontSize: "1rem",
-          }}
-        >
-          Loading atlas…
-        </div>
-      )}
+      <TerminalLoader
+        loading={loading}
+        title="ENZYME ATLAS v2.0"
+        lines={["initializing enzyme atlas...", "loading 64,730 protein families..."]}
+      />
 
       {/* error */}
       {error && (
@@ -1101,6 +1122,37 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
         </div>
       )}
 
+      {/* mobile legend toggle FAB — fullscreen only */}
+      {fullscreen && isMobile && !loading && !error && (
+        <button
+          onClick={() => setLegendOpen(o => !o)}
+          style={{
+            position: "absolute",
+            bottom: legendOpen ? "calc(45vh + 12px)" : "20px",
+            left: "14px",
+            zIndex: 30,
+            padding: "8px 14px",
+            borderRadius: "20px",
+            border: "1px solid #334155",
+            background: "#1e293b",
+            color: "#94a3b8",
+            fontSize: "12px",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            fontFamily: "inherit",
+            transition: "bottom 0.25s ease",
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <circle cx="4" cy="4" r="2" /><circle cx="4" cy="12" r="2" /><line x1="8" y1="4" x2="15" y2="4" /><line x1="8" y1="12" x2="15" y2="12" />
+          </svg>
+          {legendOpen ? "Close" : "Legend"}
+          <span style={{ fontSize: "10px" }}>{legendOpen ? "▼" : "▲"}</span>
+        </button>
+      )}
+
       {/* point count */}
       {!loading && !error && (
         <div
@@ -1112,7 +1164,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
             fontSize: "12px",
           }}
         >
-          {pointCount.toLocaleString()} families · scroll to zoom · drag to pan
+          {pointCount.toLocaleString()} families · {isMobile ? "pinch to zoom · drag to pan" : "scroll to zoom · drag to pan"}
         </div>
       )}
     </div>

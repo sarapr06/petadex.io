@@ -42,7 +42,7 @@ const MetadataMap = () => {
       container: mapContainerRef.current,
       style: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
       center: [0, 20],
-      zoom: 1.5,
+      zoom: 0,
     });
 
     map.addControl(new maplibregl.NavigationControl(), "top-right");
@@ -98,7 +98,7 @@ const MetadataMap = () => {
           : "";
 
         const popupHTML = `
-          <div style="font-size:0.85rem;max-width:260px;line-height:1.5;">
+          <div style="font-size:0.85rem;max-width:260px;line-height:1.5;color:#1e293b;">
             <h4 style="margin:0 0 0.5rem;font-size:0.95rem;">
               <a href="/sequence/${props.accession}"
                  style="color:#2563eb;text-decoration:none;font-family:SFMono-Regular,Menlo,Monaco,monospace;">

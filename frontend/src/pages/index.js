@@ -4,8 +4,8 @@ import AtlasMap from "../components/AtlasMap"
 import Container from "../components/common/Container"
 
 /* ── Legend chip ─────────────────────────────────────────────── */
-const LegendChip = ({ color, children }) => (
-  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/50 border border-border text-2xs text-muted-foreground font-mono">
+const LegendChip = ({ color, children, className = "" }) => (
+  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-black/50 border border-border text-2xs text-muted-foreground font-mono ${className}`}>
     {color && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />}
     {children}
   </span>
@@ -14,67 +14,78 @@ const LegendChip = ({ color, children }) => (
 /* ── Hero ────────────────────────────────────────────────────── */
 function Hero() {
   return (
-    <section className="relative">
-      <div className="relative h-[640px] w-full bg-[#0e0e0e] border-b border-border overflow-hidden">
+    <section className="relative bg-[#0e0e0e]">
+
+      {/* ── Title block ──────────────────────────────────────────
+           Mobile  : normal-flow block sitting above the atlas
+           Desktop : absolute overlay centered over the atlas   */}
+      <div className="
+        relative z-10 py-10 bg-background border-b border-border
+        md:absolute md:inset-0 md:flex md:items-center md:pointer-events-none
+        md:py-0 md:bg-transparent md:border-0
+      ">
+        <Container size="wide">
+          <div className="max-w-140 md:pointer-events-auto">
+            <p className="label mb-4">Open · Free · Community-driven</p>
+            <h1
+              className="text-foreground font-semibold tracking-tight leading-[1.05]"
+              style={{ fontSize: "clamp(2rem, 4.4vw, 3.6rem)" }}
+            >
+              Every plastic-degrading enzyme,
+              <br />
+              <span className="text-accent">in one atlas.</span>
+            </h1>
+            <p className="mt-5 text-base text-muted-foreground max-w-120 leading-relaxed">
+              1.3 billion unique sequences. 64,730 enzyme families. 350+ characterized PETases. One interface to
+              <span className="text-foreground"> search</span>,{" "}
+              <span className="text-foreground">align</span>,{" "}
+              <span className="text-foreground">compare substrates</span>, and{" "}
+              <span className="text-foreground">trace evolution</span>.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center gap-3">
+              <a href="/atlas" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
+                Start exploring
+                <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 10a1 1 0 011-1h10.586l-3.293-3.293a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L14.586 11H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+              </a>
+              <a href="#cite" className="btn btn-ghost font-mono text-xs border border-border-strong">
+                How to cite
+              </a>
+              <span className="text-2xs font-mono text-muted-foreground hidden sm:inline-flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                v0.4 · April 2026
+              </span>
+            </div>
+          </div>
+        </Container>
+      </div>
+
+      {/* ── Atlas canvas ─────────────────────────────────────────
+           Mobile  : 340px standalone block below the title
+           Desktop : 640px — title floats absolutely above this */}
+      <div className="relative h-85 md:h-160 w-full overflow-hidden border-b border-border">
         <AtlasMap interactive />
 
-        {/* Vignette overlay */}
+        {/* Vignette — only needed on desktop where title overlaps */}
         <div
-          className="pointer-events-none absolute inset-0"
+          className="pointer-events-none absolute inset-0 hidden md:block"
           style={{
             background:
               "radial-gradient(ellipse 80% 60% at 30% 50%, oklch(0 0 0 / 0.55) 0%, transparent 70%), linear-gradient(to right, oklch(0 0 0 / 0.65) 0%, transparent 50%)",
           }}
         />
 
-        {/* Value prop */}
-        <div className="absolute inset-0 flex items-center pointer-events-none">
-          <Container size="wide">
-            <div className="max-w-[560px] pointer-events-auto">
-              <p className="label mb-4">Open · Free · Community-driven</p>
-              <h1
-                className="text-foreground font-semibold tracking-tight leading-[1.05]"
-                style={{ fontSize: "clamp(2.4rem, 4.4vw, 3.6rem)" }}
-              >
-                Every plastic-degrading enzyme,
-                <br />
-                <span className="text-accent">in one atlas.</span>
-              </h1>
-              <p className="mt-5 text-base text-muted-foreground max-w-[480px] leading-relaxed">
-                1.3 billion unique sequences. 64,730 enzyme families. 350+ characterized PETases. One interface to
-                <span className="text-foreground"> search</span>,{" "}
-                <span className="text-foreground">align</span>,{" "}
-                <span className="text-foreground">compare substrates</span>, and{" "}
-                <span className="text-foreground">trace evolution</span>.
-              </p>
-              <div className="mt-7 flex flex-wrap items-center gap-3">
-                <a href="/atlas" target="_blank" rel="noopener noreferrer" className="btn btn-primary">
-                  Start exploring
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M3 10a1 1 0 011-1h10.586l-3.293-3.293a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L14.586 11H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                  </svg>
-                </a>
-                <a href="#cite" className="btn btn-ghost font-mono text-xs border border-border-strong">
-                  How to cite
-                </a>
-                <span className="text-2xs font-mono text-muted-foreground hidden sm:inline-flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
-                  v0.4 · April 2026
-                </span>
-              </div>
-            </div>
-          </Container>
-        </div>
-
         {/* Top-right chips */}
-        <div className="absolute top-4 right-4 flex flex-col items-end gap-2 pointer-events-none">
+        <div className="absolute top-2 right-2 md:top-4 md:right-4 flex flex-col items-end gap-1.5 md:gap-2 pointer-events-none">
           <LegendChip color="#4F8FE8">
             Family Atlas <span className="text-foreground ml-1">live</span>
           </LegendChip>
-          <LegendChip>scroll · drag · click</LegendChip>
+          <LegendChip className="hidden sm:inline-flex">scroll · drag · click</LegendChip>
+          <LegendChip className="sm:hidden">pinch · drag · tap</LegendChip>
         </div>
 
-        {/* Bottom legend strip */}
+        {/* Bottom legend strip — desktop only */}
         <div className="absolute bottom-3 left-1/2 -translate-x-1/2 hidden md:flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2 rounded-lg bg-black/55 border border-border backdrop-blur-md pointer-events-auto">
           {[
             { c: "#4F8FE8", l: "α/β hydrolase" },
@@ -237,7 +248,7 @@ function ToolCards() {
                 <div className="absolute top-2 left-2">
                   <LegendChip>{eyebrow}</LegendChip>
                 </div>
-                <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded text-2xs font-mono text-muted-foreground border border-border bg-black/50">
+                <div className="hidden sm:block absolute top-2 right-2 px-1.5 py-0.5 rounded text-2xs font-mono text-muted-foreground border border-border bg-black/50">
                   ⌘ {kbd}
                 </div>
               </div>
@@ -268,9 +279,9 @@ const STATS = [
 function StatsStrip() {
   return (
     <section className="bg-surface-raised border-b border-border">
-      <Container size="wide" className="py-10 grid grid-cols-2 md:grid-cols-5 divide-x divide-border">
+      <Container size="wide" className="py-10 grid grid-cols-2 md:grid-cols-5 gap-y-8 gap-x-4 md:gap-y-0 md:gap-x-0 md:divide-x md:divide-border">
         {STATS.map((s, i) => (
-          <div key={i} className={`px-5 ${i === 0 ? "pl-0" : ""} ${i === STATS.length - 1 ? "pr-0" : ""}`}>
+          <div key={i} className={`md:px-5 ${i === 0 ? "md:pl-0" : ""} ${i === STATS.length - 1 ? "md:pr-0" : ""}`}>
             <div className="text-foreground text-[28px] font-semibold tracking-tight tabular-nums">{s.v}</div>
             <div className="text-foreground text-xs mt-1">{s.k}</div>
             <div className="text-muted-foreground text-2xs font-mono mt-0.5">{s.sub}</div>
@@ -308,17 +319,17 @@ function WhatsInside() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-muted-foreground text-2xs uppercase tracking-widest font-semibold">
-                <th className="px-5 py-3 w-[15%]">Layer</th>
-                <th className="px-5 py-3 w-[55%]">What's there</th>
-                <th className="px-5 py-3 w-[30%]">Tables / endpoints</th>
+                <th className="px-4 py-3 sm:px-5 w-1/3 sm:w-[15%]">Layer</th>
+                <th className="px-4 py-3 sm:px-5 sm:w-[55%]">What's there</th>
+                <th className="hidden sm:table-cell px-5 py-3 w-[30%]">Tables / endpoints</th>
               </tr>
             </thead>
             <tbody>
               {DATA_ROWS.map((r, i) => (
                 <tr key={i} className="hover:bg-surface-raised transition-colors">
-                  <td className="px-5 py-4 text-foreground font-medium">{r.t}</td>
-                  <td className="px-5 py-4 text-muted-foreground">{r.d}</td>
-                  <td className="px-5 py-4 text-xs font-mono text-accent/85">{r.k}</td>
+                  <td className="px-4 py-3 sm:px-5 sm:py-4 text-foreground font-medium">{r.t}</td>
+                  <td className="px-4 py-3 sm:px-5 sm:py-4 text-muted-foreground">{r.d}</td>
+                  <td className="hidden sm:table-cell px-5 py-4 text-xs font-mono text-accent/85">{r.k}</td>
                 </tr>
               ))}
             </tbody>
@@ -381,7 +392,7 @@ function Citation() {
               )}
             </button>
           </div>
-          <pre className="font-mono text-xs leading-relaxed text-foreground px-4 py-4 m-0 overflow-x-auto whitespace-pre bg-transparent border-0 shadow-none rounded-none">
+          <pre className="font-mono text-xs leading-relaxed text-foreground px-4 py-4 m-0 whitespace-pre-wrap break-all bg-transparent border-0 shadow-none rounded-none">
 {`@misc{petadex2026,
   `}<span className="text-foreground font-semibold">title</span>{`  = {PETadex: an open atlas of plastic-degrading enzymes},
   `}<span className="text-foreground font-semibold">author</span>{` = {The PETadex contributors},

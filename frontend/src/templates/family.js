@@ -1,5 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from "react"
-import { Link } from "gatsby"
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react"
+import { Link, navigate } from "gatsby"
 import { hierarchy } from "d3-hierarchy"
 import Seo from "../components/seo"
 import SequenceViewer from "../components/sequence/SequenceViewer"
@@ -109,9 +115,9 @@ function countLeaves(node) {
   return node.children.reduce((sum, c) => sum + countLeaves(c), 0)
 }
 
-// ── Phylogram layout ───────────────────────────────────────────────────────
+// ── Radial phylogram layout ──────────────────────────────────────────────────
 
-function buildPhylogram(root, treeW, treeH) {
+function buildRadialTree(root, radius) {
   root.each(node => {
     const bl = node.data.branchLength != null ? node.data.branchLength : 0
     node.distFromRoot = (node.parent ? node.parent.distFromRoot : 0) + bl
@@ -120,20 +126,24 @@ function buildPhylogram(root, treeW, treeH) {
     .descendants()
     .reduce((m, n) => Math.max(m, n.distFromRoot), 1e-10)
   root.each(node => {
-    node.y = (node.distFromRoot / maxDist) * treeW
+    node.radius = (node.distFromRoot / maxDist) * radius
   })
+
   const leaves = []
   root.eachBefore(node => {
     if (!node.children || node.children.length === 0) leaves.push(node)
   })
   const n = leaves.length
+  const gap = (12 * Math.PI) / 180 // gap at the top so first/last leaf don't collide
+  const span = 2 * Math.PI - gap
   leaves.forEach((leaf, i) => {
-    leaf.x = n <= 1 ? treeH / 2 : (i / (n - 1)) * treeH
+    leaf.angle =
+      n <= 1 ? -Math.PI / 2 : -Math.PI / 2 + gap / 2 + (i / (n - 1)) * span
   })
   root.eachAfter(node => {
     if (node.children && node.children.length > 0) {
-      const childX = node.children.map(c => c.x)
-      node.x = (Math.min(...childX) + Math.max(...childX)) / 2
+      const a = node.children.map(c => c.angle)
+      node.angle = (Math.min(...a) + Math.max(...a)) / 2
     }
   })
   return root
@@ -141,64 +151,135 @@ function buildPhylogram(root, treeW, treeH) {
 
 // ── Tree SVG ───────────────────────────────────────────────────────────────
 
-const LEAF_H = 14
-const TREE_W = 580
-const LABEL_W = 220
-const MARGIN = { top: 10, right: 10, bottom: 10, left: 20 }
+const LEAF_ARC = 10 // px of circumference allotted per leaf
+const LABEL_SPACE = 150 // room beyond the outer ring for labels
+const MIN_RADIUS = 160
+const MAX_LABEL = 32
 
 function DendrogramSVG({ root }) {
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 })
-  const drag = useRef(null)
+  const transformRef = useRef(transform)
+  transformRef.current = transform
 
-  const numLeaves = countLeaves(root)
-  const treeH = Math.max(numLeaves * LEAF_H, 200)
-  const svgW = MARGIN.left + TREE_W + LABEL_W + MARGIN.right
-  const svgH = MARGIN.top + treeH + MARGIN.bottom
+  const containerRef = useRef(null)
+  const fittedRef = useRef(false)
 
-  const layoutRoot = buildPhylogram(
-    hierarchy(root, d => d.children),
-    TREE_W,
-    treeH,
-  )
-  const nodes = layoutRoot.descendants()
-  const links = layoutRoot.links()
+  const { numLeaves, center, svgSize, nodes, links } = useMemo(() => {
+    const leafCount = countLeaves(root)
+    const radius = Math.max((leafCount * LEAF_ARC) / (2 * Math.PI), MIN_RADIUS)
+    const c = radius + LABEL_SPACE
+    const layoutRoot = buildRadialTree(hierarchy(root, d => d.children), radius)
+    return {
+      numLeaves: leafCount,
+      center: c,
+      svgSize: 2 * c,
+      nodes: layoutRoot.descendants(),
+      links: layoutRoot.links(),
+    }
+  }, [root])
 
-  const sx = d => MARGIN.left + d.y
-  const sy = d => MARGIN.top + d.x
-  const linkPath = ({ source: p, target: c }) =>
-    `M${sx(p)},${sy(p)} V${sy(c)} H${sx(c)}`
+  // Show labels when zoomed in enough that circumferential spacing exceeds one text line height
+  const showLabels = numLeaves < 40 || transform.k * LEAF_ARC > 14
+  const [hoveredNode, setHoveredNode] = useState(null)
 
-  const onWheel = useCallback(e => {
-    e.preventDefault()
-    const factor = e.deltaY > 0 ? 0.9 : 1.1
-    setTransform(t => ({ ...t, k: Math.min(Math.max(t.k * factor, 0.2), 8) }))
-  }, [])
+  const px = d => center + d.radius * Math.cos(d.angle)
+  const py = d => center + d.radius * Math.sin(d.angle)
+  const linkPath = ({ source: p, target: c }) => {
+    const r = p.radius
+    const x0 = center + r * Math.cos(p.angle)
+    const y0 = center + r * Math.sin(p.angle)
+    const x1 = center + r * Math.cos(c.angle)
+    const y1 = center + r * Math.sin(c.angle)
+    const x2 = center + c.radius * Math.cos(c.angle)
+    const y2 = center + c.radius * Math.sin(c.angle)
+    const largeArc = Math.abs(c.angle - p.angle) > Math.PI ? 1 : 0
+    const sweep = c.angle > p.angle ? 1 : 0
+    return `M${x0},${y0}A${r},${r} 0 ${largeArc} ${sweep} ${x1},${y1}L${x2},${y2}`
+  }
 
-  const onMouseDown = useCallback(
-    e => {
-      drag.current = {
-        startX: e.clientX - transform.x,
-        startY: e.clientY - transform.y,
+  // Zoom toward a point (cx, cy) given in container coordinates, keeping the
+  // content under that point fixed.
+  const zoomBy = useCallback((factor, cx, cy) => {
+    setTransform(t => {
+      const k = Math.min(Math.max(t.k * factor, 0.2), 8)
+      const ratio = k / t.k
+      return {
+        k,
+        x: cx - (cx - t.x) * ratio,
+        y: cy - (cy - t.y) * ratio,
       }
+    })
+  }, [])
+
+  const zoomFromCenter = useCallback(
+    factor => {
+      const el = containerRef.current
+      if (!el) return
+      zoomBy(factor, el.clientWidth / 2, el.clientHeight / 2)
     },
-    [transform],
+    [zoomBy],
   )
 
-  const onMouseMove = useCallback(e => {
-    if (!drag.current) return
-    setTransform(t => ({
-      ...t,
-      x: e.clientX - drag.current.startX,
-      y: e.clientY - drag.current.startY,
-    }))
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return undefined
+    const onWheel = e => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const factor = e.deltaY > 0 ? 0.9 : 1.1
+      zoomBy(factor, e.clientX - rect.left, e.clientY - rect.top)
+    }
+    el.addEventListener("wheel", onWheel, { passive: false })
+    return () => el.removeEventListener("wheel", onWheel)
+  }, [zoomBy])
+
+  const onMouseDown = useCallback(e => {
+    const startX = e.clientX - transformRef.current.x
+    const startY = e.clientY - transformRef.current.y
+
+    const onMove = ev => {
+      setTransform(t => ({
+        ...t,
+        x: ev.clientX - startX,
+        y: ev.clientY - startY,
+      }))
+    }
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("mouseup", onUp)
+    }
+
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("mouseup", onUp)
   }, [])
 
-  const onMouseUp = useCallback(() => {
-    drag.current = null
-  }, [])
+  const fitToContainer = useCallback(() => {
+    const el = containerRef.current
+    if (!el) return null
+    const W = el.clientWidth
+    const H = el.clientHeight
+    if (!W || !H) return null
+    const k = Math.min(W / svgSize, H / svgSize)
+    return { k, x: (W - svgSize * k) / 2, y: (H - svgSize * k) / 2 }
+  }, [svgSize])
 
-  const resetView = () => setTransform({ x: 0, y: 0, k: 1 })
-  const MAX_LABEL = 32
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return undefined
+    const ro = new ResizeObserver(() => {
+      if (fittedRef.current) return
+      const fit = fitToContainer()
+      if (fit) {
+        setTransform(fit)
+        fittedRef.current = true
+        ro.disconnect()
+      }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [fitToContainer])
+
+  const resetView = () => setTransform(fitToContainer() || { x: 0, y: 0, k: 1 })
 
   return (
     <div className="relative">
@@ -207,13 +288,11 @@ function DendrogramSVG({ root }) {
         {[
           {
             label: "+",
-            action: () =>
-              setTransform(t => ({ ...t, k: Math.min(t.k * 1.3, 8) })),
+            action: () => zoomFromCenter(1.3),
           },
           {
             label: "−",
-            action: () =>
-              setTransform(t => ({ ...t, k: Math.max(t.k * 0.77, 0.2) })),
+            action: () => zoomFromCenter(0.77),
           },
           { label: "Reset", action: resetView },
         ].map(({ label, action }) => (
@@ -230,17 +309,14 @@ function DendrogramSVG({ root }) {
       {/* Canvas */}
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
       <div
+        ref={containerRef}
         className="w-full overflow-hidden bg-surface-raised border border-border rounded-md cursor-grab"
         style={{ height: "60vh", minHeight: 300 }}
-        onWheel={onWheel}
         onMouseDown={onMouseDown}
-        onMouseMove={onMouseMove}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseUp}
       >
         <svg
-          width={svgW}
-          height={svgH}
+          width={svgSize}
+          height={svgSize}
           style={{
             display: "block",
             transformOrigin: "0 0",
@@ -249,7 +325,7 @@ function DendrogramSVG({ root }) {
         >
           <g stroke="var(--border-strong)" fill="none" strokeWidth={0.8}>
             {links.map((link, i) => (
-              <path key={i} d={linkPath(link)} />
+              <path key={i} d={linkPath(link)} vectorEffect="non-scaling-stroke" />
             ))}
           </g>
           {nodes.map((node, i) => {
@@ -257,19 +333,42 @@ function DendrogramSVG({ root }) {
             const label = node.data.name || ""
             const displayLabel =
               label.length > MAX_LABEL ? label.slice(0, MAX_LABEL) + "…" : label
+            const x = px(node)
+            const y = py(node)
+            if (!isLeaf) {
+              return (
+                <g key={i} transform={`translate(${x},${y})`}>
+                  <circle r={2 / transform.k} fill="var(--muted-foreground)" />
+                </g>
+              )
+            }
+            const onLeft = Math.cos(node.angle) < 0
+            const deg = (node.angle * 180) / Math.PI
+            const rot = onLeft ? deg + 180 : deg
+            const enzymeId = /^\d+$/.test(label) ? label : null
+            const isHovered = hoveredNode === label
+            const dotR = (isHovered ? 4 : 2.5) / transform.k
             return (
-              <g key={i} transform={`translate(${sx(node)},${sy(node)})`}>
-                <circle
-                  r={isLeaf ? 2.5 : 2}
-                  fill={isLeaf ? "var(--accent)" : "var(--muted-foreground)"}
-                />
-                {isLeaf && displayLabel && (
+              <g
+                key={i}
+                transform={`translate(${x},${y}) rotate(${rot})`}
+                onClick={enzymeId ? () => window.open(`/enzyme/${enzymeId}`, "_blank") : undefined}
+                onMouseEnter={() => setHoveredNode(label)}
+                onMouseLeave={() => setHoveredNode(null)}
+                style={{ cursor: enzymeId ? "pointer" : "default" }}
+              >
+                {/* Invisible hit target */}
+                <circle r={8 / transform.k} fill="transparent" />
+                <circle r={dotR} fill={isHovered ? "var(--accent-hover, var(--accent))" : "var(--accent)"} />
+                {(showLabels || isHovered) && displayLabel && (
                   <text
-                    x={6}
+                    x={(onLeft ? -6 : 6) / transform.k}
                     dy="0.32em"
-                    fontSize={11}
+                    textAnchor={onLeft ? "end" : "start"}
+                    fontSize={11 / transform.k}
                     fontFamily="monospace"
-                    fill="var(--foreground)"
+                    fill={isHovered ? "var(--accent)" : "var(--foreground)"}
+                    fontWeight={isHovered ? "bold" : "normal"}
                     style={{ userSelect: "none" }}
                   >
                     {displayLabel}
@@ -282,7 +381,7 @@ function DendrogramSVG({ root }) {
       </div>
 
       <p className="mt-1.5 text-xs text-muted-foreground">
-        {numLeaves} leaves · scroll to zoom · drag to pan
+        {numLeaves} leaves · scroll to zoom · drag to pan · click leaf to open enzyme
       </p>
     </div>
   )
@@ -375,7 +474,7 @@ function MembersTable({ familyId, centroid }) {
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b-2 border-border-strong">
-                  {["Accession", "Identity", "Component", "Sequence"].map(h => (
+                  {["ID", "Accession", "Identity", "Component", "Sequence"].map(h => (
                     <th key={h} className="text-left px-3 py-2 label">
                       {h}
                     </th>
@@ -394,6 +493,9 @@ function MembersTable({ familyId, centroid }) {
                           isCentroid ? "bg-warning/10" : "bg-card"
                         }`}
                       >
+                        <td className="px-3 py-2 text-muted-foreground font-mono text-xs">
+                          {row.enzyme_id}
+                        </td>
                         <td className="px-3 py-2">
                           <Link
                             to={`/enzyme/${row.enzyme_id}`}
@@ -453,7 +555,7 @@ function MembersTable({ familyId, centroid }) {
                       {isExpanded && row.translated_sequence && (
                         <tr>
                           <td
-                            colSpan={4}
+                            colSpan={5}
                             className="px-4 py-3 bg-surface-sunken"
                           >
                             <SequenceViewer
