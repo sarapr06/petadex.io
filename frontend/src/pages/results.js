@@ -15,12 +15,16 @@ import { formatSeq } from "../utils/lib"
 const GITHUB_REPO = "ababaian/petadex.io"
 
 const SEARCH_STAGES = [
-  { id: "submit", label: "Query submitted", pct: 15 },
-  { id: "index", label: "Checking for cached result", pct: 35 },
-  { id: "align", label: "Running MMseqs2 search", pct: 65 },
-  { id: "enrich", label: "Enriching with families", pct: 85 },
+  { id: "submit", label: "Query submitted", pct: 10 },
+  { id: "index", label: "Checking for cached result", pct: 25 },
+  { id: "align", label: "Running DIAMOND search against Logan", pct: 70 },
+  { id: "enrich", label: "Enriching with families", pct: 90 },
   { id: "done", label: "Results ready", pct: 100 },
 ]
+
+// Cap polling at ~12 min — DIAMOND/Logan typically finishes in ~5 min;
+// past this we assume the orchestrator failed silently and surface an error.
+const POLL_TIMEOUT_SECONDS = 12 * 60
 
 function buildBugReportUrl(message, jobId) {
   const title = encodeURIComponent(`[Bug] Search error: ${message}`)
@@ -77,7 +81,9 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
   }, [])
 
   useEffect(() => {
-    const thresholds = [0, 3, 8, 15, 30]
+    // Stage thresholds (s): submit → cache-check → align → enrich.
+    // Align dominates (~5 min on the Logan corpus), so give it the widest band.
+    const thresholds = [0, 5, 15, 300, 360]
     let next = 0
     for (let i = 0; i < thresholds.length; i++) {
       if (elapsed >= thresholds[i]) next = i
@@ -87,8 +93,8 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
     const start = SEARCH_STAGES[clampedStage].pct
     const end = SEARCH_STAGES[Math.min(clampedStage + 1, SEARCH_STAGES.length - 1)].pct
     const progress = elapsed - thresholds[clampedStage]
-    const span = (thresholds[clampedStage + 1] || 60) - thresholds[clampedStage]
-    setBarPct(Math.round(start + (end - start) * Math.min(progress / span, 0.9)))
+    const span = (thresholds[clampedStage + 1] || POLL_TIMEOUT_SECONDS) - thresholds[clampedStage]
+    setBarPct(Math.round(start + (end - start) * Math.min(progress / span, 0.95)))
   }, [elapsed])
 
   const cleanSeq = (sequence || "")
@@ -105,7 +111,10 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
           Searching the enzyme database…
         </h2>
         <p className="text-sm text-secondary-foreground">
-          MMseqs2 is scanning millions of sequences for similar enzymes
+          DIAMOND is scanning ~307M sequences in the Logan corpus for similar enzymes
+        </p>
+        <p className="text-xs text-muted-foreground">
+          This typically takes ~5 minutes on the full corpus.
         </p>
         <p className="text-xs text-muted-foreground font-mono">› {LOADING_PROMPTS[promptIdx]}</p>
       </div>
@@ -279,7 +288,14 @@ const ResultsPage = () => {
     if (!sessionId) return
     startTime.current = Date.now()
     timerRef.current = setInterval(() => {
-      setElapsed(Math.floor((Date.now() - startTime.current) / 1000))
+      const secs = Math.floor((Date.now() - startTime.current) / 1000)
+      setElapsed(secs)
+      if (secs >= POLL_TIMEOUT_SECONDS) {
+        failWithError(
+          `Search timed out after ${Math.round(POLL_TIMEOUT_SECONDS / 60)} minutes. The job may have failed; please try again.`,
+          sessionId,
+        )
+      }
     }, 1000)
     poll(sessionId)
     pollRef.current = setInterval(() => poll(sessionId), 3000)

@@ -1,7 +1,7 @@
 /**
  * Search Routes  –  backend/src/routes/search.js
  *
- * Lambda interface (petadex-mmseqs2-search):
+ * Lambda interface (petadex-diamond-orchestrator):
  *   Input:  { sessionId, sequence, max_results }
  *   Output: { job_id, s3_key }
  *   S3:     results/{sessionId}/{job_id}.json   (subfolder per session)
@@ -46,7 +46,10 @@ let lambdaClient = null;
 let s3Client = null;
 
 const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
-const MMSEQS2_LAMBDA_NAME = process.env.MMSEQS2_LAMBDA_NAME || 'petadex-mmseqs2-search';
+const SEARCH_LAMBDA_NAME =
+  process.env.SEARCH_LAMBDA_NAME ||
+  process.env.MMSEQS2_LAMBDA_NAME ||
+  'petadex-diamond-orchestrator';
 const RESULTS_BUCKET = process.env.RESULTS_BUCKET || 'petadex';
 const RESULTS_PREFIX = process.env.RESULTS_PREFIX || 'results';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'ababaian/petadex.io';
@@ -311,7 +314,7 @@ router.post('/', async (req, res, next) => {
     // ── Fire Lambda async ─────────────────────────────────────────────────────
     try {
       await getLambdaClient().send(new InvokeCommand({
-        FunctionName: MMSEQS2_LAMBDA_NAME,
+        FunctionName: SEARCH_LAMBDA_NAME,
         InvocationType: 'Event',
         Payload: JSON.stringify({
           sessionId: sessionId,

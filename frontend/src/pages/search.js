@@ -13,7 +13,7 @@ const SearchPage = () => {
         <Container>
           <h1 className="text-3xl font-bold tracking-tight text-primary md:text-4xl">Sequence Search</h1>
           <p className="mt-4 text-lg text-secondary-foreground">
-            Find similar plastic-degrading enzymes using MMseqs2 sequence similarity search
+            Find similar plastic-degrading enzymes by searching ~307M sequences in the Logan corpus with DIAMOND
           </p>
           <SequenceSearch />
         </Container>
@@ -25,15 +25,24 @@ const SearchPage = () => {
           <p className="">
             This tool uses{" "}
             <a
-              href="https://github.com/soedinglab/MMseqs2"
+              href="https://github.com/bbuchfink/diamond"
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent hover:text-accent-hover underline underline-offset-2"
             >
-              MMseqs2
+              DIAMOND
             </a>{" "}
-            to search your query sequence against our curated database of plastic-degrading enzymes.
-            The search identifies proteins with similar sequences, which may share functional properties.
+            to search your query sequence against the{" "}
+            <a
+              href="https://github.com/IndexThePlanet/Logan"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent hover:text-accent-hover underline underline-offset-2"
+            >
+              Logan
+            </a>{" "}
+            corpus — ~307M protein sequences assembled from the SRA. The search identifies
+            proteins with similar sequences, which may share functional properties.
           </p>
 
           <h3 className="text-base font-semibold text-primary mb-2 mt-6">
