@@ -22,7 +22,7 @@ const SEARCH_STAGES = [
   { id: "done", label: "Results ready", pct: 100 },
 ]
 
-// Cap polling at ~12 min — DIAMOND/Logan typically finishes in ~5 min;
+// Cap polling at ~12 min — DIAMOND/Logan typically finishes in ~2 min;
 // past this we assume the orchestrator failed silently and surface an error.
 const POLL_TIMEOUT_SECONDS = 12 * 60
 
@@ -82,8 +82,8 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
 
   useEffect(() => {
     // Stage thresholds (s): submit → cache-check → align → enrich.
-    // Align dominates (~5 min on the Logan corpus), so give it the widest band.
-    const thresholds = [0, 5, 15, 300, 360]
+    // Align dominates (~2 min on the Logan corpus), so give it the widest band.
+    const thresholds = [0, 5, 15, 120, 150]
     let next = 0
     for (let i = 0; i < thresholds.length; i++) {
       if (elapsed >= thresholds[i]) next = i
@@ -114,7 +114,7 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
           DIAMOND is scanning ~307M sequences in the Logan corpus for similar enzymes
         </p>
         <p className="text-xs text-muted-foreground">
-          This typically takes ~5 minutes on the full corpus.
+          This typically takes ~2 minutes on the full corpus.
         </p>
         <p className="text-xs text-muted-foreground font-mono">› {LOADING_PROMPTS[promptIdx]}</p>
       </div>
