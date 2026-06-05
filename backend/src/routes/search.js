@@ -55,7 +55,18 @@ const RESULTS_PREFIX = process.env.RESULTS_PREFIX || 'results';
 const GITHUB_REPO = process.env.GITHUB_REPO || 'ababaian/petadex.io';
 
 function getLambdaClient() {
-  if (!lambdaClient) lambdaClient = new LambdaClient({ region: AWS_REGION });
+  if (!lambdaClient) {
+    lambdaClient = new LambdaClient({
+      region: AWS_REGION,
+      // The synchronous `version` invoke sits on the POST / hot path. The SDK's
+      // node handler has no socket timeout by default, so a cold/slow orchestrator
+      // could block up to the 29s API-Gateway cap. Cap it: a timeout rejects
+      // .send(), which throws → getSearchVersions returns null → nonce (forced
+      // miss), the safe outcome. The async search invoke is fire-and-forget, so a
+      // short request timeout there is harmless.
+      requestHandler: { requestTimeout: 5000 },
+    });
+  }
   return lambdaClient;
 }
 function getS3Client() {
@@ -101,12 +112,25 @@ async function getSearchVersions() {
       throw new Error(`version action returned FunctionError: ${resp.FunctionError}`);
     }
     let parsed = resp.Payload ? JSON.parse(Buffer.from(resp.Payload).toString('utf8')) : {};
+    // The orchestrator catches its own exceptions and returns a handled
+    // { statusCode >= 400, body } envelope (NOT a Lambda FunctionError), so a
+    // transient failure would otherwise slip past FunctionError, yield undefined
+    // versions, and key on an empty-version string — the stale-serve bug again.
+    // Treat a >=400 envelope as a hard failure so it reaches the nonce path.
+    if (parsed && typeof parsed.statusCode === 'number' && parsed.statusCode >= 400) {
+      throw new Error(`version action returned status ${parsed.statusCode}`);
+    }
     // Tolerate an API-Gateway-style { statusCode, body: "<json>" } envelope.
     if (parsed && typeof parsed.body === 'string') parsed = JSON.parse(parsed.body);
 
+    // Require both versions: a partial/empty response must not collapse to an
+    // empty-version key. Missing → throw → null → nonce (forced miss).
+    if (!parsed.database_version || !parsed.search_version) {
+      throw new Error('version action returned no versions');
+    }
     const value = {
-      databaseVersion: parsed.database_version || '',
-      searchVersion: parsed.search_version || '',
+      databaseVersion: parsed.database_version,
+      searchVersion: parsed.search_version,
     };
     _versionCache = { value, expires: Date.now() + VERSION_TTL_MS };
     return value;
