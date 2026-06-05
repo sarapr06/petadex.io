@@ -35,7 +35,7 @@
 
 import { Router } from 'express';
 import Joi from 'joi';
-import { createHash } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { S3Client, GetObjectCommand, ListObjectsV2Command, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { pool } from '../db.js';
@@ -69,10 +69,56 @@ async function streamToString(stream) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-function makeSessionId(cleanSequence, maxResults) {
+// Defaults are a visible sentinel, not '': an accidentally version-omitted call
+// then produces a distinct, identifiable key instead of silently colliding with
+// a real search's key.
+function makeSessionId(cleanSequence, maxResults, databaseVersion = 'unset', searchVersion = 'unset') {
   return createHash('md5')
-    .update(`${cleanSequence}:${maxResults}`)
+    .update(`${cleanSequence}:${maxResults}:${databaseVersion}:${searchVersion}`)
     .digest('hex');
+}
+
+// ─── Live search-pipeline versions ───────────────────────────────────────────
+// The cache key must reflect the corpus + pipeline a FRESH search would run
+// against — not whatever versions an old cached entry happened to use. Those
+// values live in the orchestrator Lambda (it owns SEARCH_VERSION and resolves
+// diamond/LATEST), so we ask it via a lightweight `version` action and cache the
+// answer briefly to avoid an extra round-trip on every request.
+let _versionCache = { value: null, expires: 0 };
+const VERSION_TTL_MS = 60_000;
+
+async function getSearchVersions() {
+  if (_versionCache.value && Date.now() < _versionCache.expires) {
+    return _versionCache.value;
+  }
+  try {
+    const resp = await getLambdaClient().send(new InvokeCommand({
+      FunctionName: SEARCH_LAMBDA_NAME,
+      InvocationType: 'RequestResponse',
+      Payload: JSON.stringify({ action: 'version' }),
+    }));
+    if (resp.FunctionError) {
+      throw new Error(`version action returned FunctionError: ${resp.FunctionError}`);
+    }
+    let parsed = resp.Payload ? JSON.parse(Buffer.from(resp.Payload).toString('utf8')) : {};
+    // Tolerate an API-Gateway-style { statusCode, body: "<json>" } envelope.
+    if (parsed && typeof parsed.body === 'string') parsed = JSON.parse(parsed.body);
+
+    const value = {
+      databaseVersion: parsed.database_version || '',
+      searchVersion: parsed.search_version || '',
+    };
+    _versionCache = { value, expires: Date.now() + VERSION_TTL_MS };
+    return value;
+  } catch (err) {
+    // Return null (NOT empty versions) so the caller forces a cache miss. A failed
+    // lookup means we don't know what a fresh search would run against, so we
+    // can't safely claim a hit — reusing the legacy/empty key here would serve a
+    // possibly-stale result, the exact bug this change exists to kill. Failures
+    // are not cached, so recovery is immediate once the action responds.
+    console.warn('getSearchVersions failed, forcing cache miss for this request:', err.message);
+    return null;
+  }
 }
 
 function buildBugReportUrl(message, jobId) {
@@ -272,7 +318,8 @@ async function resolveFromIndex(s3, sessionId) {
  * POST /api/search
  *
  * 1. Validate body
- * 2. MD5(sequence + max_results) = sessionId
+ * 2. MD5(sequence + max_results + databaseVersion + searchVersion) = sessionId
+ *    (versions fetched live so a corpus/pipeline change busts the cache)
  * 3. Check index file — return cached results immediately if found
  * 4. Fire Lambda async (Event) — returns 202 immediately
  * 5. Client polls GET /api/search/results/{sessionId}
@@ -284,7 +331,16 @@ router.post('/', async (req, res, next) => {
 
     const { sequence, max_results } = value;
     const cleanSequence = sequence.replace(/^>[^\n\r]*[\n\r]+/, '').replace(/[\s\n\r]/g, '').toUpperCase();
-    const sessionId = makeSessionId(cleanSequence, max_results);
+    // Key on the CURRENT corpus + pipeline so a rebuilt DB or a search-pipeline
+    // bump produces a fresh key (cache miss → re-run), instead of serving a stale
+    // result from a prior corpus/pipeline under an unchanged key.
+    const versions = await getSearchVersions();
+    const sessionId = versions
+      ? makeSessionId(cleanSequence, max_results, versions.databaseVersion, versions.searchVersion)
+      // Version lookup failed: force a miss with a per-request nonce so we recompute
+      // rather than risk serving a stale entry. ('unknown' marks it; the nonce
+      // guarantees uniqueness so two failed requests can't collide on each other.)
+      : makeSessionId(cleanSequence, max_results, 'unknown', randomUUID());
     const s3 = getS3Client();
 
     // ── Cache lookup via index file ───────────────────────────────────────────
