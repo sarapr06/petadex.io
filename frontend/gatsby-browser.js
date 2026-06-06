@@ -2,6 +2,7 @@ import React from 'react'
 import { ThemeProvider } from './src/context/ThemeContext'
 import Layout from './src/components/layout'
 import './src/styles/global.css';
+import './src/styles/react-d3-tree-overrides.css';
 
 export const wrapRootElement = ({ element }) => (
   <ThemeProvider>{element}</ThemeProvider>

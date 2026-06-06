@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: "Metadata", path: "/metadata", key: "metadata" },
   { label: "CATH domains", path: "/cath-domains", key: "cath-domains" },
   { label: "Atlas", path: "/atlas", key: "atlas" },
+  { label: "Trees", path: "/trees-prototype/", key: "trees-prototype" },
 ]
 
 const SunIcon = () => (
