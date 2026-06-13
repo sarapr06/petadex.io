@@ -34,7 +34,6 @@ TMP*
 
 # ignore dependencies
 node_modules/
-backend/.venv-trees/
 tree_output.txt
 generated-schema.md
 CLAUDE.md

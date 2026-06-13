@@ -5,10 +5,6 @@
 
 import { Router } from 'express';
 import Joi from 'joi';
-import { spawn } from 'child_process';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import { pool } from '../db.js';
 import { getSchemaFlags } from '../schemaFlags.js';
 import {
@@ -18,17 +14,8 @@ import {
   UMAP_POINTS_FROM_FAMILY_ATLAS,
 } from '../atlasQueries.js';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { uploadNewickToItol } from '../itolUpload.js';
 
 const router = Router();
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCRIPTS_DIR = path.join(__dirname, '../../scripts');
-
-const RENDER_ENGINES = {
-  ete: 'render_tree_ete.py',
-  biopython: 'render_tree_biopython.py',
-};
 
 const familyIdSchema = Joi.number().integer().positive().required();
 
@@ -45,104 +32,6 @@ async function streamToString(stream) {
   const chunks = [];
   for await (const chunk of stream) chunks.push(chunk);
   return Buffer.concat(chunks).toString('utf8');
-}
-
-async function fetchFamilyNewick(familyId) {
-  const key = `search-phylo-trees/family_${familyId}.nwk`;
-  const client = getS3Client();
-  const response = await client.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: key }));
-  return streamToString(response.Body);
-}
-
-function mapS3FetchError(err, familyId, res) {
-  if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
-    res.status(404).json({ error: `No phylogenetic tree found for family ${familyId}` });
-    return true;
-  }
-  if (err.name === 'CredentialsProviderError' || err.message?.includes('Could not load credentials')) {
-    res.status(503).json({
-      error:
-        'AWS credentials not configured for S3. Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY in backend/.env, or use Mock mode for ETE/Biopython.',
-    });
-    return true;
-  }
-  return false;
-}
-
-/** @param {unknown} value @returns {"rectangular" | "radial"} */
-function normalizeEteLayout(value) {
-  const v = String(value || '').toLowerCase();
-  if (v === 'radial' || v === 'c' || v === 'circular') return 'radial';
-  return 'rectangular';
-}
-
-function eteRenderOptions(layout) {
-  return { scriptArgs: ['--layout', normalizeEteLayout(layout)] };
-}
-
-function renderNewickWithPython(scriptName, newick, options = {}, timeoutMs = 30000) {
-  const { scriptArgs = [] } = options;
-  return new Promise((resolve, reject) => {
-    const scriptPath = path.join(SCRIPTS_DIR, scriptName);
-    const venvPython = path.join(SCRIPTS_DIR, '../.venv-trees/bin/python');
-    const pythonBin =
-      process.env.PYTHON_BIN ||
-      (fs.existsSync(venvPython) ? venvPython : 'python3');
-    const started = Date.now();
-    const mplConfigDir = path.join(SCRIPTS_DIR, '../.venv-trees/mpl-cache');
-    const child = spawn(pythonBin, [scriptPath, ...scriptArgs], {
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        MPLCONFIGDIR: process.env.MPLCONFIGDIR || mplConfigDir,
-      },
-    });
-
-    let stdout = '';
-    let stderr = '';
-    let settled = false;
-
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      child.kill('SIGTERM');
-      reject(new Error(`Python render timed out after ${timeoutMs}ms`));
-    }, timeoutMs);
-
-    child.stdout.on('data', chunk => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on('data', chunk => {
-      stderr += chunk.toString();
-    });
-
-    child.on('error', err => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      reject(new Error(`Failed to start Python (${pythonBin}): ${err.message}`));
-    });
-
-    child.on('close', code => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      const renderMs = Date.now() - started;
-      if (code !== 0) {
-        const msg = (stderr || stdout || `Python exited with code ${code}`).trim();
-        if (code === 2) {
-          reject(Object.assign(new Error(msg), { status: 503 }));
-        } else {
-          reject(Object.assign(new Error(msg), { status: 422 }));
-        }
-        return;
-      }
-      resolve({ svg: stdout, renderMs });
-    });
-
-    child.stdin.write(newick);
-    child.stdin.end();
-  });
 }
 
 /**
@@ -304,125 +193,6 @@ router.get('/:familyId/umap', async (req, res, next) => {
 });
 
 /**
- * POST /api/family/tree/itol-upload
- * Upload Newick to iTOL batch API; returns interactive viewer URL.
- */
-router.post('/tree/itol-upload', async (req, res, next) => {
-  const newick = String(req.body?.newick || '').trim();
-  if (!newick) {
-    return res.status(400).json({ error: 'newick is required' });
-  }
-
-  const familyId = Number(req.body?.familyId);
-  const treeName =
-    String(req.body?.treeName || '').trim() ||
-    (Number.isFinite(familyId) && familyId > 0
-      ? `petadex_family_${familyId}`
-      : 'petadex_mock');
-
-  try {
-    const { treeId, viewerUrl, uploadMs } = await uploadNewickToItol(newick, {
-      treeName,
-      treeDescription: Number.isFinite(familyId) && familyId > 0
-        ? `Petadex family ${familyId} phylogeny`
-        : 'Petadex mock phylogeny',
-    });
-
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('X-Upload-Ms', String(uploadMs));
-    res.json({ treeId, viewerUrl, uploadMs });
-  } catch (err) {
-    if (err.status === 503) {
-      return res.status(503).json({ error: err.message });
-    }
-    if (err.status === 422) {
-      return res.status(422).json({ error: err.message });
-    }
-    if (err.status === 502) {
-      return res.status(502).json({ error: err.message });
-    }
-    next(err);
-  }
-});
-
-/**
- * POST /api/family/tree/render-prototype
- * Dev/prototype: render bundled Newick without S3 (mock mode ETE/Biopython).
- */
-router.post('/tree/render-prototype', async (req, res, next) => {
-  const engine = String(req.body?.engine || '').toLowerCase();
-  const scriptName = RENDER_ENGINES[engine];
-  const newick = String(req.body?.newick || '').trim();
-
-  if (!scriptName) {
-    return res.status(400).json({ error: 'engine must be "ete" or "biopython"' });
-  }
-  if (!newick) {
-    return res.status(400).json({ error: 'newick is required' });
-  }
-
-  try {
-    const renderOpts = engine === 'ete' ? eteRenderOptions(req.body?.eteLayout) : {};
-    const { svg, renderMs } = await renderNewickWithPython(scriptName, newick, renderOpts);
-    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('X-Render-Ms', String(renderMs));
-    res.setHeader('X-Render-Engine', engine);
-    res.send(svg);
-  } catch (err) {
-    if (err.status === 503) {
-      return res.status(503).json({ error: err.message });
-    }
-    if (err.status === 422) {
-      return res.status(422).json({ error: err.message });
-    }
-    next(err);
-  }
-});
-
-/**
- * GET /api/family/:familyId/tree/render?engine=ete|biopython&format=svg
- * Fetches Newick from S3 and renders SVG via Python (ETE3 or Biopython).
- */
-router.get('/:familyId/tree/render', async (req, res, next) => {
-  const familyId = parseInt(req.params.familyId, 10);
-  if (!Number.isInteger(familyId) || familyId <= 0) {
-    return res.status(400).json({ error: 'Invalid familyId' });
-  }
-
-  const engine = String(req.query.engine || '').toLowerCase();
-  const scriptName = RENDER_ENGINES[engine];
-  if (!scriptName) {
-    return res.status(400).json({ error: 'engine must be "ete" or "biopython"' });
-  }
-
-  if (req.query.format && req.query.format !== 'svg') {
-    return res.status(400).json({ error: 'Only format=svg is supported' });
-  }
-
-  try {
-    const newick = await fetchFamilyNewick(familyId);
-    const renderOpts = engine === 'ete' ? eteRenderOptions(req.query.eteLayout) : {};
-    const { svg, renderMs } = await renderNewickWithPython(scriptName, newick.trim(), renderOpts);
-
-    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('X-Render-Ms', String(renderMs));
-    res.setHeader('X-Render-Engine', engine);
-    res.send(svg);
-  } catch (err) {
-    if (mapS3FetchError(err, familyId, res)) return;
-    if (err.status === 503) {
-      return res.status(503).json({ error: err.message });
-    }
-    if (err.status === 422) {
-      return res.status(422).json({ error: err.message });
-    }
-    next(err);
-  }
-});
-
-/**
  * GET /api/family/:familyId/tree
  * Fetches the Newick tree file from S3 and returns raw text.
  */
@@ -432,15 +202,21 @@ router.get('/:familyId/tree', async (req, res, next) => {
     return res.status(400).json({ error: 'Invalid familyId' });
   }
 
+  const key = `search-phylo-trees/family_${familyId}.nwk`;
+  const client = getS3Client();
+
   try {
-    const content = await fetchFamilyNewick(familyId);
+    const response = await client.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: key }));
+    const content = await streamToString(response.Body);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Content-Disposition', `inline; filename="family_${familyId}.nwk"`);
     res.send(content);
   } catch (err) {
-    if (mapS3FetchError(err, familyId, res)) return;
+    if (err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404) {
+      return res.status(404).json({ error: `No phylogenetic tree found for family ${familyId}` });
+    }
     next(err);
   }
 });

@@ -10,7 +10,62 @@ import { Link } from "gatsby"
 import { hierarchy } from "d3-hierarchy"
 import config from "../../config"
 import Layout from "../../components/layout"
-import { parseNewick, countLeaves } from "../../components/treePrototype/newickUtils.js"
+
+// ---------------------------------------------------------------------------
+// Newick parser — recursive descent via tokenizer
+// ---------------------------------------------------------------------------
+function parseNewick(s) {
+  const ancestors = []
+  let tree = {}
+  // Split on structural characters, keeping them as tokens
+  const tokens = s.split(/\s*(;|\(|\)|,|:)\s*/)
+  let prevToken = ""
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i].trim()
+    if (!token) continue
+
+    switch (token) {
+      case "(": {
+        const child = {}
+        tree.children = tree.children || []
+        tree.children.push(child)
+        ancestors.push(tree)
+        tree = child
+        break
+      }
+      case ")":
+        tree = ancestors.pop()
+        break
+      case ",": {
+        const sibling = {}
+        ancestors[ancestors.length - 1].children.push(sibling)
+        tree = sibling
+        break
+      }
+      case ":":
+        break
+      default:
+        if (prevToken === "(" || prevToken === "," || prevToken === ")") {
+          tree.name = token
+        } else if (prevToken === ":") {
+          tree.branchLength = parseFloat(token) || 0
+        }
+    }
+    prevToken = token
+  }
+  return tree
+}
+
+// ---------------------------------------------------------------------------
+// Count leaves in parsed tree
+// ---------------------------------------------------------------------------
+function countLeaves(node) {
+  if (!node.children || node.children.length === 0) return 1
+  return node.children.reduce((sum, c) => sum + countLeaves(c), 0)
+}
+
+// ---------------------------------------------------------------------------
 // Phylogram layout — positions nodes by cumulative branch length (x-axis)
 // and evenly-spaced leaf order (y-axis). Replaces d3.cluster() which forces
 // all leaves to the same depth (ultrametric/cladogram appearance).
