@@ -9,6 +9,7 @@ import { Link, navigate } from "gatsby"
 import { hierarchy } from "d3-hierarchy"
 import Seo from "../components/seo"
 import SequenceViewer from "../components/sequence/SequenceViewer"
+import LazyPetadexCatalyticDomainsPanel from "../components/petadexDomains/LazyPetadexCatalyticDomainsPanel.jsx"
 import AtlasMap from "../components/charts/AtlasMap"
 import config from "../config"
 import { useScrollHeader } from "../hooks/useScrollHeader"
@@ -556,8 +557,14 @@ function MembersTable({ familyId, centroid }) {
                         <tr>
                           <td
                             colSpan={5}
-                            className="px-4 py-3 bg-surface-sunken"
+                            className="px-4 py-3 bg-surface-sunken space-y-4"
                           >
+                            <LazyPetadexCatalyticDomainsPanel
+                              enzymeId={row.enzyme_id}
+                              accession={row.genbank_accession_id}
+                              sequence={row.translated_sequence}
+                              compact
+                            />
                             <SequenceViewer
                               aminoAcidSequence={row.translated_sequence}
                               nucleotideSequence={null}

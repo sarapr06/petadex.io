@@ -58,11 +58,13 @@ export default function FeatureViewerOverviewNav({
   onChangeRef.current = onViewportChange
   const suppressBrushRef = useRef(false)
   const draggingRef = useRef(false)
+  const viewportRef = useRef({ lo: 1, hi: 1 })
   /** @type {React.MutableRefObject<{ brush: d3.BrushBehavior<unknown>, brushG: d3.Selection<SVGGElement, unknown, null, undefined>, x: d3.ScaleLinear<number, number> } | null>} */
   const brushApiRef = useRef(null)
 
   const lo = viewport?.lo ?? 1
   const hi = viewport?.hi ?? seqLen
+  viewportRef.current = { lo, hi }
 
   useEffect(() => {
     const wrap = wrapRef.current
@@ -129,6 +131,8 @@ export default function FeatureViewerOverviewNav({
         if (suppressBrushRef.current || !event.selection) return
         const [px0, px1] = event.selection
         const [loR, hiR] = clampWindow(x.invert(px0), x.invert(px1))
+        const vp = viewportRef.current
+        if (loR === vp.lo && hiR === vp.hi) return
         onChangeRef.current(loR, hiR)
       }
 
@@ -184,6 +188,19 @@ export default function FeatureViewerOverviewNav({
     const pxLo = api.x(lo)
     const pxHi = api.x(hi)
     if (!Number.isFinite(pxLo) || !Number.isFinite(pxHi) || pxHi <= pxLo) return
+    const current = api.brushG.select(".selection").node()
+    if (current instanceof SVGRectElement) {
+      const cx = parseFloat(current.getAttribute("x") || "")
+      const cw = parseFloat(current.getAttribute("width") || "")
+      if (
+        Number.isFinite(cx) &&
+        Number.isFinite(cw) &&
+        Math.abs(cx - pxLo) < 0.5 &&
+        Math.abs(cx + cw - pxHi) < 0.5
+      ) {
+        return
+      }
+    }
     suppressBrushRef.current = true
     api.brushG.call(api.brush.move, [pxLo, pxHi])
     requestAnimationFrame(() => {

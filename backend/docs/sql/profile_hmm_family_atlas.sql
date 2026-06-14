@@ -1,0 +1,19 @@
+-- Optional: attach Pfam / custom profile HMM identifiers to atlas rows for the public
+-- CATH domains page and GET /api/atlas/components.
+--
+-- family_atlas is a materialized view (MV). You cannot ALTER the MV in place to add a
+-- column; extend the underlying query/tables that feed the MV, then:
+--   REFRESH MATERIALIZED VIEW CONCURRENTLY family_atlas;
+-- (requires a unique index on the MV for CONCURRENTLY — follow your existing ops pattern.)
+--
+-- Example shape on a *base* table or staging table that the MV selects from:
+--
+--   ALTER TABLE your_source_table
+--     ADD COLUMN IF NOT EXISTS profile_hmm text;
+--
+-- After the MV exposes profile_hmm, extend backend/src/routes/atlas.js:
+--   SELECT ... , fa.profile_hmm
+--   FROM family_atlas fa
+--
+-- Batch annotation (HMMer / HHblits) typically runs on a cluster; write results to this
+-- column (or a side table joined in the MV definition), not only to S3.

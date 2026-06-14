@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react"
 import { Link } from "gatsby"
 import SequenceViewer from "../components/sequence/SequenceViewer"
+import LazyPetadexCatalyticDomainsPanel from "../components/petadexDomains/LazyPetadexCatalyticDomainsPanel.jsx"
 import Seo from "../components/seo"
 import config from "../config"
 import Container from "../components/common/Container"
@@ -165,6 +166,16 @@ export default function EnzymeTemplate({ pageContext }) {
               Plastic-degrading enzyme from BLAST-NR database
             </p>
           </div>
+
+          {enzyme.translated_sequence && (
+            <div className="card p-4 mb-6">
+              <LazyPetadexCatalyticDomainsPanel
+                enzymeId={enzyme.enzyme_id}
+                accession={enzyme.genbank_accession_id}
+                sequence={enzyme.translated_sequence}
+              />
+            </div>
+          )}
 
           {/* Sequence card */}
           {enzyme.translated_sequence && (
