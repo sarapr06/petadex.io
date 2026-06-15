@@ -27,6 +27,8 @@ jobs:
 
   deploy:
     needs: build_and_test
+    # Forks without AWS credentials should not fail CI after tests pass.
+    if: github.repository == 'petadex/petadex.io'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
