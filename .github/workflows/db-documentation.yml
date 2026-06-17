@@ -167,7 +167,27 @@ jobs:
             
             echo "**Description:** $MATVIEW_COMMENT" >> docs/database/generated-schema.md
             echo "" >> docs/database/generated-schema.md
-            
+
+            # Estimated row count from planner statistics (reltuples). Materialized views
+            # are stored relations (relkind = 'm'), so reltuples works the same as for tables
+            # and is populated by ANALYZE after each REFRESH MATERIALIZED VIEW.
+            # reltuples is -1 on a matview that has never been analyzed (Postgres 14+).
+            ROW_EST=$(PGPASSWORD=$DB_PASS psql -h $DB_HOST -p $DB_PORT -U $DB_USER -d $DB_NAME -t -A -c "
+            SELECT c.reltuples::bigint
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.relname = '$matview'
+            AND n.nspname = 'public'
+            AND c.relkind = 'm';
+            " | tr -d ' \n\r')
+
+            if [ -z "$ROW_EST" ] || [ "$ROW_EST" = "-1" ]; then
+              echo "**Estimated rows:** _not analyzed_" >> docs/database/generated-schema.md
+            else
+              echo "**Estimated rows:** ~$(LC_ALL=en_US.UTF-8 printf "%'d" "$ROW_EST")" >> docs/database/generated-schema.md
+            fi
+            echo "" >> docs/database/generated-schema.md
+
             echo "| Column | Type | Nullable | Default | Comment |" >> docs/database/generated-schema.md
             echo "|--------|------|----------|---------|---------|" >> docs/database/generated-schema.md
             
