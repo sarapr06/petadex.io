@@ -27,6 +27,8 @@ jobs:
 
   deploy:
     needs: build_and_test
+    # Forks without AWS credentials should not fail CI after tests pass.
+    if: github.repository == 'petadex/petadex.io'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,7 +50,8 @@ jobs:
           DB_NAME: petadex
           DB_USER: readonly_user
           DB_PASS: petadex
-          MMSEQS2_LAMBDA_NAME: ${{ secrets.MMSEQS2_LAMBDA_NAME }}
-          RESULTS_BUCKET: ${{ secrets.RESULTS_BUCKET }}
-          RESULTS_PREFIX: ${{ secrets.RESULTS_PREFIX }}
+          # SEARCH_LAMBDA_NAME / RESULTS_BUCKET / RESULTS_PREFIX intentionally omitted —
+          # serverless.yml defaults (petadex-diamond-orchestrator / petadex / results)
+          # are the source of truth. To flip the search Lambda without a code deploy,
+          # add a SEARCH_LAMBDA_NAME repository secret here.
         run: npx serverless@3 deploy --stage dev

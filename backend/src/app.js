@@ -21,6 +21,7 @@ import searchRoutes from './routes/search.js';
 import atlasRoutes from './routes/atlas.js';
 import familyRoutes from './routes/family.js';
 import saraViewerRoutes from './routes/saraViewer.js';
+import petadexDomainsRoutes from './routes/petadexDomains.js';
 import { pool } from './db.js';
 
 const app = express();
@@ -55,6 +56,7 @@ app.use('/api/search', searchRoutes);
 app.use('/api/atlas', atlasRoutes);
 app.use('/api/family', familyRoutes);
 app.use('/api/sara-viewer', saraViewerRoutes);
+app.use('/api/petadex-domains', petadexDomainsRoutes);
 
 // Root: no HTML UI — API lives under /api/*. Browsers hitting :3001/ alone see this instead of "Cannot GET /".
 app.get('/', (req, res) => {

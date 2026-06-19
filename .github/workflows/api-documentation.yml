@@ -272,19 +272,18 @@ jobs:
 
       - name: Update GitHub Wiki
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
         run: |
-          set -e  # Exit on error
-
           echo "📚 Attempting to clone wiki repository..."
 
-          # Clone the wiki repository (will fail if wiki doesn't exist yet)
-          if git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki 2>&1; then
-            echo "✅ Wiki repository cloned successfully"
-          else
-            echo "❌ Failed to clone wiki. The wiki may not be initialized yet."
-            echo "👉 Please create the wiki manually in GitHub (Wiki tab → Create the first page)"
-            exit 1
+          # Clone the wiki repository (skipped gracefully if wiki is not initialized)
+          if ! git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki 2>&1; then
+            echo "⚠️  Wiki not available — skipping wiki update."
+            echo "👉 To enable: Wiki tab → Create the first page, then re-run this workflow."
+            exit 0
           fi
+
+          echo "✅ Wiki repository cloned successfully"
 
           cd wiki
 

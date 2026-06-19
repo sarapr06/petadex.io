@@ -21,6 +21,7 @@ import {
 import { formatMagnification, minimumViewportLength } from "./zoomReadout.js"
 import { syncFeatureViewerSequenceStyle } from "./featureViewerSequenceStripes.js"
 import { trimFeatureViewerSvgHeight } from "./trimFeatureViewerLayout.js"
+import { fitFeatureViewerYAxisLabels } from "./featureViewerYAxisLabels.js"
 
 /** @see feature-viewer `self.events.ZOOM_EVENT` */
 const FV_ZOOM_EVENT = "feature-viewer-zoom-altered"
@@ -51,6 +52,44 @@ function isFvOwnDecorationMutation(m) {
     if (isFvOwnDecorationNode(n)) return true
   }
   return false
+}
+
+/**
+ * Layout-pass noise from trim/sequence styling inside the feature-viewer SVG.
+ * @param {MutationRecord} m
+ */
+function isFeatureViewerLayoutNoiseMutation(m) {
+  const target = m.target
+  if (!(target instanceof Element)) return false
+  if (!target.closest(".fv-prototype svg")) return false
+  if (m.type === "attributes") {
+    const name = m.attributeName || ""
+    if (
+      name === "height" ||
+      name === "style" ||
+      name === "fill" ||
+      name === "points" ||
+      name === "x" ||
+      name === "font-size"
+    ) {
+      return true
+    }
+    if (target.closest("clipPath")) return true
+  }
+  if (target.matches("text.yaxis, g.pro.axis polygon")) return true
+  return false
+}
+
+/**
+ * @param {MutationRecord} m
+ */
+function shouldIgnoreFeatureViewerMutation(m) {
+  return isFvOwnDecorationMutation(m) || isFeatureViewerLayoutNoiseMutation(m)
+}
+
+/** @param {{ lo: number, hi: number }} a @param {{ lo: number, hi: number }} b */
+function sameViewport(a, b) {
+  return a.lo === b.lo && a.hi === b.hi
 }
 
 /**
@@ -132,7 +171,14 @@ export default function FeatureViewerPanel({
     [seqLen],
   )
 
-  const defs = rectTrackDefs?.length ? rectTrackDefs : mockDefs
+  const defs = useMemo(
+    () => (rectTrackDefs?.length ? rectTrackDefs : mockDefs),
+    [rectTrackDefs, mockDefs],
+  )
+
+  const defsKey = useMemo(() => JSON.stringify(defs), [defs])
+  const defsRef = useRef(defs)
+  defsRef.current = defs
 
   /** Same cap as passed to feature-viewer; brushend only zooms when extent length exceeds this. */
   const zoomMaxLib = useMemo(() => minimumViewportLength(seqLen), [seqLen])
@@ -229,6 +275,10 @@ export default function FeatureViewerPanel({
       const d = ev.detail
       if (!d || typeof d !== "object") return
       const vp = viewportFromZoomDetail(d, seqLen)
+      if (sameViewport(viewportRef.current, vp)) {
+        setZoomScale(prev => (Math.abs(prev - vp.zoom) < 0.001 ? prev : vp.zoom))
+        return
+      }
       viewportRef.current = { lo: vp.lo, hi: vp.hi }
       setBrushExtent({ lo: vp.lo, hi: vp.hi })
       setZoomScale(vp.zoom)
@@ -266,9 +316,11 @@ export default function FeatureViewerPanel({
       if (b - a <= minLen) {
         a = Math.max(1, b - minLen - 0.02)
       }
+      const next = { lo: a, hi: b }
+      if (sameViewport(viewportRef.current, next)) return
       const span = Math.max(1, b - a)
-      viewportRef.current = { lo: a, hi: b }
-      setBrushExtent({ lo: a, hi: b })
+      viewportRef.current = next
+      setBrushExtent(next)
       setZoomScale(L / span)
       try {
         ft.zoom(a, b)
@@ -396,7 +448,7 @@ export default function FeatureViewerPanel({
       setBrushExtent({ lo: 1, hi: seqLen })
       setZoomScale(1)
 
-      defs.forEach(def => {
+      defsRef.current.forEach(def => {
         ft.addFeature(def.feature)
       })
 
@@ -421,11 +473,17 @@ export default function FeatureViewerPanel({
         }
         const observeOpts = { childList: true, subtree: true }
 
+        let layoutRunning = false
+        let layoutScheduled = false
+
         const runLayoutPass = () => {
+          if (layoutRunning) return
+          layoutRunning = true
           variantUiObserver?.disconnect()
           try {
             stripVariantPopups()
             syncFeatureViewerSequenceStyle(host, viewportRef.current)
+            fitFeatureViewerYAxisLabels(host)
             trimFeatureViewerSvgHeight(host)
             const sel = [...selectedPositionsRef.current].sort(
               (a, b) => a - b,
@@ -453,6 +511,7 @@ export default function FeatureViewerPanel({
               clearFeatureViewerColumnHighlight(host)
             }
           } finally {
+            layoutRunning = false
             if (!cancelled && variantUiObserver) {
               variantUiObserver.observe(host, observeOpts)
             }
@@ -460,8 +519,11 @@ export default function FeatureViewerPanel({
         }
 
         const scheduleLayoutPass = () => {
+          if (layoutScheduled) return
+          layoutScheduled = true
           cancelAnimationFrame(layoutRaf)
           layoutRaf = requestAnimationFrame(() => {
+            layoutScheduled = false
             layoutRaf = 0
             runLayoutPass()
           })
@@ -473,7 +535,7 @@ export default function FeatureViewerPanel({
         variantUiObserver = new MutationObserver(mutations => {
           if (
             mutations.length > 0 &&
-            mutations.every(isFvOwnDecorationMutation)
+            mutations.every(shouldIgnoreFeatureViewerMutation)
           ) {
             return
           }
@@ -517,15 +579,17 @@ export default function FeatureViewerPanel({
     fvDomId,
     sequence,
     seqLen,
-    defs,
+    defsKey,
     zoomMaxLib,
     applyViewportFromEvent,
   ])
 
   useEffect(() => {
     viewportRef.current = { lo: 1, hi: seqLen }
-    setBrushExtent({ lo: 1, hi: seqLen })
-    setZoomScale(1)
+    setBrushExtent(prev =>
+      prev?.lo === 1 && prev?.hi === seqLen ? prev : { lo: 1, hi: seqLen },
+    )
+    setZoomScale(prev => (prev === 1 ? prev : 1))
   }, [seqLen])
 
   useEffect(() => {
@@ -688,6 +752,7 @@ export default function FeatureViewerPanel({
 
     const run = () => {
       syncFeatureViewerSequenceStyle(host, viewportRef.current)
+      fitFeatureViewerYAxisLabels(host)
       repaintVisuals(hoverPositionRef.current)
     }
     run()

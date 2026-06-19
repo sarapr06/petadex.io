@@ -49,7 +49,8 @@ The backend runs **serverless** on AWS Lambda behind API Gateway (no EC2/NGINX/P
 - **API Gateway (HTTP API)** routes every path/method (`/{proxy+}`, `/`) to a single Lambda.
 - **Lambda `petadex-backend`** runs the Express app via a serverless handler (`src/handler.js`); VPC-bound (`timeout: 29s`, `memorySize: 512`, DB pool `max: 2`, read-only DB user).
 - **PostgreSQL RDS** stores enzyme sequences (`fastaa` table) and related datasets.
-- **S3 (`petadex` bucket)** serves the large family-atlas UMAP payload as a gzipped static object (`atlas/umap.json.gz`) — it exceeds Lambda's 6 MB response limit, so it bypasses the API. Regenerate with `cd backend && npm run export-atlas`. Sequence search results also live in S3.
+- **S3 (`petadex` bucket)** serves the large family-atlas UMAP payload as a gzipped static object (`atlas/umap.json.gz`) — it exceeds Lambda's 6 MB response limit, so it bypasses the API. Regenerate with `cd backend && npm run export-atlas`. Sequence search results also live in S3 under `results/`.
+- **Search result cache** is keyed on the query **plus the corpus + pipeline version** (`md5(sequence:maxResults:databaseVersion:searchVersion)`), so a database rebuild or a search-pipeline change automatically busts stale results instead of serving them; a failed version lookup falls back to a per-request nonce (forced cache miss). See "Search Result Caching (version-aware)" in `CLAUDE.md`. _Ops note: re-keying orphans the old `results/` keyspace — add a `results/`-scoped S3 lifecycle rule (not a blind age) to reap it._
 
 #### CI/CD overview
 

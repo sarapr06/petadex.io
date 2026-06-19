@@ -8,10 +8,11 @@ import React from "react"
  *     signalCount?: number,
  *     tables?: string[],
  *   } | null,
+ *   syntheticSequence?: boolean,
  *   error?: string | null,
  * }} props
  */
-export default function SaraViewerNotes({ meta, error }) {
+export default function SaraViewerNotes({ meta, syntheticSequence = false, error }) {
   if (error) {
     return (
       <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -23,8 +24,10 @@ export default function SaraViewerNotes({ meta, error }) {
   if (!meta) return null
 
   const lines = [
-    "Annotations from Petadex SQL (Drylab prototype tables).",
-    `Sequence is synthetic (${meta.domainCount ?? 0} domain, ${meta.motifCount ?? 0} motif, ${meta.signalCount ?? 0} signal rows for this orf_id).`,
+    "Annotations from Petadex SQL (catalytic domain pipeline).",
+    syntheticSequence
+      ? `Sequence is a placeholder (${meta.domainCount ?? 0} domain, ${meta.motifCount ?? 0} motif, ${meta.signalCount ?? 0} signal rows for this orf_id).`
+      : `Using enzyme sequence from database (${meta.domainCount ?? 0} domain, ${meta.motifCount ?? 0} motif, ${meta.signalCount ?? 0} signal rows).`,
   ]
 
   if (meta.tables?.length) {
