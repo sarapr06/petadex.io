@@ -39,6 +39,7 @@ import { createHash, randomUUID } from 'crypto';
 import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { S3Client, GetObjectCommand, ListObjectsV2Command, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { pool } from '../db.js';
+import { getPublicReadS3Client, streamToString as publicStreamToString } from '../lib/s3Public.js';
 
 const router = Router();
 
@@ -255,7 +256,7 @@ const EXAMPLE_SEARCHES = [
 // Returns a Set of family IDs (numbers) that have a corresponding .nwk file.
 async function checkFamilyTrees(familyIds) {
   if (!familyIds.length) return new Set();
-  const client = getS3Client();
+  const client = getPublicReadS3Client();
   const results = await Promise.allSettled(
     familyIds.map(id =>
       client.send(new HeadObjectCommand({
@@ -431,12 +432,12 @@ router.get('/phylo-tree/:family_id', async (req, res, next) => {
   }
 
   const key = `search-phylo-trees/family_${familyId}.nwk`;
-  const client = getS3Client();
+  const client = getPublicReadS3Client();
 
   try {
     const getCommand = new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: key });
     const response = await client.send(getCommand);
-    const content = await streamToString(response.Body);
+    const content = await publicStreamToString(response.Body);
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.setHeader('Access-Control-Allow-Origin', '*');

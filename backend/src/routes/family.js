@@ -13,26 +13,14 @@ import {
   UMAP_POINTS_FROM_BASE_TABLES,
   UMAP_POINTS_FROM_FAMILY_ATLAS,
 } from '../atlasQueries.js';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { getPublicReadS3Client, streamToString } from '../lib/s3Public.js';
 
 const router = Router();
 
 const familyIdSchema = Joi.number().integer().positive().required();
 
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const RESULTS_BUCKET = process.env.RESULTS_BUCKET || 'petadex';
-
-let s3Client = null;
-function getS3Client() {
-  if (!s3Client) s3Client = new S3Client({ region: AWS_REGION });
-  return s3Client;
-}
-
-async function streamToString(stream) {
-  const chunks = [];
-  for await (const chunk of stream) chunks.push(chunk);
-  return Buffer.concat(chunks).toString('utf8');
-}
 
 /**
  * GET /api/family/:familyId
@@ -203,7 +191,7 @@ router.get('/:familyId/tree', async (req, res, next) => {
   }
 
   const key = `search-phylo-trees/family_${familyId}.nwk`;
-  const client = getS3Client();
+  const client = getPublicReadS3Client();
 
   try {
     const response = await client.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: key }));
