@@ -181,6 +181,38 @@ router.get('/:familyId/umap', async (req, res, next) => {
 });
 
 /**
+ * GET /api/family/:familyId/tree-members
+ * Lightweight member list for phylo tree search/labels (no sequences).
+ */
+router.get('/:familyId/tree-members', async (req, res, next) => {
+  const { error, value: familyId } = familyIdSchema.validate(req.params.familyId);
+  if (error) return res.status(400).json({ error: error.message });
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         e.enzyme_id,
+         e.genbank_accession_id,
+         t.family_pid,
+         t.component
+       FROM enzyme_fastaa e
+       INNER JOIN enzyme_taxonomy t ON e.enzyme_id = t.enzyme_id
+       WHERE t.family = $1
+       ORDER BY t.family_pid DESC NULLS FIRST, e.enzyme_id`,
+      [familyId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: `Family ${familyId} not found` });
+    }
+
+    res.json({ members: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * GET /api/family/:familyId/tree
  * Fetches the Newick tree file from S3 and returns raw text.
  */
