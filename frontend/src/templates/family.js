@@ -3,13 +3,13 @@ import React, {
   useEffect,
   useRef,
   useCallback,
-  useMemo,
 } from "react"
 import { Link, navigate } from "gatsby"
-import { hierarchy } from "d3-hierarchy"
 import Seo from "../components/seo"
 import SequenceViewer from "../components/sequence/SequenceViewer"
+import LazyPetadexCatalyticDomainsPanel from "../components/petadexDomains/LazyPetadexCatalyticDomainsPanel.jsx"
 import AtlasMap from "../components/charts/AtlasMap"
+import PhyloTreePanel from "../components/phyloTree/PhyloTreePanel"
 import config from "../config"
 import { useScrollHeader } from "../hooks/useScrollHeader"
 import {
@@ -62,327 +62,6 @@ function CathBadge({ components }) {
           </div>
         </div>
       ))}
-    </div>
-  )
-}
-
-// ── Newick parser ──────────────────────────────────────────────────────────
-
-function parseNewick(s) {
-  const ancestors = []
-  let tree = {}
-  const tokens = s.split(/\s*(;|\(|\)|,|:)\s*/)
-  let prevToken = ""
-
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i].trim()
-    if (!token) continue
-
-    switch (token) {
-      case "(": {
-        const child = {}
-        tree.children = tree.children || []
-        tree.children.push(child)
-        ancestors.push(tree)
-        tree = child
-        break
-      }
-      case ")":
-        tree = ancestors.pop()
-        break
-      case ",": {
-        const sibling = {}
-        ancestors[ancestors.length - 1].children.push(sibling)
-        tree = sibling
-        break
-      }
-      case ":":
-        break
-      default:
-        if (prevToken === "(" || prevToken === "," || prevToken === ")") {
-          tree.name = token
-        } else if (prevToken === ":") {
-          tree.branchLength = parseFloat(token) || 0
-        }
-    }
-    prevToken = token
-  }
-  return tree
-}
-
-function countLeaves(node) {
-  if (!node.children || node.children.length === 0) return 1
-  return node.children.reduce((sum, c) => sum + countLeaves(c), 0)
-}
-
-// ── Radial phylogram layout ──────────────────────────────────────────────────
-
-function buildRadialTree(root, radius) {
-  root.each(node => {
-    const bl = node.data.branchLength != null ? node.data.branchLength : 0
-    node.distFromRoot = (node.parent ? node.parent.distFromRoot : 0) + bl
-  })
-  const maxDist = root
-    .descendants()
-    .reduce((m, n) => Math.max(m, n.distFromRoot), 1e-10)
-  root.each(node => {
-    node.radius = (node.distFromRoot / maxDist) * radius
-  })
-
-  const leaves = []
-  root.eachBefore(node => {
-    if (!node.children || node.children.length === 0) leaves.push(node)
-  })
-  const n = leaves.length
-  const gap = (12 * Math.PI) / 180 // gap at the top so first/last leaf don't collide
-  const span = 2 * Math.PI - gap
-  leaves.forEach((leaf, i) => {
-    leaf.angle =
-      n <= 1 ? -Math.PI / 2 : -Math.PI / 2 + gap / 2 + (i / (n - 1)) * span
-  })
-  root.eachAfter(node => {
-    if (node.children && node.children.length > 0) {
-      const a = node.children.map(c => c.angle)
-      node.angle = (Math.min(...a) + Math.max(...a)) / 2
-    }
-  })
-  return root
-}
-
-// ── Tree SVG ───────────────────────────────────────────────────────────────
-
-const LEAF_ARC = 10 // px of circumference allotted per leaf
-const LABEL_SPACE = 150 // room beyond the outer ring for labels
-const MIN_RADIUS = 160
-const MAX_LABEL = 32
-
-function DendrogramSVG({ root }) {
-  const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 })
-  const transformRef = useRef(transform)
-  transformRef.current = transform
-
-  const containerRef = useRef(null)
-  const fittedRef = useRef(false)
-
-  const { numLeaves, center, svgSize, nodes, links } = useMemo(() => {
-    const leafCount = countLeaves(root)
-    const radius = Math.max((leafCount * LEAF_ARC) / (2 * Math.PI), MIN_RADIUS)
-    const c = radius + LABEL_SPACE
-    const layoutRoot = buildRadialTree(hierarchy(root, d => d.children), radius)
-    return {
-      numLeaves: leafCount,
-      center: c,
-      svgSize: 2 * c,
-      nodes: layoutRoot.descendants(),
-      links: layoutRoot.links(),
-    }
-  }, [root])
-
-  // Show labels when zoomed in enough that circumferential spacing exceeds one text line height
-  const showLabels = numLeaves < 40 || transform.k * LEAF_ARC > 14
-  const [hoveredNode, setHoveredNode] = useState(null)
-
-  const px = d => center + d.radius * Math.cos(d.angle)
-  const py = d => center + d.radius * Math.sin(d.angle)
-  const linkPath = ({ source: p, target: c }) => {
-    const r = p.radius
-    const x0 = center + r * Math.cos(p.angle)
-    const y0 = center + r * Math.sin(p.angle)
-    const x1 = center + r * Math.cos(c.angle)
-    const y1 = center + r * Math.sin(c.angle)
-    const x2 = center + c.radius * Math.cos(c.angle)
-    const y2 = center + c.radius * Math.sin(c.angle)
-    const largeArc = Math.abs(c.angle - p.angle) > Math.PI ? 1 : 0
-    const sweep = c.angle > p.angle ? 1 : 0
-    return `M${x0},${y0}A${r},${r} 0 ${largeArc} ${sweep} ${x1},${y1}L${x2},${y2}`
-  }
-
-  // Zoom toward a point (cx, cy) given in container coordinates, keeping the
-  // content under that point fixed.
-  const zoomBy = useCallback((factor, cx, cy) => {
-    setTransform(t => {
-      const k = Math.min(Math.max(t.k * factor, 0.2), 8)
-      const ratio = k / t.k
-      return {
-        k,
-        x: cx - (cx - t.x) * ratio,
-        y: cy - (cy - t.y) * ratio,
-      }
-    })
-  }, [])
-
-  const zoomFromCenter = useCallback(
-    factor => {
-      const el = containerRef.current
-      if (!el) return
-      zoomBy(factor, el.clientWidth / 2, el.clientHeight / 2)
-    },
-    [zoomBy],
-  )
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return undefined
-    const onWheel = e => {
-      e.preventDefault()
-      const rect = el.getBoundingClientRect()
-      const factor = e.deltaY > 0 ? 0.9 : 1.1
-      zoomBy(factor, e.clientX - rect.left, e.clientY - rect.top)
-    }
-    el.addEventListener("wheel", onWheel, { passive: false })
-    return () => el.removeEventListener("wheel", onWheel)
-  }, [zoomBy])
-
-  const onMouseDown = useCallback(e => {
-    const startX = e.clientX - transformRef.current.x
-    const startY = e.clientY - transformRef.current.y
-
-    const onMove = ev => {
-      setTransform(t => ({
-        ...t,
-        x: ev.clientX - startX,
-        y: ev.clientY - startY,
-      }))
-    }
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove)
-      window.removeEventListener("mouseup", onUp)
-    }
-
-    window.addEventListener("mousemove", onMove)
-    window.addEventListener("mouseup", onUp)
-  }, [])
-
-  const fitToContainer = useCallback(() => {
-    const el = containerRef.current
-    if (!el) return null
-    const W = el.clientWidth
-    const H = el.clientHeight
-    if (!W || !H) return null
-    const k = Math.min(W / svgSize, H / svgSize)
-    return { k, x: (W - svgSize * k) / 2, y: (H - svgSize * k) / 2 }
-  }, [svgSize])
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return undefined
-    const ro = new ResizeObserver(() => {
-      if (fittedRef.current) return
-      const fit = fitToContainer()
-      if (fit) {
-        setTransform(fit)
-        fittedRef.current = true
-        ro.disconnect()
-      }
-    })
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [fitToContainer])
-
-  const resetView = () => setTransform(fitToContainer() || { x: 0, y: 0, k: 1 })
-
-  return (
-    <div className="relative">
-      {/* Zoom controls */}
-      <div className="absolute top-2 right-2 z-10 flex gap-1.5">
-        {[
-          {
-            label: "+",
-            action: () => zoomFromCenter(1.3),
-          },
-          {
-            label: "−",
-            action: () => zoomFromCenter(0.77),
-          },
-          { label: "Reset", action: resetView },
-        ].map(({ label, action }) => (
-          <button
-            key={label}
-            onClick={action}
-            className="btn btn-secondary px-2 py-0.5 text-sm rounded"
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {/* Canvas */}
-      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
-      <div
-        ref={containerRef}
-        className="w-full overflow-hidden bg-surface-raised border border-border rounded-md cursor-grab"
-        style={{ height: "60vh", minHeight: 300 }}
-        onMouseDown={onMouseDown}
-      >
-        <svg
-          width={svgSize}
-          height={svgSize}
-          style={{
-            display: "block",
-            transformOrigin: "0 0",
-            transform: `translate(${transform.x}px,${transform.y}px) scale(${transform.k})`,
-          }}
-        >
-          <g stroke="var(--border-strong)" fill="none" strokeWidth={0.8}>
-            {links.map((link, i) => (
-              <path key={i} d={linkPath(link)} vectorEffect="non-scaling-stroke" />
-            ))}
-          </g>
-          {nodes.map((node, i) => {
-            const isLeaf = !node.children
-            const label = node.data.name || ""
-            const displayLabel =
-              label.length > MAX_LABEL ? label.slice(0, MAX_LABEL) + "…" : label
-            const x = px(node)
-            const y = py(node)
-            if (!isLeaf) {
-              return (
-                <g key={i} transform={`translate(${x},${y})`}>
-                  <circle r={2 / transform.k} fill="var(--muted-foreground)" />
-                </g>
-              )
-            }
-            const onLeft = Math.cos(node.angle) < 0
-            const deg = (node.angle * 180) / Math.PI
-            const rot = onLeft ? deg + 180 : deg
-            const enzymeId = /^\d+$/.test(label) ? label : null
-            const isHovered = hoveredNode === label
-            const dotR = (isHovered ? 4 : 2.5) / transform.k
-            return (
-              <g
-                key={i}
-                transform={`translate(${x},${y}) rotate(${rot})`}
-                onClick={enzymeId ? () => window.open(`/enzyme/${enzymeId}`, "_blank") : undefined}
-                onMouseEnter={() => setHoveredNode(label)}
-                onMouseLeave={() => setHoveredNode(null)}
-                style={{ cursor: enzymeId ? "pointer" : "default" }}
-              >
-                {/* Invisible hit target */}
-                <circle r={8 / transform.k} fill="transparent" />
-                <circle r={dotR} fill={isHovered ? "var(--accent-hover, var(--accent))" : "var(--accent)"} />
-                {(showLabels || isHovered) && displayLabel && (
-                  <text
-                    x={(onLeft ? -6 : 6) / transform.k}
-                    dy="0.32em"
-                    textAnchor={onLeft ? "end" : "start"}
-                    fontSize={11 / transform.k}
-                    fontFamily="monospace"
-                    fill={isHovered ? "var(--accent)" : "var(--foreground)"}
-                    fontWeight={isHovered ? "bold" : "normal"}
-                    style={{ userSelect: "none" }}
-                  >
-                    {displayLabel}
-                  </text>
-                )}
-              </g>
-            )
-          })}
-        </svg>
-      </div>
-
-      <p className="mt-1.5 text-xs text-muted-foreground">
-        {numLeaves} leaves · scroll to zoom · drag to pan · click leaf to open enzyme
-      </p>
     </div>
   )
 }
@@ -556,8 +235,14 @@ function MembersTable({ familyId, centroid }) {
                         <tr>
                           <td
                             colSpan={5}
-                            className="px-4 py-3 bg-surface-sunken"
+                            className="px-4 py-3 bg-surface-sunken space-y-4"
                           >
+                            <LazyPetadexCatalyticDomainsPanel
+                              enzymeId={row.enzyme_id}
+                              accession={row.genbank_accession_id}
+                              sequence={row.translated_sequence}
+                              compact
+                            />
                             <SequenceViewer
                               aminoAcidSequence={row.translated_sequence}
                               nucleotideSequence={null}
@@ -683,10 +368,8 @@ export default function FamilyTemplate({ pageContext }) {
   const [family, setFamily] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-
-  const [treeNwk, setTreeNwk] = useState(null)
-  const [treeLoading, setTreeLoading] = useState(true)
-  const [treeError, setTreeError] = useState(null)
+  const [hasTree, setHasTree] = useState(false)
+  const [treeCheckDone, setTreeCheckDone] = useState(false)
 
   useEffect(() => {
     if (!familyId) return
@@ -708,31 +391,12 @@ export default function FamilyTemplate({ pageContext }) {
 
   useEffect(() => {
     if (!familyId) return
-    setTreeLoading(true)
+    setTreeCheckDone(false)
     fetch(`${config.apiUrl}/family/${familyId}/tree`)
-      .then(r => {
-        if (!r.ok) throw new Error("No tree available")
-        return r.text()
-      })
-      .then(text => {
-        setTreeNwk(text.trim())
-        setTreeLoading(false)
-      })
-      .catch(err => {
-        setTreeError(err.message)
-        setTreeLoading(false)
-      })
+      .then(r => setHasTree(r.ok))
+      .catch(() => setHasTree(false))
+      .finally(() => setTreeCheckDone(true))
   }, [familyId])
-
-  let treeRoot = null
-  let parseError = null
-  if (treeNwk) {
-    try {
-      treeRoot = parseNewick(treeNwk)
-    } catch {
-      parseError = "Failed to parse Newick format."
-    }
-  }
 
   if (!familyId) {
     return (
@@ -832,34 +496,24 @@ export default function FamilyTemplate({ pageContext }) {
               </Section>
 
               <Section title="Phylogenetic Tree">
-                {treeLoading && (
+                {!treeCheckDone && (
                   <div className="py-8 text-center text-muted-foreground">
                     Loading tree…
                   </div>
                 )}
-                {treeError && !treeLoading && (
+                {treeCheckDone && !hasTree && (
                   <div className="py-6 text-center text-muted-foreground bg-surface-raised rounded-md">
                     No phylogenetic tree available for this family
                   </div>
                 )}
-                {parseError && (
-                  <div className="px-4 py-3 bg-destructive/10 text-destructive border border-destructive/30 rounded">
-                    {parseError}
-                  </div>
-                )}
-                {treeRoot && !parseError && (
-                  <>
-                    <DendrogramSVG root={treeRoot} />
-                    <div className="mt-3">
-                      <a
-                        href={`${config.apiUrl}/family/${familyId}/tree`}
-                        download={`family_${familyId}.nwk`}
-                        className="text-sm text-accent hover:text-accent-hover"
-                      >
-                        Download .nwk file
-                      </a>
-                    </div>
-                  </>
+                {treeCheckDone && hasTree && (
+                  <PhyloTreePanel
+                    familyId={familyId}
+                    layout="radial"
+                    treeSource="family"
+                    showSearch
+                    showSearchBanner={false}
+                  />
                 )}
               </Section>
             </>

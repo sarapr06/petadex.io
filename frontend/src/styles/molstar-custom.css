@@ -6,6 +6,12 @@
   font-family: 'Inter', sans-serif;
 }
 
+/* Light canvas for annotated structure views (avoid black-on-black) */
+.molstar-annotated-canvas .msp-plugin .msp-viewport,
+.molstar-annotated-canvas .msp-plugin canvas {
+  background: #ffffff !important;
+}
+
 /* Top layout panel styling */
 .msp-plugin .msp-layout-top {
   background-color: #f9fafb;

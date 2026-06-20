@@ -4,8 +4,10 @@
  * See: https://www.gatsbyjs.com/docs/reference/config-files/gatsby-node/
  */
 
+const webpack = require("webpack")
+
 /**
- * Configure webpack for Molstar
+ * Configure webpack for Molstar and feature-viewer (expects global jQuery).
  * @type {import('gatsby').GatsbyNode['onCreateWebpackConfig']}
  */
 exports.onCreateWebpackConfig = ({ actions }) => {
@@ -15,10 +17,17 @@ exports.onCreateWebpackConfig = ({ actions }) => {
         fs: false,
         path: false,
         crypto: false,
-      }
-    }
-  });
-};
+      },
+    },
+    plugins: [
+      new webpack.ProvidePlugin({
+        $: "jquery",
+        jQuery: "jquery",
+        "window.jQuery": "jquery",
+      }),
+    ],
+  })
+}
 
 /**
  * @type {import('gatsby').GatsbyNode['createPages']}

@@ -69,6 +69,9 @@ function normalizeApiPoints(apiPoints) {
     label: p.domain_name || `Component ${p.component}`,
     size: Math.max(1, Math.min(25, p.family_size || 1)),
     familyId: p.family_id,
+    component: p.component,
+    cathDomain: p.cath_domain,
+    familySize: p.family_size,
   }))
 }
 
@@ -273,20 +276,52 @@ export default function AtlasMap({ interactive = true, className = "" }) {
       />
       {hover && (
         <div
-          className="absolute z-20 pointer-events-none rounded-md border border-border px-2.5 py-1.5 text-2xs font-mono"
+          className="absolute z-20 pointer-events-none rounded-md border border-border px-2.5 py-1.5 text-2xs font-mono shadow-lg"
           style={{
-            left: Math.min(hover.px + 12, size.w - 200),
-            top: Math.min(hover.py + 12, size.h - 60),
+            left: Math.min(hover.px + 12, size.w - 220),
+            top: Math.min(hover.py + 12, size.h - 120),
             background: "rgba(10,10,10,0.95)",
             color: "var(--foreground)",
-            minWidth: 160,
+            minWidth: 180,
+            maxWidth: 280,
           }}
         >
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: hover.point.color }} />
-            <span className="text-foreground">{hover.point.label}</span>
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ background: hover.point.color }} />
+              <span className="text-foreground">{hover.point.label}</span>
+            </div>
+            {hover.point.cathDomain != null && String(hover.point.cathDomain).trim() !== "" && (
+              <div className="text-muted-foreground mt-0.5">CATH: {hover.point.cathDomain}</div>
+            )}
+            {hover.point.component != null && (
+              <div className="text-muted-foreground mt-0.5">Component: {hover.point.component}</div>
+            )}
+            <div className="text-muted-foreground mt-0.5">
+              Family size:{" "}
+              {hover.point.familySize != null
+                ? Number(hover.point.familySize).toLocaleString()
+                : "—"}
+            </div>
           </div>
-          <div className="text-muted-foreground mt-0.5">Family size: {hover.point.size * 47}</div>
+          <div className="pointer-events-auto mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-border/60 pt-2">
+            {hover.point.component != null && (
+              <a
+                href={`/cath-domains?component=${hover.point.component}`}
+                className="text-accent hover:text-accent-hover underline underline-offset-2"
+              >
+                CATH domain page
+              </a>
+            )}
+            {hover.point.familyId != null && (
+              <a
+                href={`/family/${hover.point.familyId}`}
+                className="text-accent hover:text-accent-hover underline underline-offset-2"
+              >
+                Family page
+              </a>
+            )}
+          </div>
         </div>
       )}
     </div>

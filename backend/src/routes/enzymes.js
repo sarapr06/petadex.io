@@ -6,6 +6,7 @@
 import { Router } from 'express';
 import Joi from 'joi';
 import { pool } from '../db.js';
+import { getSchemaFlags } from '../schemaFlags.js';
 
 const router = Router();
 
@@ -445,9 +446,26 @@ router.get('/component/:component_id', async (req, res, next) => {
  */
 router.get('/stats/overview', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(`SELECT * FROM enzyme_stats_overview LIMIT 1`);
-    if (!rows.length) return res.status(404).json({ error: 'Stats not available' });
-    res.json(rows[0]);
+    const flags = await getSchemaFlags(pool);
+    if (flags.enzymeStatsOverview) {
+      const { rows } = await pool.query(`SELECT * FROM enzyme_stats_overview LIMIT 1`);
+      if (!rows.length) return res.status(404).json({ error: 'Stats not available' });
+      return res.json(rows[0]);
+    }
+    const [fams, enz, comp, variants] = await Promise.all([
+      pool.query(`SELECT COUNT(DISTINCT family)::bigint AS c FROM enzyme_taxonomy`),
+      pool.query(`SELECT COUNT(*)::bigint AS c FROM enzyme_fastaa`),
+      pool.query(
+        `SELECT COUNT(DISTINCT component)::bigint AS c FROM enzyme_taxonomy WHERE component IS NOT NULL`
+      ),
+      pool.query(`SELECT COUNT(*)::bigint AS c FROM enzyme_taxonomy`),
+    ]);
+    res.json({
+      total_families: fams.rows[0].c,
+      total_enzymes: enz.rows[0].c,
+      total_components: comp.rows[0].c,
+      total_variants: variants.rows[0].c,
+    });
   } catch (err) {
     next(err);
   }
@@ -472,29 +490,54 @@ router.get('/families/summary', async (req, res, next) => {
     } = req.query;
 
     const sortFieldMap = {
-      'variant_count': 'variant_count',
-      'component_count': 'component_count',
-      'avg_identity': 'avg_identity',
-      'family': 'family_id'
+      variant_count: 'variant_count',
+      component_count: 'component_count',
+      avg_identity: 'avg_identity',
+      family: 'family_id',
     };
     const sortField = sortFieldMap[sort] || 'variant_count';
     const sortOrder = order === 'asc' ? 'ASC' : 'DESC';
 
-    const query = `
-      SELECT *
-      FROM enzyme_family_summary
-      ORDER BY ${sortField} ${sortOrder}
-      LIMIT $1 OFFSET $2
-    `;
+    const flags = await getSchemaFlags(pool);
 
-    const countQuery = `
-      SELECT COUNT(*) as total FROM enzyme_family_summary
-    `;
-
-    const [dataResult, countResult] = await Promise.all([
-      pool.query(query, [parseInt(limit), parseInt(offset)]),
-      pool.query(countQuery)
-    ]);
+    let dataResult;
+    let countResult;
+    if (flags.enzymeFamilySummary) {
+      const query = `
+        SELECT *
+        FROM enzyme_family_summary
+        ORDER BY ${sortField} ${sortOrder}
+        LIMIT $1 OFFSET $2
+      `;
+      const countQuery = `SELECT COUNT(*) AS total FROM enzyme_family_summary`;
+      [dataResult, countResult] = await Promise.all([
+        pool.query(query, [parseInt(limit, 10), parseInt(offset, 10)]),
+        pool.query(countQuery),
+      ]);
+    } else {
+      const query = `
+        WITH per AS (
+          SELECT
+            et.family AS family_id,
+            COUNT(*)::bigint AS variant_count,
+            COUNT(DISTINCT et.component)::int AS component_count,
+            ROUND(AVG(et.family_pid)::numeric, 2) AS avg_identity,
+            (ARRAY_AGG(ef.genbank_accession_id ORDER BY COALESCE(et.family_pid, -1) DESC))[1]
+              AS centroid_accession
+          FROM enzyme_taxonomy et
+          JOIN enzyme_fastaa ef ON ef.enzyme_id = et.enzyme_id
+          GROUP BY et.family
+        )
+        SELECT * FROM per
+        ORDER BY ${sortField} ${sortOrder}
+        LIMIT $1 OFFSET $2
+      `;
+      const countQuery = `SELECT COUNT(DISTINCT family) AS total FROM enzyme_taxonomy`;
+      [dataResult, countResult] = await Promise.all([
+        pool.query(query, [parseInt(limit, 10), parseInt(offset, 10)]),
+        pool.query(countQuery),
+      ]);
+    }
 
     const total = parseInt(countResult.rows[0]?.total || 0);
 

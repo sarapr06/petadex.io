@@ -50,6 +50,14 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
 
   const familyUrl = familyId => `/family/${familyId}`
 
+  const phyloTreeUrl = (familyNum, enzymeIds) => {
+    const params = new URLSearchParams()
+    if (enzymeIds?.length) params.set("highlight", enzymeIds.join(","))
+    if (sessionId) params.set("session", sessionId)
+    const qs = params.toString()
+    return `/tree/${familyNum}${qs ? `?${qs}` : ""}`
+  }
+
   // Family tally
   const familyCounts = {}
   let unknownCount = 0
@@ -62,9 +70,23 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
           enzyme_id: hit.enzyme_id,
           family_num: hit.family,
           has_tree: hit.has_tree,
+          enzyme_ids: [],
+          accessions: [],
         }
       familyCounts[key].count++
       if (hit.has_tree) familyCounts[key].has_tree = true
+      if (hit.enzyme_id != null) {
+        const id = String(hit.enzyme_id)
+        if (!familyCounts[key].enzyme_ids.includes(id)) {
+          familyCounts[key].enzyme_ids.push(id)
+        }
+      }
+      if (hit.accession) {
+        const acc = hit.accession
+        if (!familyCounts[key].accessions.includes(acc)) {
+          familyCounts[key].accessions.push(acc)
+        }
+      }
     } else {
       unknownCount++
     }
@@ -266,7 +288,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
             {familySummaryOpen && (
               <div className="flex flex-col gap-1.5 mt-2.5">
                 {sorted.map(
-                  ([label, { count, enzyme_id, family_num, has_tree }]) => (
+                  ([label, { count, family_num, has_tree, enzyme_ids }]) => (
                     <div
                       key={label}
                       className="flex items-center gap-0.5 text-sm"
@@ -299,6 +321,14 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                       <div className="w-15 shrink-0 text-right text-gray-400">
                         {count} ({Math.round((count / results.length) * 100)}%)
                       </div>
+                      {has_tree && family_num != null && (
+                        <Link
+                          to={phyloTreeUrl(family_num, enzyme_ids)}
+                          className="shrink-0 text-xs text-accent hover:underline ml-2 whitespace-nowrap"
+                        >
+                          View phylogeny
+                        </Link>
+                      )}
                     </div>
                   ),
                 )}

@@ -6,26 +6,21 @@
 import { Router } from 'express';
 import Joi from 'joi';
 import { pool } from '../db.js';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSchemaFlags } from '../schemaFlags.js';
+import {
+  FAMILY_METADATA_FROM_BASE_TABLES,
+  FAMILY_METADATA_FROM_FAMILY_ATLAS,
+  UMAP_POINTS_FROM_BASE_TABLES,
+  UMAP_POINTS_FROM_FAMILY_ATLAS,
+} from '../atlasQueries.js';
+import { GetObjectCommand } from '@aws-sdk/client-s3';
+import { getPublicReadS3Client, streamToString } from '../lib/s3Public.js';
 
 const router = Router();
 
 const familyIdSchema = Joi.number().integer().positive().required();
 
-const AWS_REGION = process.env.AWS_REGION || 'us-east-1';
 const RESULTS_BUCKET = process.env.RESULTS_BUCKET || 'petadex';
-
-let s3Client = null;
-function getS3Client() {
-  if (!s3Client) s3Client = new S3Client({ region: AWS_REGION });
-  return s3Client;
-}
-
-async function streamToString(stream) {
-  const chunks = [];
-  for await (const chunk of stream) chunks.push(chunk);
-  return Buffer.concat(chunks).toString('utf8');
-}
 
 /**
  * GET /api/family/:familyId
@@ -152,14 +147,11 @@ router.get('/:familyId/metadata', async (req, res, next) => {
   if (error) return res.status(400).json({ error: error.message });
 
   try {
-    const { rows } = await pool.query(
-      `SELECT family_id, genbank_accession_id, definition, organism, taxonomy,
-              journal, collection_date, country, family_size, umap_x, umap_y
-       FROM family_atlas
-       WHERE family_id = $1
-       LIMIT 1`,
-      [familyId]
-    );
+    const flags = await getSchemaFlags(pool);
+    const sql = flags.familyAtlas
+      ? FAMILY_METADATA_FROM_FAMILY_ATLAS
+      : FAMILY_METADATA_FROM_BASE_TABLES;
+    const { rows } = await pool.query(sql, [familyId]);
     if (!rows.length) return res.status(404).json({ error: `No atlas metadata for family ${familyId}` });
     res.json(rows[0]);
   } catch (err) {
@@ -177,13 +169,44 @@ router.get('/:familyId/umap', async (req, res, next) => {
   if (error) return res.status(400).json({ error: error.message });
 
   try {
-    const { rows } = await pool.query(
-      `SELECT family_id, umap_x, umap_y, family_size,
-              organism, taxonomy, country, component,
-              cath_domain, domain_name
-       FROM family_atlas`
-    );
+    const flags = await getSchemaFlags(pool);
+    const sql = flags.familyAtlas
+      ? UMAP_POINTS_FROM_FAMILY_ATLAS
+      : UMAP_POINTS_FROM_BASE_TABLES;
+    const { rows } = await pool.query(sql);
     res.json({ points: rows });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /api/family/:familyId/tree-members
+ * Lightweight member list for phylo tree search/labels (no sequences).
+ */
+router.get('/:familyId/tree-members', async (req, res, next) => {
+  const { error, value: familyId } = familyIdSchema.validate(req.params.familyId);
+  if (error) return res.status(400).json({ error: error.message });
+
+  try {
+    const { rows } = await pool.query(
+      `SELECT
+         e.enzyme_id,
+         e.genbank_accession_id,
+         t.family_pid,
+         t.component
+       FROM enzyme_fastaa e
+       INNER JOIN enzyme_taxonomy t ON e.enzyme_id = t.enzyme_id
+       WHERE t.family = $1
+       ORDER BY t.family_pid DESC NULLS FIRST, e.enzyme_id`,
+      [familyId]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: `Family ${familyId} not found` });
+    }
+
+    res.json({ members: rows });
   } catch (err) {
     next(err);
   }
@@ -200,7 +223,7 @@ router.get('/:familyId/tree', async (req, res, next) => {
   }
 
   const key = `search-phylo-trees/family_${familyId}.nwk`;
-  const client = getS3Client();
+  const client = getPublicReadS3Client();
 
   try {
     const response = await client.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: key }));

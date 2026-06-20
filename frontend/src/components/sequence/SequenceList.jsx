@@ -1,12 +1,17 @@
 import React, { useState } from "react"
 import { Link } from "gatsby"
 import SequenceViewer from "./SequenceViewer"
+import LazyPetadexCatalyticDomainsPanel from "../petadexDomains/LazyPetadexCatalyticDomainsPanel.jsx"
 
 const INITIAL_VISIBLE_COUNT = 10
 const LOAD_MORE_INCREMENT = 20
 
 function SequenceList({ title, sequenceList }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE_COUNT)
+  // Only one row mounts the (heavy) feature-viewer at a time, on demand.
+  const [openDomains, setOpenDomains] = useState(
+    /** @type {string | null} */ (null),
+  )
   const visibleSequences = sequenceList.slice(0, visibleCount)
   const hasMore = visibleCount < sequenceList.length
 
@@ -53,45 +58,80 @@ function SequenceList({ title, sequenceList }) {
           ) : (
             <>
               <ul className="space-y-3 list-none p-0">
-                {visibleSequences.map(seq => (
-                  <li
-                    key={seq.accession}
-                    className="card hover:shadow-md transition-shadow p-4"
-                  >
-                    <Link
-                      to={`/sequence/${seq.accession}`}
-                      className="block no-underline text-primary"
+                {visibleSequences.map(seq => {
+                  const domainsOpen = openDomains === seq.accession
+                  return (
+                    <li
+                      key={seq.accession}
+                      className="card hover:shadow-md transition-shadow p-4"
                     >
-                      <h3 className="font-mono text-base font-semibold text-accent mb-2">
-                        {seq.accession}
-                      </h3>
-                      <SequenceViewer
-                        aminoAcidSequence={seq.sequence}
-                        nucleotideSequence={null}
-                      />
-                      {(seq.source || seq.synonyms) && (
-                        <div className="mt-2 text-sm text-muted-foreground space-y-0.5">
-                          {seq.source && (
-                            <p>
-                              <strong className="font-medium text-primary">
-                                Source:
-                              </strong>{" "}
-                              {seq.source}
-                            </p>
-                          )}
-                          {seq.synonyms && (
-                            <p>
-                              <strong className="font-medium text-primary">
-                                Synonyms:
-                              </strong>{" "}
-                              {seq.synonyms}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </Link>
-                  </li>
-                ))}
+                      <Link
+                        to={`/sequence/${seq.accession}`}
+                        className="block no-underline text-primary"
+                      >
+                        <h3 className="font-mono text-base font-semibold text-accent mb-2">
+                          {seq.accession}
+                        </h3>
+                        <SequenceViewer
+                          aminoAcidSequence={seq.sequence}
+                          nucleotideSequence={null}
+                        />
+                        {(seq.source || seq.synonyms) && (
+                          <div className="mt-2 text-sm text-muted-foreground space-y-0.5">
+                            {seq.source && (
+                              <p>
+                                <strong className="font-medium text-primary">
+                                  Source:
+                                </strong>{" "}
+                                {seq.source}
+                              </p>
+                            )}
+                            {seq.synonyms && (
+                              <p>
+                                <strong className="font-medium text-primary">
+                                  Synonyms:
+                                </strong>{" "}
+                                {seq.synonyms}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </Link>
+
+                      <div className="mt-3 border-t border-border pt-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenDomains(domainsOpen ? null : seq.accession)
+                          }
+                          className="text-accent text-sm hover:text-accent-hover bg-transparent border-none cursor-pointer p-0 inline-flex items-center gap-1.5"
+                          aria-expanded={domainsOpen}
+                        >
+                          <span
+                            className={`transition-transform duration-200 ${
+                              domainsOpen ? "rotate-90" : ""
+                            }`}
+                            aria-hidden="true"
+                          >
+                            ▶
+                          </span>
+                          {domainsOpen
+                            ? "Hide catalytic domains"
+                            : "Show catalytic domains"}
+                        </button>
+                        {domainsOpen && (
+                          <div className="mt-3">
+                            <LazyPetadexCatalyticDomainsPanel
+                              accession={seq.accession}
+                              sequence={seq.sequence}
+                              compact
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
 
               {hasMore && (

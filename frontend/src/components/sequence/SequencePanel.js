@@ -2,6 +2,7 @@
 import React from "react";
 import SequenceViewer from "./SequenceViewer";
 import SummaryStatistics from "../SummaryStatistics";
+import LazyPetadexCatalyticDomainsPanel from "../petadexDomains/LazyPetadexCatalyticDomainsPanel.jsx";
 
 export default function SequencePanel({ sequence, accession, summaryStats, statsLoading }) {
   if (!sequence) {
@@ -17,6 +18,12 @@ export default function SequencePanel({ sequence, accession, summaryStats, stats
       <SummaryStatistics
         stats={summaryStats}
         loading={statsLoading}
+      />
+
+      <LazyPetadexCatalyticDomainsPanel
+        accession={accession}
+        sequence={sequence}
+        className="mb-6"
       />
 
       <div className='mb-4 text-sm text-slate-500'>

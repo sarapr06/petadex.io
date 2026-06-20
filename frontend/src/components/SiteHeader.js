@@ -6,6 +6,9 @@ const NAV_ITEMS = [
   { label: "Halo Assay", path: "/halo-assay", key: "halo-assay" },
   { label: "Enzymes", path: "/enzymes", key: "enzymes" },
   { label: "Search", path: "/search", key: "search" },
+  { label: "Substrate", path: "/substrate", key: "substrate" },
+  { label: "Metadata", path: "/metadata", key: "metadata" },
+  { label: "CATH domains", path: "/cath-domains", key: "cath-domains" },
   { label: "Atlas", path: "/atlas", key: "atlas" },
 ]
 
