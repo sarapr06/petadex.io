@@ -4,6 +4,7 @@ import { Link } from "gatsby"
 import Seo from "../components/seo"
 import Container from "../components/common/Container"
 import ScrollableArea from "../components/common/ScrollableArea"
+import IdentifierResolver from "../components/search/IdentifierResolver"
 import config from "../config"
 import { useScrollHeader } from "../hooks/useScrollHeader"
 
@@ -41,7 +42,9 @@ const EnzymeRow = ({ enzyme, isCentroid }) => (
       </span>
     ) : (
       enzyme.family_pid !== null && (
-        <span className="text-sm text-secondary-foreground">{enzyme.family_pid}% identity</span>
+        <span className="text-sm text-secondary-foreground">
+          {enzyme.family_pid}% identity
+        </span>
       )
     )}
 
@@ -64,7 +67,9 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
     if (variants.length) return
     setLoading(true)
     try {
-      const res = await fetch(`${config.apiUrl}/enzymes/family/${family.family_id}?limit=50`)
+      const res = await fetch(
+        `${config.apiUrl}/enzymes/family/${family.family_id}?limit=50`
+      )
       if (res.ok) {
         const data = await res.json()
         setVariants(Array.isArray(data) ? data : data.data || [])
@@ -82,16 +87,13 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
   }
 
   return (
-    <div
-      className="card mb-4"
-      style={{ borderLeft: `4px solid ${color}` }}
-    >
+    <div className="card mb-4" style={{ borderLeft: `4px solid ${color}` }}>
       {/* Header */}
       <div
         role="button"
         tabIndex={0}
         onClick={handleToggle}
-        onKeyDown={(e) => {
+        onKeyDown={e => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault()
             handleToggle()
@@ -127,7 +129,9 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
               </span>
               {family.component_count > 0 && (
                 <span className="text-sm text-secondary-foreground">
-                  <strong className="text-primary">{family.component_count}</strong>{" "}
+                  <strong className="text-primary">
+                    {family.component_count}
+                  </strong>{" "}
                   component{family.component_count !== 1 ? "s" : ""}
                 </span>
               )}
@@ -148,9 +152,11 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
       {isExpanded && (
         <div className="px-6 py-4  border-t border">
           {loading ? (
-            <p className="text-center text-muted-foreground italic py-4">Loading variants…</p>
+            <p className="text-center text-muted-foreground italic py-4">
+              Loading variants…
+            </p>
           ) : variants.length > 0 ? (
-             <ScrollableArea>
+            <ScrollableArea>
               {variants.map(enzyme => (
                 <EnzymeRow
                   key={enzyme.enzyme_id}
@@ -163,9 +169,11 @@ const FamilyCard = ({ family, isExpanded, onToggle }) => {
                   Showing first 50 variants
                 </p>
               )}
-              </ScrollableArea>
+            </ScrollableArea>
           ) : (
-            <p className="text-center text-muted-foreground italic py-4">No variants found</p>
+            <p className="text-center text-muted-foreground italic py-4">
+              No variants found
+            </p>
           )}
         </div>
       )}
@@ -179,7 +187,10 @@ const matchTypeBadge = {
   accession: { className: "bg-info/10 text-info", label: "Accession match" },
   variant: { className: "bg-brand-100 text-brand-700", label: "Variant match" },
   family: { className: "bg-warning/10 text-warning", label: "Family match" },
-  enzyme_id: { className: "bg-success/10 text-success", label: "Enzyme ID match" },
+  enzyme_id: {
+    className: "bg-success/10 text-success",
+    label: "Enzyme ID match",
+  },
 }
 
 // ── SearchResults ──────────────────────────────────────────────────────────
@@ -202,11 +213,14 @@ const SearchResults = ({
             "Searching…"
           ) : (
             <>
-              Found {totalCount} result{totalCount !== 1 ? "s" : ""} for &quot;{query}&quot;
+              Found {totalCount} result{totalCount !== 1 ? "s" : ""} for &quot;
+              {query}&quot;
               {familyResults.length > 0 && enzymeResults.length > 0 && (
                 <span className="ml-2 text-muted-foreground">
-                  ({familyResults.length} {familyResults.length === 1 ? "family" : "families"},{" "}
-                  {enzymeResults.length} {enzymeResults.length === 1 ? "enzyme" : "enzymes"})
+                  ({familyResults.length}{" "}
+                  {familyResults.length === 1 ? "family" : "families"},{" "}
+                  {enzymeResults.length}{" "}
+                  {enzymeResults.length === 1 ? "enzyme" : "enzymes"})
                 </span>
               )}
             </>
@@ -215,7 +229,8 @@ const SearchResults = ({
 
         {!loading && totalCount === 0 && (
           <p className="text-muted-foreground">
-            No results found. Try a partial accession, enzyme ID, family number, or variant accession.
+            No results found. Try a partial accession, enzyme ID, family number,
+            or variant accession.
           </p>
         )}
 
@@ -254,7 +269,9 @@ const SearchResults = ({
                   {enzyme.match_type && matchTypeBadge[enzyme.match_type] && (
                     <div className="flex flex-col items-end gap-1 min-w-[120px]">
                       <span
-                        className={`px-2 py-0.5 rounded text-2xs font-semibold whitespace-nowrap ${matchTypeBadge[enzyme.match_type].className}`}
+                        className={`px-2 py-0.5 rounded text-2xs font-semibold whitespace-nowrap ${
+                          matchTypeBadge[enzyme.match_type].className
+                        }`}
                       >
                         {matchTypeBadge[enzyme.match_type].label}
                       </span>
@@ -327,14 +344,16 @@ const EnzymesPage = ({ location }) => {
     setHasMore(false)
 
     fetch(`${config.apiUrl}/enzymes/stats/overview`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setStats(data) })
+      .then(r => (r.ok ? r.json() : null))
+      .then(data => {
+        if (data) setStats(data)
+      })
       .catch(err => console.error("Error loading stats:", err))
 
     fetch(
       `${config.apiUrl}/enzymes/families/summary?limit=${FAMILIES_INITIAL}&offset=0&sort=${sortBy}`
     )
-      .then(r => r.ok ? r.json() : null)
+      .then(r => (r.ok ? r.json() : null))
       .then(data => {
         if (data) {
           setFamilies(data.data || [])
@@ -388,7 +407,9 @@ const EnzymesPage = ({ location }) => {
     setLoadingSearch(true)
     try {
       const res = await fetch(
-        `${config.apiUrl}/enzymes/search?q=${encodeURIComponent(query)}&limit=100`
+        `${config.apiUrl}/enzymes/search?q=${encodeURIComponent(
+          query
+        )}&limit=100`
       )
       if (res.ok) {
         const data = await res.json()
@@ -419,8 +440,12 @@ const EnzymesPage = ({ location }) => {
   return (
     <section className="py-20 md:py-24 text-center">
       <Container>
-        <h1 className='text-3xl font-bold tracking-tight text-primary md:text-4xl'>BLAST-NR Enzyme Database</h1>
-        <p className="mt-4 text-lg text-secondary-foreground">Browse plastic-degrading enzyme families</p>
+        <h1 className="text-3xl font-bold tracking-tight text-primary md:text-4xl">
+          BLAST-NR Enzyme Database
+        </h1>
+        <p className="mt-4 text-lg text-secondary-foreground">
+          Browse plastic-degrading enzyme families
+        </p>
 
         {componentFilterId != null && (
           <div className="mt-6 max-w-4xl mx-auto text-left rounded-xl border border-border bg-card p-4 md:p-5">
@@ -482,7 +507,22 @@ const EnzymesPage = ({ location }) => {
           </div>
         )}
 
-        {/* Search */}
+        {/* Identifier resolver (MVP Search Index) */}
+        <div className="mb-8 mt-2">
+          <h2 className="text-base font-semibold text-secondary-foreground mb-1">
+            Resolve an identifier
+          </h2>
+          <p className="text-sm text-muted-foreground mb-3">
+            Jump straight to an ORF by internal ORF ID, GenBank accession, or
+            SRA library.
+          </p>
+          <IdentifierResolver />
+        </div>
+
+        {/* Browse / search families */}
+        <h2 className="text-base font-semibold text-secondary-foreground mb-1">
+          Browse families
+        </h2>
         <input
           type="text"
           value={searchQuery}
@@ -494,7 +534,12 @@ const EnzymesPage = ({ location }) => {
         {/* Sort (families view only) */}
         {view === "families" && (
           <div className="flex items-center gap-2 mb-2">
-            <label htmlFor="enzymes-sort-by" className="text-sm text-secondary-foreground">Sort by:</label>
+            <label
+              htmlFor="enzymes-sort-by"
+              className="text-sm text-secondary-foreground"
+            >
+              Sort by:
+            </label>
             <select
               id="enzymes-sort-by"
               value={sortBy}
@@ -512,7 +557,9 @@ const EnzymesPage = ({ location }) => {
 
       {/* Content */}
       {loadingFamilies && view === "families" ? (
-        <p className="text-center text-muted-foreground italic py-8">Loading families…</p>
+        <p className="text-center text-muted-foreground italic py-8">
+          Loading families…
+        </p>
       ) : error ? (
         <div className="mx-auto max-w-2xl mt-4 p-4 bg-error/5 border border-error/20 rounded-xl text-destructive text-center">
           Error loading data: {error}
@@ -535,7 +582,11 @@ const EnzymesPage = ({ location }) => {
               <button
                 onClick={loadMoreFamilies}
                 disabled={loadingMore}
-                className={`btn ${loadingMore ? "btn-ghost text-muted-foreground cursor-default" : "btn-secondary"}`}
+                className={`btn ${
+                  loadingMore
+                    ? "btn-ghost text-muted-foreground cursor-default"
+                    : "btn-secondary"
+                }`}
               >
                 {loadingMore ? "Loading…" : "Load More"}
               </button>
@@ -553,7 +604,6 @@ const EnzymesPage = ({ location }) => {
         />
       )}
     </section>
-
   )
 }
 
