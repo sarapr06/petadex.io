@@ -1,6 +1,6 @@
 # PETadex API - Database Dependencies
 
-**Auto-generated**: 2026-06-20
+**Auto-generated**: 2026-06-23
 **Purpose**: Maps API endpoints to database tables/columns to identify breaking changes
 
 ---
@@ -13,6 +13,7 @@
 | `/api/aa-seq-features/:accession` | GET | aa_seq_features |
 | `/api/atlas/umap` | GET | None |
 | `/api/atlas/components` | GET | None |
+| `/api/cluster/:level/:clusterId` | GET | None |
 | `/api/enzymes/` | GET | None |
 | `/api/enzymes/search` | GET | enzyme_taxonomy, family_stats, enzyme_fastaa |
 | `/api/enzymes/:enzyme_id` | GET | enzyme_fastaa, enzyme_taxonomy |
@@ -48,6 +49,8 @@
 | `/api/plate-data/gene/:gene` | GET | plate_data |
 | `/api/plate-data/activity/gene/:gene` | GET | plate_activity_view |
 | `/api/plate-data/experiment/:exp_id` | GET | plate_activity_view |
+| `/api/resolve/summary` | GET | corpus_summary |
+| `/api/resolve/` | GET | None |
 | `/api/sara-viewer/` | GET | sara_domains, sara_important_motfis, sara_signal_sequences |
 | `/api/sara-viewer/by-accession/:accession` | GET | None |
 | `/api/sara-viewer/:orfId` | GET | None |
@@ -111,6 +114,26 @@ Base: `/api/atlas`
 ### GET `/api/atlas/components`
 
 **Tables**: None
+
+---
+
+## Cluster Routes
+
+Base: `/api/cluster`
+
+### GET `/api/cluster/:level/:clusterId`
+
+**Parameters**: `level`, `clusterId`
+
+**Tables**: None
+
+<details>
+<summary>SQL Query</summary>
+
+```sql
+SELECT * FROM ${table} WHERE cluster_id = $1 LIMIT 1
+```
+</details>
 
 ---
 
@@ -1090,6 +1113,33 @@ SELECT
       ORDER BY gene, plate, row, column
 ```
 </details>
+
+---
+
+## Resolve Routes
+
+Base: `/api/resolve`
+
+### GET `/api/resolve/summary`
+
+**Tables**: corpus_summary
+
+**Columns**:
+- `corpus_summary`: *
+
+<details>
+<summary>SQL Query</summary>
+
+```sql
+SELECT * FROM corpus_summary LIMIT 1
+```
+</details>
+
+---
+
+### GET `/api/resolve/`
+
+**Tables**: None
 
 ---
 
