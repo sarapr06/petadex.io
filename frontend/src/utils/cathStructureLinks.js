@@ -1,5 +1,5 @@
 /**
- * Build PETadex-internal links for domain navigation.
+ * Build PETadex-internal navigation links for a CATH domain profile.
  *
  * @param {{
  *   cathId?: string,
@@ -7,32 +7,66 @@
  *   pdbIds?: string[],
  *   resourceLinks?: { label: string, url: string }[],
  * }} domain
- * @returns {{ label: string, url: string, internal: boolean }[]}
+ * @returns {{
+ *   atlas: { label: string, url: string } | null,
+ *   enzymes: { label: string, url: string } | null,
+ *   extras: { label: string, url: string, internal: boolean }[],
+ * }}
  */
-export function buildCathDomainStructureLinks(domain) {
-  const out = []
+export function buildCathDomainPetadexLinks(domain) {
+  const extras = []
   const seen = new Set()
-  const add = (label, url) => {
-    if (!url || !label || seen.has(url) || !url.startsWith("/")) return
-    seen.add(url)
-    out.push({ label, url, internal: true })
-  }
 
   for (const x of domain.resourceLinks || []) {
-    if (x?.url && x?.label) add(x.label, x.url)
+    if (!x?.url || !x?.label || seen.has(x.url)) continue
+    seen.add(x.url)
+    extras.push({
+      label: x.label,
+      url: x.url,
+      internal: x.url.startsWith("/"),
+    })
   }
 
-  const cath = domain.cathId
-  if (cath && /^(\d+\.){3}\d+$/.test(String(cath).trim())) {
-    const c = String(cath).trim()
-    add(`PETadex atlas (CATH ${c})`, `/atlas?cath=${encodeURIComponent(c)}`)
-  }
-
-  add("PETadex family atlas", "/atlas")
-
+  let atlas = null
   if (domain.component != null && Number.isFinite(Number(domain.component))) {
-    add("PETadex enzymes (this component)", `/enzymes?component=${Number(domain.component)}`)
+    const n = Number(domain.component)
+    atlas = {
+      label: `Family atlas (component ${n})`,
+      url: `/atlas?component=${n}`,
+    }
+  } else {
+    const cath = domain.cathId
+    if (cath && /^(\d+\.){3}\d+$/.test(String(cath).trim())) {
+      const c = String(cath).trim()
+      atlas = {
+        label: `Family atlas (CATH ${c})`,
+        url: `/atlas?cath=${encodeURIComponent(c)}`,
+      }
+    } else {
+      atlas = { label: "Family atlas", url: "/atlas" }
+    }
   }
 
+  let enzymes = null
+  if (domain.component != null && Number.isFinite(Number(domain.component))) {
+    const n = Number(domain.component)
+    enzymes = {
+      label: `Browse enzymes (component ${n})`,
+      url: `/enzymes?component=${n}`,
+    }
+  }
+
+  return { atlas, enzymes, extras }
+}
+
+/** @deprecated Use buildCathDomainPetadexLinks */
+export function buildCathDomainStructureLinks(domain) {
+  const { atlas, enzymes, extras } = buildCathDomainPetadexLinks(domain)
+  const out = []
+  if (atlas) out.push({ ...atlas, internal: true })
+  if (enzymes) out.push({ ...enzymes, internal: true })
+  for (const x of extras) {
+    if (x.internal) out.push({ label: x.label, url: x.url, internal: true })
+  }
   return out
 }
