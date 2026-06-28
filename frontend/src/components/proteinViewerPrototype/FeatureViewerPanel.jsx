@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
+import "../../styles/feature-viewer-overrides.css"
 import FeatureViewerOverviewNav from "./FeatureViewerOverviewNav.jsx"
 import { featureViewerTrackDefinitions } from "./mockProteinData.js"
 import { isLightTheme } from "./nightingaleStripeColors.js"
@@ -429,7 +430,6 @@ export default function FeatureViewerPanel({
 
     ;(async () => {
       const mod = await import("feature-viewer")
-      await import("../../styles/feature-viewer-overrides.css")
       const { createFeature } = mod
       if (cancelled || !containerRef.current) return
 

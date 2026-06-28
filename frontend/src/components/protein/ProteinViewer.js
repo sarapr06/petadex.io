@@ -105,8 +105,6 @@ const ProteinViewer = ({
         setHoverTip(null);
         setPinnedAnnotation(null);
 
-        await import('molstar/lib/mol-plugin-ui/skin/light.scss');
-
         const { createPluginUI } = await import('molstar/lib/mol-plugin-ui');
         const { renderReact18 } = await import('molstar/lib/mol-plugin-ui/react18');
         const { DefaultPluginUISpec } = await import('molstar/lib/mol-plugin-ui/spec');

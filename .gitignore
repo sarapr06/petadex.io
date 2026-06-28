@@ -39,3 +39,5 @@ generated-schema.md
 CLAUDE.md
 generated-schema 2.md
 docs/.cursor/
+docs/metadata-map.md
+docs/*
