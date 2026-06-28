@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from "react"
 import config from "../config"
+import { cathDomainPathForComponent } from "../utils/cathDomainCatalogLookup"
 
 /* ── Cluster definitions for fallback fake data ─────────────── */
 const FALLBACK_CLUSTERS = [
@@ -307,7 +308,7 @@ export default function AtlasMap({ interactive = true, className = "" }) {
           <div className="pointer-events-auto mt-2 flex flex-wrap gap-x-3 gap-y-1 border-t border-border/60 pt-2">
             {hover.point.component != null && (
               <a
-                href={`/cath-domains?component=${hover.point.component}`}
+                href={cathDomainPathForComponent(hover.point.component)}
                 className="text-accent hover:text-accent-hover underline underline-offset-2"
               >
                 CATH domain page

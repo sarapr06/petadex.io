@@ -5,7 +5,9 @@
  * @type {Record<string, number>}
  */
 export const PFAM_TO_ATLAS_COMPONENT = {
-  // Example once validated: PF01425: 43,
+  PF01674: 1,
+  PF03403: 1,
+  PF00082: 11,
 }
 
 /**
