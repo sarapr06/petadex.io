@@ -5,33 +5,40 @@
  * Users can load cached results to see how the search works.
  */
 
-import React, { useState, useEffect } from 'react';
-import config from '../../config';
+import React from 'react';
+
+// Hardcoded example searches. The `job_id` slugs (regen_example_*) are
+// resolved server-side to cached results on the /results page, so these
+// stay in sync with the backend EXAMPLE_SEARCHES list in
+// backend/src/routes/search.js.
+const EXAMPLES = [
+  {
+    job_id: 'regen_example_ispetase',
+    name: 'IsPETase',
+    description: 'Well-characterized PETase from Ideonella sakaiensis',
+    organism: 'Ideonella sakaiensis',
+    query_length: 290,
+  },
+  {
+    job_id: 'regen_example_fast_petase',
+    name: 'FAST-PETase',
+    description: 'Engineered variant with enhanced activity and thermostability',
+    organism: 'Engineered',
+    query_length: 290,
+  },
+  {
+    job_id: 'regen_example_srr10663367',
+    name: 'SRR10663367',
+    description: 'Logan-discovered enzyme with activity exceeding FAST-PETase',
+    organism: 'Metagenome',
+    query_length: 290,
+  },
+];
 
 const ExampleCards = ({ onSelectExample, disabled }) => {
-  const [examples, setExamples] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const examples = EXAMPLES;
 
-  const searchApiUrl = process.env.GATSBY_SEARCH_API_URL || config.apiUrl;
-
-  useEffect(() => {
-    async function fetchExamples() {
-      try {
-        const response = await fetch(`${searchApiUrl}/search/examples`);
-        if (response.ok) {
-          const data = await response.json();
-          setExamples(data.examples || []);
-        }
-      } catch (err) {
-        console.error('Failed to fetch examples:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchExamples();
-  }, [searchApiUrl]);
-
-  if (loading || examples.length === 0) {
+  if (examples.length === 0) {
     return null;
   }
 
