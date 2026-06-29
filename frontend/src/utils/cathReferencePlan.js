@@ -1,8 +1,8 @@
-import { CATH_NARRATIVE_SECTIONS } from "./cathDomainSectionConfig"
-import { findReferenceIndexInCatalog } from "./cathCaptionLinks"
+import { CATH_NARRATIVE_SECTIONS } from "./cathDomainSectionConfig.js"
+import { findReferenceIndexInCatalog } from "./cathReferenceIndex.js"
 import {
   getFiguresByRenderSection,
-} from "./cathDomainFigureAnchors"
+} from "./cathDomainFigureAnchors.js"
 
 const URL_RE = /https?:\/\/[^\s)\]]+/gi
 const PMC_RE = /\b(PMC\d+)\b/gi

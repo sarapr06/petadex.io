@@ -1,48 +1,22 @@
 import React from "react"
 
+// Pure citation-index helpers live in a JSX-free module so Node can require
+// them via cathReferencePlan.js (gatsby-node onPreBuild). Imported here for the
+// renderer below and re-exported for existing consumers that import them from
+// cathCaptionLinks.
+import {
+  refIndexForUrlToken,
+  refIndexForPmcToken,
+  findReferenceIndexInCatalog,
+} from "./cathReferenceIndex.js"
+
+export { refIndexForUrlToken, refIndexForPmcToken, findReferenceIndexInCatalog }
+
 function normalizeUrl(u) {
   return String(u || "")
     .trim()
     .replace(/\/+$/, "")
     .toLowerCase()
-}
-
-/**
- * @param {string} urlToken
- * @param {{ label?: string, url?: string|null }[]} references
- */
-export function refIndexForUrlToken(urlToken, references) {
-  const n = normalizeUrl(urlToken)
-  if (!n) return -1
-  let exact = -1
-  let fuzzy = -1
-  references.forEach((r, i) => {
-    if (!r?.url) return
-    const ru = normalizeUrl(r.url)
-    if (!ru) return
-    if (n === ru) exact = i
-    else if (fuzzy < 0 && (n.startsWith(ru) || ru.startsWith(n))) fuzzy = i
-  })
-  return exact >= 0 ? exact : fuzzy
-}
-
-/**
- * @param {string} pmc
- * @param {{ label?: string, url?: string|null }[]} references
- */
-export function refIndexForPmcToken(pmc, references) {
-  const id = String(pmc).toUpperCase()
-  return references.findIndex(r => r?.url && String(r.url).toUpperCase().includes(id))
-}
-
-/**
- * @param {string} token
- * @param {{ label?: string, url?: string|null }[]} references
- * @param {"url"|"pmc"} kind
- */
-export function findReferenceIndexInCatalog(token, references, kind) {
-  if (kind === "pmc") return refIndexForPmcToken(token, references)
-  return refIndexForUrlToken(token, references)
 }
 
 /**
