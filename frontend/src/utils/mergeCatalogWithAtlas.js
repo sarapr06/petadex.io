@@ -64,6 +64,7 @@ export function buildDomainModelFromCatalog(catalogEntry, atlasRow) {
     moreInformation: catalogEntry.moreInformation,
     moreInformationFigure: catalogEntry.moreInformationFigure,
     postLocalizationTable: catalogEntry.postLocalizationTable,
+    preLocalizationTable: catalogEntry.preLocalizationTable,
     prePtmsTable: catalogEntry.prePtmsTable,
     postCatalyticResiduesTable: catalogEntry.postCatalyticResiduesTable,
     postStructureTable: catalogEntry.postStructureTable,

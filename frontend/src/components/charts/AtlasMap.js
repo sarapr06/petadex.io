@@ -1,10 +1,18 @@
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Link } from "gatsby"
 import config from "../../config"
+import { cathDomainPathForComponent } from "../../utils/cathDomainCatalogLookup"
 import {
   COMPONENT_TO_CATH,
   CATH_HUE,
   hslToRgb,
 } from "../../utils/cathColors"
+import {
+  filterPointsByComponents,
+  fitDeckToPoints,
+  hiddenForFocus,
+  resolveVisibleComponents,
+} from "../../utils/atlasFocus"
 import TerminalLoader from "../common/TerminalLoader"
 
 // ── colour helpers ──────────────────────────────────────────────────────────
@@ -227,6 +235,7 @@ function buildTooltip(object, highlightFamilyId) {
     ["Domain", domain],
     ["Phylum", phylum],
     object.country ? ["Country", object.country] : null,
+    object.cath_domain ? ["CATH", object.cath_domain] : null,
     object.component != null ? ["Component", object.component] : null,
   ].filter(Boolean)
 
@@ -240,8 +249,31 @@ function buildTooltip(object, highlightFamilyId) {
     )
     .join("")
 
+  const links = []
+  if (object.component != null) {
+    links.push(
+      `<a href="${cathDomainPathForComponent(object.component)}" style="color:#38bdf8;text-decoration:underline;font-size:11px" target="_blank" rel="noopener noreferrer">CATH domain page</a>`,
+    )
+  }
+  if (object.family_id != null && !isCurrent) {
+    links.push(
+      `<a href="/family/${object.family_id}" style="color:#38bdf8;text-decoration:underline;font-size:11px" target="_blank" rel="noopener noreferrer">Family page</a>`,
+    )
+  }
+  const linksHtml =
+    links.length > 0
+      ? `<div style="margin-top:8px;padding-top:6px;border-top:1px solid #334155;display:flex;flex-wrap:wrap;gap:10px;pointer-events:auto">${links.join("")}</div>`
+      : ""
+
+  const hint =
+    !isCurrent && links.length === 0
+      ? '<div style="margin-top:6px;color:#64748b;font-size:11px">Click to view family</div>'
+      : !isCurrent && links.length > 0
+        ? '<div style="margin-top:4px;color:#64748b;font-size:11px">Click point to open family</div>'
+        : ""
+
   return {
-    html: `<div style="max-width:280px">${rowsHtml}${!isCurrent ? '<div style="margin-top:6px;color:#64748b;font-size:11px">Click to view family</div>' : ''}</div>`,
+    html: `<div style="max-width:280px;pointer-events:none">${rowsHtml}${linksHtml}${hint}</div>`,
     style: {
       background: "#1e293b",
       padding: "10px 12px",
@@ -249,7 +281,7 @@ function buildTooltip(object, highlightFamilyId) {
       fontSize: "12px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
       border: "1px solid #334155",
-      pointerEvents: "none",
+      pointerEvents: "auto",
     },
   }
 }
@@ -275,9 +307,26 @@ const navBtnStyle = {
   lineHeight: 1,
 }
 
-const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnabled = true, fullscreen = false } = {}) => {
+const AtlasMap = ({
+  familyId: familyIdProp,
+  highlightFamilyIds,
+  controllerEnabled = true,
+  fullscreen = false,
+  focusComponent = null,
+  focusCathDomain = null,
+} = {}) => {
   const propHighlightId = familyIdProp != null ? parseInt(familyIdProp) : null
   const compact = propHighlightId != null
+  const hasAtlasFocus = focusComponent != null || Boolean(focusCathDomain)
+  const focusMeta = useMemo(() => {
+    if (focusComponent != null) {
+      return { label: `Component ${focusComponent}`, clearUrl: "/atlas" }
+    }
+    if (focusCathDomain) {
+      return { label: `CATH ${focusCathDomain}`, clearUrl: "/atlas" }
+    }
+    return null
+  }, [focusComponent, focusCathDomain])
   const [highlightFamilyId, setHighlightFamilyId] = useState(propHighlightId)
   const containerRef    = useRef(null)
   const deckRef         = useRef(null)
@@ -301,6 +350,26 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
   const [searchPanel,          setSearchPanel]          = useState(null)  // current match point
   const [isMobile,             setIsMobile]             = useState(false)
   const [legendOpen,           setLegendOpen]           = useState(false)
+  const [focusComponentCount,  setFocusComponentCount]  = useState(null)
+
+  const computeFocusHidden = useCallback(
+    points => {
+      if (!hasAtlasFocus) return new Set()
+      const visible = resolveVisibleComponents(points, focusComponent, focusCathDomain)
+      if (!visible) return new Set()
+      setFocusComponentCount(visible.size)
+      return hiddenForFocus(points, visible)
+    },
+    [hasAtlasFocus, focusComponent, focusCathDomain],
+  )
+
+  const fitToAtlasFocus = useCallback(() => {
+    const points = pointsRef.current
+    if (!points.length || !hasAtlasFocus) return
+    const visible = resolveVisibleComponents(points, focusComponent, focusCathDomain)
+    if (!visible) return
+    fitDeckToPoints(filterPointsByComponents(points, visible), deckRef, containerRef)
+  }, [hasAtlasFocus, focusComponent, focusCathDomain])
 
   const zoomToHighlight = useCallback(() => {
     if (!deckRef.current || !highlightPosRef.current) return
@@ -500,6 +569,10 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
         maxSizeRef.current  = maxSize
         pointsRef.current   = points
 
+        const initialHidden = computeFocusHidden(points)
+        const initialColorBy = hasAtlasFocus ? "component" : "component"
+        colorByRef.current = initialColorBy
+
         if (highlightFamilyId != null) {
           const hp = points.find(p => p.family_id === highlightFamilyId)
           if (hp) highlightPosRef.current = [hp.umap_x, hp.umap_y, 0]
@@ -510,7 +583,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
           views: new OrthographicView({ id: "ortho" }),
           initialViewState: { target: [cx, cy, 0], zoom },
           controller: controllerEnabled,
-          layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, "component", new Set(), highlightFamilyId, highlightFamilyIds)],
+          layers: [buildScatterLayer(points, maxSize, ScatterplotLayer, initialColorBy, initialHidden, highlightFamilyId, highlightFamilyIds)],
           getTooltip: ({ object }) => object && buildTooltip(object, highlightFamilyId),
           onClick: ({ object }) => {
             if (object?.family_id != null && object.family_id !== highlightFamilyId) {
@@ -523,10 +596,16 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
 
         deckRef.current = deck
         setPointCount(points.length)
-        setLegend(buildLegend(points, colorByRef.current))
+        setHidden(initialHidden)
+        setColorBy(initialColorBy)
+        setLegend(buildLegend(points, initialColorBy))
         setLoading(false)
 
-        requestAnimationFrame(projectHighlight)
+        if (hasAtlasFocus && initialHidden.size > 0) {
+          requestAnimationFrame(() => fitToAtlasFocus())
+        } else {
+          requestAnimationFrame(projectHighlight)
+        }
       } catch (err) {
         console.error("AtlasMap error:", err)
         setError(err.name === "AbortError" ? "Atlas data timed out — server may be unavailable" : err.message)
@@ -552,6 +631,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
 
   // ── react to colorBy changes ──────────────────────────────────────────────
   useEffect(() => {
+    if (hasAtlasFocus) return
     colorByRef.current = colorBy
     if (!deckRef.current || !pointsRef.current.length || !LayerRef.current) return
     const fresh = new Set()
@@ -561,7 +641,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       layers: [buildScatterLayer(pointsRef.current, maxSizeRef.current, LayerRef.current, colorBy, fresh, highlightFamilyId, highlightFamilyIds)],
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [colorBy])
+  }, [colorBy, hasAtlasFocus])
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -642,6 +722,56 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
           </div>
         )
       })()}
+
+      {/* atlas focus banner */}
+      {!loading && !error && focusMeta && (
+        <div
+          style={{
+            position: "absolute",
+            top: fullscreen ? (isMobile ? "52px" : "14px") : "14px",
+            right: fullscreen ? "14px" : undefined,
+            left: fullscreen ? undefined : "50%",
+            transform: fullscreen ? undefined : "translateX(-50%)",
+            zIndex: 11,
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "6px 12px",
+            borderRadius: "6px",
+            background: "rgba(15,23,42,0.92)",
+            border: "1px solid #334155",
+            pointerEvents: "auto",
+          }}
+        >
+          <span style={{ color: "#e2e8f0", fontSize: "12px" }}>
+            Focused on {focusMeta.label}
+            {focusComponentCount != null && focusCathDomain
+              ? ` (${focusComponentCount} component${focusComponentCount === 1 ? "" : "s"})`
+              : ""}
+          </span>
+          <button
+            type="button"
+            onClick={fitToAtlasFocus}
+            style={{
+              ...navBtnStyle,
+              fontSize: "11px",
+              padding: "3px 8px",
+            }}
+          >
+            Fit view
+          </button>
+          <Link
+            to={focusMeta.clearUrl}
+            style={{
+              color: "#94a3b8",
+              fontSize: "11px",
+              textDecoration: "underline",
+            }}
+          >
+            Clear filter
+          </Link>
+        </div>
+      )}
 
       {/* fit-to-highlighted button */}
       {!loading && !error && !fullscreen && (highlightFamilyIds?.size > 0 || searchMatches.length > 0) && (
@@ -784,7 +914,7 @@ const AtlasMap = ({ familyId: familyIdProp, highlightFamilyIds, controllerEnable
       )}
 
       {/* colour-by controls */}
-      {!loading && !error && (
+      {!loading && !error && !hasAtlasFocus && (
         <div
           style={{
             position: "absolute",

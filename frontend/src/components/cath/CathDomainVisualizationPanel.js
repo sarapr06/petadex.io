@@ -1,7 +1,24 @@
-import React from "react"
+import React, { useMemo } from "react"
 import { Link } from "gatsby"
 import { CATH_BASE_CSS } from "../../utils/cathColors"
-import { buildCathDomainStructureLinks } from "../../utils/cathStructureLinks"
+import { buildCathDomainPetadexLinks } from "../../utils/cathStructureLinks"
+import { pfamEntryUrl, stripRedundantPfamFromDisplayName } from "../../utils/cathDomainSectionConfig"
+import { renderCaptionWithReferenceAnchors } from "../../utils/cathCaptionLinks"
+import { buildCathReferencePlan } from "../../utils/cathReferencePlan"
+
+const overviewRefLinkOptions = {
+  numbered: true,
+  linkClassName:
+    "text-accent font-semibold no-underline hover:underline decoration-accent/50 hover:text-accent-hover",
+}
+
+const openInNewTab = { target: "_blank", rel: "noopener noreferrer" }
+
+/** @param {string} url */
+function isAtlasPath(url) {
+  const path = String(url || "").split("?")[0]
+  return path === "/atlas" || path.startsWith("/atlas/")
+}
 
 /**
  * @param {object} props
@@ -25,7 +42,50 @@ const CathDomainVisualizationPanel = ({ domain }) => {
     ? domain.legendSegments
     : [{ label: "Assigned CATH domain", cathId: domain.cathId }]
 
-  const structureLinks = buildCathDomainStructureLinks(domain)
+  const referencePlan = useMemo(() => buildCathReferencePlan(domain), [domain])
+  const displayNumberByCatalogIndex = referencePlan.displayNumberByCatalogIndex
+  const references = domain.references || []
+
+  const summaryContent = useMemo(
+    () =>
+      renderCaptionWithReferenceAnchors(
+        domain.summary,
+        references,
+        overviewRefLinkOptions,
+        displayNumberByCatalogIndex,
+      ) ?? domain.summary,
+    [domain.summary, references, displayNumberByCatalogIndex],
+  )
+
+  const moreInformationContent = useMemo(
+    () =>
+      domain.moreInformation
+        ? renderCaptionWithReferenceAnchors(
+            domain.moreInformation,
+            references,
+            overviewRefLinkOptions,
+            displayNumberByCatalogIndex,
+          ) ?? domain.moreInformation
+        : null,
+    [domain.moreInformation, references, displayNumberByCatalogIndex],
+  )
+
+  const moreInformationFigureCaption = useMemo(
+    () =>
+      domain.moreInformationFigure?.caption
+        ? renderCaptionWithReferenceAnchors(
+            domain.moreInformationFigure.caption,
+            references,
+            overviewRefLinkOptions,
+            displayNumberByCatalogIndex,
+          ) ?? domain.moreInformationFigure.caption
+        : null,
+    [domain.moreInformationFigure?.caption, references, displayNumberByCatalogIndex],
+  )
+
+  const petadexLinks = buildCathDomainPetadexLinks(domain)
+  const hasPetadexLinks =
+    petadexLinks.atlas || petadexLinks.enzymes || petadexLinks.extras.length > 0
   const embedPdbId =
     Array.isArray(domain.pdbIds) && domain.pdbIds.length ? String(domain.pdbIds[0]).toUpperCase() : null
   const embedUrl =
@@ -34,7 +94,10 @@ const CathDomainVisualizationPanel = ({ domain }) => {
       : null
 
   return (
-    <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden mt-6">
+    <div
+      id="cath-overview"
+      className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm overflow-hidden mt-6 scroll-mt-28"
+    >
       <div className="p-5 md:p-6 border-b border-border bg-muted/30">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div>
@@ -42,8 +105,23 @@ const CathDomainVisualizationPanel = ({ domain }) => {
               {domain.profileHmm}
               <span className="text-muted-foreground/70"> · </span>
               {domain.cathId}
+              {domain.pfamAccession ? (
+                <>
+                  <span className="text-muted-foreground/70"> · </span>
+                  <a
+                    href={pfamEntryUrl(domain.pfamAccession)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent hover:text-accent-hover underline underline-offset-2"
+                  >
+                    {domain.pfamAccession}
+                  </a>
+                </>
+              ) : null}
             </p>
-            <h2 className="text-xl md:text-2xl font-semibold text-primary m-0">{domain.displayName}</h2>
+            <h2 className="text-xl md:text-2xl font-semibold text-primary m-0">
+              {stripRedundantPfamFromDisplayName(domain.displayName, domain.pfamAccession)}
+            </h2>
           </div>
           <div className="text-sm text-muted-foreground shrink-0 sm:text-right">
             <div className="font-medium text-foreground/90">Source</div>
@@ -54,14 +132,14 @@ const CathDomainVisualizationPanel = ({ domain }) => {
             <div className="mt-1">Updated {domain.lastUpdated}</div>
           </div>
         </div>
-        <p className="text-muted-foreground text-sm mt-3 mb-0 leading-relaxed max-w-4xl">{domain.summary}</p>
+        <p className="text-muted-foreground text-sm mt-3 mb-0 leading-relaxed max-w-4xl">{summaryContent}</p>
         {domain.moreInformation && (
           <div className="mt-4 max-w-4xl rounded-lg border border-border bg-background/50 px-4 py-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 m-0">
               More information
             </p>
             <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap m-0">
-              {domain.moreInformation}
+              {moreInformationContent}
             </p>
             {domain.moreInformationFigure?.imageSrc && (
               <figure className="mt-4 m-0">
@@ -75,7 +153,7 @@ const CathDomainVisualizationPanel = ({ domain }) => {
                 </div>
                 {domain.moreInformationFigure.caption && (
                   <figcaption className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                    {domain.moreInformationFigure.caption}
+                    {moreInformationFigureCaption}
                   </figcaption>
                 )}
               </figure>
@@ -85,14 +163,48 @@ const CathDomainVisualizationPanel = ({ domain }) => {
       </div>
 
       <div className="p-5 md:p-6">
-        {structureLinks.length > 0 && (
+        {hasPetadexLinks && (
           <div className="mb-6 rounded-xl border border-border bg-muted/15 p-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3 m-0">
-              PETadex links
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1 m-0">
+              Related in PETadex
+            </p>
+            <p className="text-xs text-muted-foreground mb-3 m-0 leading-relaxed">
+              Atlas links open a filtered UMAP view in a new tab. External sources are in References below.
             </p>
             <ul className="flex flex-wrap gap-2 list-none m-0 p-0">
-              {structureLinks.map(({ label, url, internal }) =>
-                internal ? (
+              {petadexLinks.atlas && (
+                <li>
+                  <a
+                    href={petadexLinks.atlas.url}
+                    {...openInNewTab}
+                    className="inline-flex items-center rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-medium text-accent hover:bg-muted/50 hover:text-accent-hover transition-colors"
+                  >
+                    {petadexLinks.atlas.label}
+                  </a>
+                </li>
+              )}
+              {petadexLinks.enzymes && (
+                <li>
+                  <Link
+                    to={petadexLinks.enzymes.url}
+                    className="inline-flex items-center rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-medium text-accent hover:bg-muted/50 hover:text-accent-hover transition-colors"
+                  >
+                    {petadexLinks.enzymes.label}
+                  </Link>
+                </li>
+              )}
+              {petadexLinks.extras.map(({ label, url, internal }) =>
+                internal && isAtlasPath(url) ? (
+                  <li key={url}>
+                    <a
+                      href={url}
+                      {...openInNewTab}
+                      className="inline-flex items-center rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-medium text-accent hover:bg-muted/50 hover:text-accent-hover transition-colors"
+                    >
+                      {label}
+                    </a>
+                  </li>
+                ) : internal ? (
                   <li key={url}>
                     <Link
                       to={url}
@@ -101,12 +213,19 @@ const CathDomainVisualizationPanel = ({ domain }) => {
                       {label}
                     </Link>
                   </li>
-                ) : null,
+                ) : (
+                  <li key={url}>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-medium text-accent hover:bg-muted/50 hover:text-accent-hover transition-colors"
+                    >
+                      {label}
+                    </a>
+                  </li>
+                ),
               )}
-            </ul>
-            <ul className="text-xs text-muted-foreground mt-3 mb-0 leading-relaxed pl-4 space-y-1 list-disc">
-              <li>External papers, databases, and structure sources are listed in References below.</li>
-              <li>Use these links for PETadex-native navigation (atlas and filtered enzyme views).</li>
             </ul>
           </div>
         )}
@@ -140,7 +259,7 @@ const CathDomainVisualizationPanel = ({ domain }) => {
         {segments.length > 0 && (
           <div className="mt-5">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-              CATH legend (UMAP coloring)
+              CATH color key (matches family atlas when filtered)
             </p>
             <ul className="flex flex-wrap gap-3 m-0 p-0 list-none">
               {segments.map(seg => (
