@@ -36,7 +36,7 @@ module.exports = {
         background_color: '#ffffff',
         theme_color: '#c94141',
         display: 'minimal-ui',
-        icon: 'src/images/petadex-icon.png', // This path is relative to the root of the site.
+        icon: 'src/images/petadex-A-512.png', // This path is relative to the root of the site.
       },
     },
   ],
