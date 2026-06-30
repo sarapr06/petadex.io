@@ -17,14 +17,102 @@ import config from "../../config"
 // elsewhere) so a domain's track block and its legend swatch always match.
 const domainHue = i => (i * 137.508) % 360
 
+// Small caret marking a domain boundary (start or end) on the SEQUENCE axis,
+// with its residue-position label. `leftPct` is the boundary position along the
+// 1..length axis; these ARE sequence coordinates (unlike catalytic match states).
+function BoundaryTick({ leftPct, pos, hue, dim }) {
+  return (
+    <div
+      className={`absolute top-0 flex flex-col items-center ${
+        dim ? "opacity-40" : ""
+      }`}
+      style={{ left: `${leftPct}%`, transform: "translateX(-50%)" }}
+    >
+      {/* caret points UP at the domain block above */}
+      <svg width="9" height="6" viewBox="0 0 9 6" aria-hidden="true">
+        <path d="M4.5 0 L9 6 L0 6 Z" fill={`hsl(${hue} 65% 45%)`} />
+      </svg>
+      <span className="text-[9px] leading-none font-mono text-muted-foreground mt-0.5">
+        {pos}
+      </span>
+    </div>
+  )
+}
+
+/**
+ * The specifically-hit catalytic residues annotated on the PAZy HMM MODEL axis
+ * (match-state coordinates). These are deliberately NOT placed on the 1..length
+ * sequence axis: `catalytic_match_states` are HMM-relative positions, so putting
+ * them on the sequence line would be a fabricated coordinate (see the framing
+ * discipline in "01"/"04"). Each hit residue is a small down-arrow at its match
+ * state, labelled with the residue letter (above) and the state number (below).
+ * Residue letters (`catalytic_residues`) are paired with states by index (both
+ * are ordered N→C); a missing letter falls back to "•".
+ */
+function HmmStateMap({ residues, states }) {
+  const pairs = states
+    .map((s, i) => ({ residue: residues[i] || "•", state: Number(s) }))
+    .filter(p => Number.isFinite(p.state))
+  if (!pairs.length) return null
+
+  const maxState = Math.max(...pairs.map(p => p.state))
+  const denom = Math.max(maxState - 1, 1)
+  const pct = s => ((s - 1) / denom) * 100
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border/60">
+      <p className="text-2xs font-medium text-muted-foreground m-0 mb-3">
+        Hit catalytic residues · PAZy HMM match-state coordinates{" "}
+        <span className="font-normal text-muted-foreground/80">
+          (model positions, not sequence residues)
+        </span>
+      </p>
+      <div className="relative h-8">
+        {/* HMM model axis line */}
+        <div className="absolute left-0 right-0 bottom-3 h-px bg-border" />
+        {pairs.map((p, i) => (
+          <div
+            key={`${p.residue}-${p.state}-${i}`}
+            className="absolute top-0 flex flex-col items-center"
+            style={{ left: `${pct(p.state)}%`, transform: "translateX(-50%)" }}
+            title={`Catalytic ${p.residue} at HMM match state ${p.state}`}
+          >
+            <span className="text-2xs font-mono font-semibold text-foreground leading-none">
+              {p.residue}
+            </span>
+            {/* arrow points DOWN at the model axis */}
+            <svg
+              width="9"
+              height="6"
+              viewBox="0 0 9 6"
+              className="my-0.5"
+              aria-hidden="true"
+            >
+              <path d="M4.5 6 L9 0 L0 0 Z" fill="hsl(150 60% 38%)" />
+            </svg>
+            <span className="text-[9px] font-mono text-muted-foreground leading-none">
+              {p.state}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-between text-[9px] font-mono text-muted-foreground/80">
+        <span>match state 1</span>
+        <span>{maxState}</span>
+      </div>
+    </div>
+  )
+}
+
 /**
  * Standalone linear representation of the sequence (a 1..length axis) with the
  * factual catalytic domains drawn on it to scale. This is NOT overlaid on the
  * residue-by-residue SequenceViewer — it's its own schematic line. The domain
  * spans (`domain_start`–`domain_end`) ARE sequence coordinates, so each domain
- * is a block positioned proportionally along the axis. No fabricated residue
- * positions (catalytic residues are HMM-relative, so they stay in the cards as
- * evidence text, not invented ticks on the line).
+ * is a block positioned proportionally along the axis, with small boundary carets
+ * marking the start/end residue positions. No fabricated residue positions: the
+ * catalytic residues are HMM-relative, so they are annotated separately on a
+ * per-domain HMM match-state axis (see HmmStateMap), never as ticks on this line.
  *
  * Each domain block is selectable; selecting one highlights the matching region
  * in the SequenceViewer above (via the panel's `onSelectDomain` callback).
@@ -91,6 +179,34 @@ function DomainTrack({ domains, seqLength, selectedIdx, onToggle }) {
                 {d.domain || d.pazy_hmm_id}
               </span>
             </button>
+          )
+        })}
+      </div>
+
+      {/* Domain boundary carets: small arrows at each domain's start/end with the
+          residue-position label (sequence coordinates). */}
+      <div className="relative h-4 mt-1">
+        {domains.map((d, i) => {
+          const start = Math.max(1, Number(d.domain_start) || 1)
+          const end = Math.min(len, Number(d.domain_end) || len)
+          if (!(end >= start)) return null
+          const active = selectedIdx === i
+          const dim = hasSelection && !active
+          return (
+            <React.Fragment key={`bound-${d.pazy_hmm_id}-${i}`}>
+              <BoundaryTick
+                leftPct={((start - 1) / len) * 100}
+                pos={start}
+                hue={domainHue(i)}
+                dim={dim}
+              />
+              <BoundaryTick
+                leftPct={(end / len) * 100}
+                pos={end}
+                hue={domainHue(i)}
+                dim={dim}
+              />
+            </React.Fragment>
           )
         })}
       </div>
@@ -182,6 +298,8 @@ function Domain({ d }) {
           </>
         )}
       </p>
+
+      {states.length > 0 && <HmmStateMap residues={residues} states={states} />}
 
       {d.evidence_type && (
         <p className="text-xs text-muted-foreground mt-2 mb-0">

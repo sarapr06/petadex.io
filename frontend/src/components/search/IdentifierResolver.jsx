@@ -4,15 +4,17 @@
 // 2026-06-22 post-schema update).
 //
 // Resolves three raw-provenance identifier types a user (or deep link) may paste:
-//   - orf_id      (all digits)        -> single match -> 90% cluster block
-//   - genbank_acc (e.g. WP_0123.1)    -> single match -> 90% cluster block
+//   - orf_id      (all digits)        -> single match -> ORF sequence page (+ its 90% cluster)
+//   - genbank_acc (e.g. WP_0123.1)    -> single match -> ORF sequence page (+ its 90% cluster)
 //   - library_id  (e.g. ERR4800418)   -> paginated list of ORFs in that library
 //
 // Backed by GET /api/resolve. Client-side shape pre-routing mirrors the server so
 // the predicted identifier type is shown as-you-type. A single match surfaces the
 // full chain — searched id -> resolved cluster -> centroid — so pasting accession X
-// and landing on centroid Y is legible, not a perceived bug. The landing button
-// points at the cluster-block route keyed by c90_id (NOT /enzyme/${orf_id}).
+// and landing on centroid Y is legible, not a perceived bug. The primary action
+// opens the matched ORF's own sequence page (/sequence/orf/{orf_id}); a secondary
+// action opens its 90% cluster block (/cluster/90/{c90_id}). Library ORFs link to
+// the same corpus sequence page (NOT the curated /enzyme/${id} route).
 import React, { useState, useMemo, useRef, useEffect } from "react"
 import { Link } from "gatsby"
 import config from "../../config"
@@ -156,12 +158,6 @@ const SingleResult = ({ result }) => {
         />
       </div>
 
-      {result.orf_id != null && (
-        <p className="text-xs text-muted-foreground mb-4">
-          Matched ORF <span className="font-mono">{result.orf_id}</span>
-        </p>
-      )}
-
       {!result.block_found && (
         <p className="text-xs text-warning mb-4">
           Cluster resolved, but its block row isn’t available yet.
@@ -181,13 +177,31 @@ const SingleResult = ({ result }) => {
         </div>
       )}
 
-      {c90 != null ? (
-        <Link to={`/cluster/90/${c90}`} className="btn btn-primary text-sm">
-          Open 90% cluster block →
-        </Link>
-      ) : (
+      {(result.orf_id != null || c90 != null) && (
+        <div className="flex flex-wrap gap-2">
+          {result.orf_id != null && (
+            <Link
+              to={`/sequence/orf/${result.orf_id}`}
+              className="btn btn-primary text-sm"
+            >
+              Open ORF {result.orf_id} sequence page →
+            </Link>
+          )}
+          {c90 != null && (
+            <Link
+              to={`/cluster/90/${c90}`}
+              className={`btn text-sm ${
+                result.orf_id != null ? "btn-secondary" : "btn-primary"
+              }`}
+            >
+              Open 90% cluster block →
+            </Link>
+          )}
+        </div>
+      )}
+      {result.orf_id == null && c90 == null && (
         <p className="text-sm text-muted-foreground">
-          No cluster id on this match — rebuild{" "}
+          No ORF or cluster id on this match — rebuild{" "}
           <span className="font-mono">search_index</span> to carry{" "}
           <span className="font-mono">c90_id</span>.
         </p>
@@ -215,7 +229,7 @@ const ListResult = ({ result, onLoadMore, loadingMore }) => (
       {result.orf_ids.map(orfId => (
         <Link
           key={orfId}
-          to={`/enzyme/${orfId}`}
+          to={`/sequence/orf/${orfId}`}
           className="font-mono text-sm text-primary no-underline border border rounded px-3 py-2 hover:border-info transition-colors"
         >
           {orfId}
