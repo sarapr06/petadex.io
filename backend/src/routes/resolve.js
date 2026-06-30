@@ -28,6 +28,17 @@
  *   logan_catalytic_orfs(library_id text NOT NULL, orf_id bigint, ...)
  *     - library-leg fan-out (deferred; never materialized into search_index).
  *
+ * Corpus fallback (individual / non-centroid ORFs):
+ *   search_index only materializes the 90% *centroid* per block (~18.2M rows), so
+ *   an individual variant ORF id or a non-centroid GenBank accession misses the
+ *   exact probe above. When that happens we resolve the identifier against the
+ *   full corpus and land it on the same 90% block a centroid would, making any of
+ *   the 307M ORFs queryable:
+ *     - petadex_clustering(orf_id, "90pid_enzyme_id", "60pid_family_id",
+ *       "30pid_superfamily_id")  — full orf->cluster map (same source orf.js reads)
+ *     - {pazy,nr}_catalytic_orfs(orf_id, genbank_accession_id)  — accession->orf
+ *   See resolveFromCorpus() / clusterForOrf().
+ *
  * Distinguishes three outcomes:
  *   - found              -> 200 with the resolved payload
  *   - not found          -> 200 with { result_kind: 'none' }
@@ -84,6 +95,96 @@ async function probeLeg(matchType, value) {
   return rows[0] || null;
 }
 
+/**
+ * Map a corpus orf_id to its denormalized cluster path off petadex_clustering —
+ * the full 307M-row orf->cluster map (same source orf.js reads). Returns
+ * { c90_id, c60_id, c30_id } or null if the ORF isn't in the corpus.
+ */
+async function clusterForOrf(orfId) {
+  const { rows } = await pool.query(
+    `SELECT "90pid_enzyme_id"      AS c90_id,
+            "60pid_family_id"      AS c60_id,
+            "30pid_superfamily_id" AS c30_id
+       FROM petadex_clustering
+      WHERE orf_id = $1
+      LIMIT 1`,
+    [orfId]
+  );
+  const r = rows[0];
+  if (!r) return null;
+  return {
+    c90_id: r.c90_id ?? null,
+    c60_id: r.c60_id ?? null,
+    c30_id: r.c30_id ?? null,
+  };
+}
+
+/**
+ * Corpus fallback for single-match identifiers that miss the exact search_index
+ * probe. search_index only materializes the 90% *centroid* per block (the
+ * representative orf_id + its accession), so an *individual* (variant) ORF id or
+ * a non-centroid GenBank accession — every member that isn't the centroid — has
+ * no row there. Here we resolve the identifier against the full corpus and land
+ * it on the same 90% cluster block a centroid would, so any of the 307M ORFs is
+ * queryable, not just the ~18.2M centroids.
+ *
+ *   - all-digits  -> treat as a corpus orf_id and read its cluster path directly.
+ *   - accession    -> map to an orf_id via the PAZy/NR provenance tables (the same
+ *                     accession->orf join orfResolve.js / orfProvenance.js use),
+ *                     then read its cluster path.
+ *
+ * Returns a synthetic search_index-shaped match (result_kind 'single') the
+ * existing resolveSingle() consumes unchanged, or null if nothing resolves.
+ */
+async function resolveFromCorpus(q, legs) {
+  // all-digits -> direct corpus orf_id lookup.
+  if (legs.includes('orf_id')) {
+    const orfId = Number(q);
+    if (Number.isInteger(orfId) && orfId > 0) {
+      const cluster = await clusterForOrf(orfId);
+      if (cluster) {
+        return {
+          match_type: 'orf_id',
+          match_value: q,
+          result_kind: 'single',
+          orf_id: orfId,
+          ...cluster,
+        };
+      }
+    }
+    return null;
+  }
+
+  // accession -> orf_id (PAZy or NR provenance) -> cluster path.
+  if (legs.includes('genbank_acc')) {
+    const { rows } = await pool.query(
+      `SELECT orf_id
+         FROM (
+           SELECT orf_id FROM pazy_catalytic_orfs WHERE genbank_accession_id = $1
+           UNION ALL
+           SELECT orf_id FROM nr_catalytic_orfs   WHERE genbank_accession_id = $1
+         ) m
+        LIMIT 1`,
+      [q]
+    );
+    const orfId = rows[0]?.orf_id != null ? Number(rows[0].orf_id) : null;
+    if (orfId != null) {
+      const cluster = await clusterForOrf(orfId);
+      if (cluster) {
+        return {
+          match_type: 'genbank_acc',
+          match_value: q,
+          result_kind: 'single',
+          orf_id: orfId,
+          ...cluster,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 // Max suggestions returned per request (merged across probed legs).
 const SUGGEST_LIMIT = 20;
 // Below this length, a substring (`%q%`) probe is too broad — use a left-anchored
@@ -98,39 +199,100 @@ function escapeLike(s) {
 }
 
 /**
+ * Partial-match suggestions for *individual* (non-centroid) GenBank accessions.
+ *
+ * search_index's trigram GIN only covers the 90% centroid accession per block, so
+ * the search_index probe in suggest() can't autocomplete a variant accession.
+ * Here we probe the PAZy/NR provenance tables — the same accession source
+ * resolveFromCorpus()/orfProvenance.js use — so any corpus accession completes,
+ * not just centroids. Logan/SRA ORFs have no per-ORF accession, so they're
+ * correctly absent (they're reached by orf_id or library_id instead).
+ *
+ * FAST PATH REQUIRES a trigram GIN index on genbank_accession_id on both tables
+ * (see backend/docs/sql/search_individual_orf_indexes.sql). Without it the ILIKE
+ * substring degrades to a sequential scan. Returns bare suggestion rows (no
+ * orf_id/cluster); clicking one re-resolves it exactly via the corpus fallback.
+ */
+async function suggestAccessions(q) {
+  const escaped = escapeLike(q);
+  const pattern = q.length >= SUBSTRING_MIN_LEN ? `%${escaped}%` : `${escaped}%`;
+  const { rows } = await pool.query(
+    `SELECT match_value
+       FROM (
+         SELECT genbank_accession_id AS match_value
+           FROM pazy_catalytic_orfs
+          WHERE genbank_accession_id ILIKE $1
+          LIMIT $3
+         UNION
+         SELECT genbank_accession_id AS match_value
+           FROM nr_catalytic_orfs
+          WHERE genbank_accession_id ILIKE $1
+          LIMIT $3
+       ) m
+      ORDER BY (m.match_value ILIKE $2) DESC, length(m.match_value), m.match_value
+      LIMIT $3`,
+    [pattern, `${escaped}%`, SUGGEST_LIMIT]
+  );
+  return rows.map(r => ({
+    match_value: r.match_value,
+    match_type: 'genbank_acc',
+    result_kind: 'single',
+    orf_id: null,
+    c90_id: null,
+  }));
+}
+
+/**
  * Partial-match suggestions when there's no exact hit. Backed by the trigram GIN
  * on the genbank_acc/library_id legs and a prefix scan on orf_id (per the doc's
  * "INDEX RECOMMENDATION"). Probes the same shape-pre-routed legs as exact lookup
- * so we don't scan all three. Returns lightweight rows the UI lists; clicking one
- * re-resolves it exactly.
+ * so we don't scan all three. The genbank_acc leg is additionally widened to the
+ * PAZy/NR provenance tables (suggestAccessions) so individual non-centroid
+ * accessions autocomplete too. Returns lightweight rows the UI lists; clicking
+ * one re-resolves it exactly.
  */
 async function suggest(legs, q) {
   const escaped = escapeLike(q);
   // orf_id is an integer leg: prefix-as-you-type only (substring on an int is
   // meaningless). Text legs get substring once the query is long enough.
-  const perLeg = await Promise.all(
-    legs.map(matchType => {
-      const isText = matchType !== 'orf_id';
-      const pattern =
-        isText && q.length >= SUBSTRING_MIN_LEN ? `%${escaped}%` : `${escaped}%`;
-      return pool
-        .query(
-          `SELECT match_value, match_type, result_kind, orf_id, c90_id
-             FROM search_index
-            WHERE match_type = $1
-              AND match_value ILIKE $2
-            ORDER BY (match_value ILIKE $3) DESC, length(match_value), match_value
-            LIMIT $4`,
-          [matchType, pattern, `${escaped}%`, SUGGEST_LIMIT]
-        )
-        .then(r => r.rows);
-    })
-  );
+  const tasks = legs.map(matchType => {
+    const isText = matchType !== 'orf_id';
+    const pattern =
+      isText && q.length >= SUBSTRING_MIN_LEN ? `%${escaped}%` : `${escaped}%`;
+    return pool
+      .query(
+        `SELECT match_value, match_type, result_kind, orf_id, c90_id
+           FROM search_index
+          WHERE match_type = $1
+            AND match_value ILIKE $2
+          ORDER BY (match_value ILIKE $3) DESC, length(match_value), match_value
+          LIMIT $4`,
+        [matchType, pattern, `${escaped}%`, SUGGEST_LIMIT]
+      )
+      .then(r => r.rows);
+  });
 
-  // Merge legs, prefix-matches first, then shortest (most specific) value.
+  // Widen the accession leg to individual (non-centroid) accessions.
+  if (legs.includes('genbank_acc')) {
+    tasks.push(suggestAccessions(q));
+  }
+
+  const perLeg = await Promise.all(tasks);
+
+  // Merge legs and dedupe by (type, value). When the same accession appears both
+  // as a centroid (rich search_index row, carries orf_id/c90_id) and as a bare
+  // provenance row, keep the richer one. Then prefix-matches first, then shortest
+  // (most specific) value.
   const prefixLower = q.toLowerCase();
-  return perLeg
-    .flat()
+  const seen = new Map();
+  for (const row of perLeg.flat()) {
+    const key = `${row.match_type}:${row.match_value.toLowerCase()}`;
+    const existing = seen.get(key);
+    if (!existing || (existing.orf_id == null && row.orf_id != null)) {
+      seen.set(key, row);
+    }
+  }
+  return [...seen.values()]
     .sort((a, b) => {
       const ap = a.match_value.toLowerCase().startsWith(prefixLower) ? 0 : 1;
       const bp = b.match_value.toLowerCase().startsWith(prefixLower) ? 0 : 1;
@@ -269,7 +431,14 @@ router.get('/', async (req, res, next) => {
       if (match) break;
     }
 
-    // No exact hit: offer partial-match suggestions rather than a dead "no match".
+    // No exact hit in search_index (which only carries the 90% centroid per
+    // block): fall back to the full corpus so an individual variant ORF or a
+    // non-centroid accession still resolves to its 90% cluster block.
+    if (!match) {
+      match = await resolveFromCorpus(q, legs);
+    }
+
+    // Still nothing: offer partial-match suggestions rather than a dead "no match".
     if (!match) {
       const suggestions = await suggest(legs, q);
       if (!suggestions.length) {
