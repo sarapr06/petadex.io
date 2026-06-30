@@ -68,6 +68,8 @@ export default function CorpusSequenceTemplate({ pageContext }) {
   const [orf, setOrf] = useState(null)
   const [status, setStatus] = useState("loading") // loading | ready | notfound | error
   const [errorMsg, setErrorMsg] = useState(null)
+  // Domain selected in the catalytic-domain track → highlighted in SequenceViewer.
+  const [domainSelection, setDomainSelection] = useState(null)
   // Most corpus ORFs have no curated experimental structure; only mount the
   // heavy Mol* viewer once we've confirmed one exists (a 200 from /api/pdb).
   // This avoids the viewer churning on a never-resolving structure lookup.
@@ -217,12 +219,17 @@ export default function CorpusSequenceTemplate({ pageContext }) {
         <SequenceViewer
           aminoAcidSequence={orf.sequence}
           nucleotideSequence={null}
+          highlightRange={domainSelection}
         />
       </section>
 
       {/* ── Catalytic domains (factual HMM evidence — corpus-keyed, framed as
             evidence, not function) ── */}
-      <CatalyticDomainsPanel orfId={orf.id} />
+      <CatalyticDomainsPanel
+        orfId={orf.id}
+        seqLength={orf.length}
+        onSelectDomain={setDomainSelection}
+      />
 
       {/* ── Structure (only when an external accession exists) ── */}
       {showStructure && (

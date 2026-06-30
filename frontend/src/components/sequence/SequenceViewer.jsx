@@ -14,17 +14,26 @@ export default function SequenceViewer({
   nucleotideSequence = null,
   aminoAcidSequence = null,
   className = "",
+  // Controlled external highlight (1-based, inclusive). When set (e.g. a domain
+  // is selected in the corpus page's domain track), the viewer selects that
+  // region and scrolls into view. `null` clears an externally-driven selection.
+  highlightRange = null,
 }) {
   const [seqType, setSeqType] = useState("amino-acid")
   const [containerWidth, setWidth] = useState(0)
   const [showRuler, setShowRuler] = useState(true)
   const [selStart, setSelStart] = useState(null) // 1-based
   const [selEnd, setSelEnd] = useState(null) // 1-based
+  // True only while the selection is driven by an external domain highlight (so
+  // we mute the non-domain residues). Cleared the moment the user drags their
+  // own selection.
+  const [isExternalHighlight, setIsExternalHighlight] = useState(false)
   const [copied, setCopied] = useState(false)
   const copyTimer = useRef(null)
   const isDragging = useRef(false)
   const dragAnchor = useRef(null)
   const containerRef = useRef(null)
+  const rootRef = useRef(null)
 
   const currentSeq =
     seqType === "nucleotide" ? nucleotideSequence : aminoAcidSequence
@@ -57,12 +66,17 @@ export default function SequenceViewer({
     [selLo, selHi]
   )
 
+  // When a domain highlight is active, residues outside it are muted (in
+  // brightness/vibrancy) so the highlighted span stands out.
+  const highlightActive = isExternalHighlight && selLo != null
+
   // ── Mouse handlers ───────────────────────────────────────────────────────────
   const handleMouseDown = useCallback(
     pos => e => {
       e.preventDefault()
       isDragging.current = true
       dragAnchor.current = pos
+      setIsExternalHighlight(false)
       setSelStart(pos)
       setSelEnd(pos)
     },
@@ -98,6 +112,7 @@ export default function SequenceViewer({
   const clearSelection = () => {
     setSelStart(null)
     setSelEnd(null)
+    setIsExternalHighlight(false)
     setCopied(false)
   }
 
@@ -118,6 +133,35 @@ export default function SequenceViewer({
       if (copyTimer.current) clearTimeout(copyTimer.current)
     }
   }, [])
+
+  // ── External (controlled) highlight ─────────────────────────────────────────
+  // Drive the selection from `highlightRange` so a domain selected in the track
+  // lights up the matching residues here (reusing the selection machinery gives
+  // the range readout + copy for free). Only re-runs when the prop reference
+  // changes, so manual drag-selections are never clobbered.
+  useEffect(() => {
+    const start = Number(highlightRange?.start)
+    const end = Number(highlightRange?.end)
+    if (
+      highlightRange &&
+      Number.isFinite(start) &&
+      Number.isFinite(end) &&
+      start >= 1
+    ) {
+      // Domain coordinates are amino-acid positions.
+      setSeqType("amino-acid")
+      setSelStart(start)
+      setSelEnd(end)
+      setIsExternalHighlight(true)
+      // The domain track sits below the viewer — bring the highlight into view.
+      rootRef.current?.scrollIntoView({ behavior: "smooth", block: "center" })
+    } else if (highlightRange === null) {
+      // External deselection clears the externally-driven selection.
+      setSelStart(null)
+      setSelEnd(null)
+      setIsExternalHighlight(false)
+    }
+  }, [highlightRange])
 
   // ── Empty state ──────────────────────────────────────────────────────────────
   if (!currentSeq) {
@@ -150,7 +194,7 @@ export default function SequenceViewer({
   }
 
   return (
-    <div className={` ${className} p-6`}>
+    <div className={` ${className} p-6`} ref={rootRef}>
       {/* ── Toggle ────────────────────────────────────────────────────────────── */}
       <div className="flex gap-2 items-center justify-between py-2 px-2.5">
         <label className="flex gap-2">
@@ -229,6 +273,7 @@ export default function SequenceViewer({
                           position={pos}
                           colorScheme={colorScheme}
                           isSelected={isSelected(pos)}
+                          muted={highlightActive && !isSelected(pos)}
                           onMouseDown={handleMouseDown(pos)}
                           onMouseEnter={handleMouseEnter(pos)}
                         />

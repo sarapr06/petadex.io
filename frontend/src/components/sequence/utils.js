@@ -73,7 +73,7 @@ export const RulerRow = React.memo(({ startIdx, count, slotsPerLine }) => {
 
 // ── Single AA span ─────────────────────────────────────────────────────────────
 export const AASpan = React.memo(
-  ({ char, position, colorScheme, isSelected, onMouseDown, onMouseEnter }) => {
+  ({ char, position, colorScheme, isSelected, muted, onMouseDown, onMouseEnter }) => {
     const bg = colorScheme?.[char] || "var(--surface-sunken)"
     return (
       // eslint-disable-next-line jsx-a11y/no-static-element-interactions
@@ -84,7 +84,9 @@ export const AASpan = React.memo(
           "transition-all select-none text-gray-800",
           isSelected
             ? "outline-2 outline-info outline-offset-1 brightness-90"
-            : "hover:brightness-90 hover:outline hover:outline-accent/50",
+            : muted
+              ? "saturate-50 brightness-90 hover:saturate-100 hover:brightness-100"
+              : "hover:brightness-90 hover:outline hover:outline-accent/50",
         ].join(" ")}
         style={{ backgroundColor: bg }}
         onMouseDown={onMouseDown}
