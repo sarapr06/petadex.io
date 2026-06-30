@@ -4,7 +4,7 @@
  * Input form only. On submit navigates to /results?job={sessionId}
  * All polling and result rendering lives in pages/results.js.
  */
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { navigate } from "gatsby"
 import config from "../../config"
 import ExampleCards from "./ExampleCards"
@@ -22,13 +22,25 @@ const SequenceSearch = () => {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
+  // Allow deep-links to pre-fill the form (e.g. the corpus sequence page's
+  // "Search this sequence" action passes ?prefill=<FASTA>). We populate the
+  // textarea but do NOT auto-submit — the user reviews and clicks Search.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    const prefill = params.get("prefill") || params.get("seq")
+    if (prefill) {
+      setSequence(prefill.startsWith(">") ? prefill : `>${prefill}`)
+    }
+  }, [])
+
   const searchApiUrl = process.env.GATSBY_SEARCH_API_URL || config.apiUrl
 
   const submitSearch = async () => {
     const clean = cleanSequence(sequence)
     if (!clean || clean.length < 10) {
       setError(
-        "Please enter a valid protein sequence (at least 10 amino acids).",
+        "Please enter a valid protein sequence (at least 10 amino acids)."
       )
       return
     }

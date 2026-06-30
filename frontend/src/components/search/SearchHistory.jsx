@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react"
 import config from "../../config"
 import { getStoredJobIds } from "../../utils/session"
+import { formatTargetIdLabel } from "../../utils/lib"
 
 const formatDate = timestamp => {
   const diffMs = Date.now() - new Date(timestamp)
@@ -32,7 +33,7 @@ const SearchHistory = ({ onSelectSearch, currentJobId, newSearchCount }) => {
     setLoading(true)
     try {
       const res = await fetch(
-        `${searchApiUrl}/search/history?job_ids=${jobIds.join(",")}&limit=20`,
+        `${searchApiUrl}/search/history?job_ids=${jobIds.join(",")}&limit=20`
       )
       if (!res.ok) throw new Error("Failed to fetch search history")
       const data = await res.json()
@@ -88,7 +89,7 @@ const SearchHistory = ({ onSelectSearch, currentJobId, newSearchCount }) => {
               role="button"
               tabIndex={0}
               onClick={() => onSelectSearch(search.session_id)}
-              onKeyDown={(e) => {
+              onKeyDown={e => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault()
                   onSelectSearch(search.session_id)
@@ -121,7 +122,7 @@ const SearchHistory = ({ onSelectSearch, currentJobId, newSearchCount }) => {
                 </div>
                 {search.top_hit && (
                   <div className="text-2xs text-muted-foreground font-mono">
-                    {search.top_hit.target_id} (
+                    {formatTargetIdLabel(search.top_hit.target_id)} (
                     {search.top_hit.percent_identity?.toFixed(1)}%)
                   </div>
                 )}

@@ -8,8 +8,6 @@ import {
 } from "./utils.js"
 import { NUCLEOTIDECOLORS, AACOLORS } from "./constants.js"
 
-
-
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function SequenceViewer({
@@ -22,6 +20,8 @@ export default function SequenceViewer({
   const [showRuler, setShowRuler] = useState(true)
   const [selStart, setSelStart] = useState(null) // 1-based
   const [selEnd, setSelEnd] = useState(null) // 1-based
+  const [copied, setCopied] = useState(false)
+  const copyTimer = useRef(null)
   const isDragging = useRef(false)
   const dragAnchor = useRef(null)
   const containerRef = useRef(null)
@@ -54,7 +54,7 @@ export default function SequenceViewer({
 
   const isSelected = useCallback(
     pos => selLo != null && pos >= selLo && pos <= selHi,
-    [selLo, selHi],
+    [selLo, selHi]
   )
 
   // ── Mouse handlers ───────────────────────────────────────────────────────────
@@ -66,7 +66,7 @@ export default function SequenceViewer({
       setSelStart(pos)
       setSelEnd(pos)
     },
-    [],
+    []
   )
 
   const handleMouseEnter = useCallback(
@@ -74,7 +74,7 @@ export default function SequenceViewer({
       if (!isDragging.current) return
       setSelEnd(pos)
     },
-    [],
+    []
   )
 
   const handleMouseUp = useCallback(() => {
@@ -98,7 +98,26 @@ export default function SequenceViewer({
   const clearSelection = () => {
     setSelStart(null)
     setSelEnd(null)
+    setCopied(false)
   }
+
+  const copySelection = async () => {
+    if (!selectionInfo) return
+    try {
+      await navigator.clipboard.writeText(selectionInfo.slice)
+      setCopied(true)
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+      copyTimer.current = setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Clipboard API unavailable or denied — silently ignore
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current)
+    }
+  }, [])
 
   // ── Empty state ──────────────────────────────────────────────────────────────
   if (!currentSeq) {
@@ -251,6 +270,9 @@ export default function SequenceViewer({
               {selectionInfo.slice.length}{" "}
               {seqType === "nucleotide" ? "bp" : "aa"})
             </span>
+            <button onClick={copySelection} className="btn btn-ghost">
+              {copied ? "Copied!" : "Copy"}
+            </button>
             <button onClick={clearSelection} className="btn btn-ghost">
               Clear
             </button>

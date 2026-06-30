@@ -12,6 +12,14 @@ import "../../styles/molstar-custom.css";
 const HOVER_BOX = { w: 220, h: 80 };
 const PINNED_BOX = { w: 300, h: 160 };
 
+// Stable empty-array reference for the optional annotation props. Using a shared
+// frozen constant (instead of a fresh `[]` default per render) keeps the prop
+// identity stable when a caller passes nothing, so the structure-loading effect
+// below — which lists `annotations`/`annotationGroups` in its deps — does NOT
+// re-fire on every render. Without this, an un-annotated viewer (e.g. the corpus
+// sequence page) tears down and re-fetches the Mol* structure in an infinite loop.
+const EMPTY_ANNOTATIONS = Object.freeze([]);
+
 const ProteinViewer = ({
   accession,
   width = "100%",
@@ -20,8 +28,8 @@ const ProteinViewer = ({
   initialStyle = "cartoon",
   enableMeasurement = true,
   enableSelection = true,
-  annotations = [],
-  annotationGroups = [],
+  annotations = EMPTY_ANNOTATIONS,
+  annotationGroups = EMPTY_ANNOTATIONS,
   annotationStylePreset = null,
 }) => {
   const containerRef = useRef(null);

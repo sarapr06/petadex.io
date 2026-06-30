@@ -6,10 +6,9 @@ import AtlasMap from "../charts/AtlasMap"
 import { Scatterplot } from "../charts/Scatterplot"
 import { TaxonomyScatterChart } from "../charts/TaxonomyScatterChart"
 
-import AlignmentCoverageMap from '../charts/AlignmentCoverageMap';
-import { FunctionalAnnotationChart } from '../charts/FunctionalAnnotationChart';
+import AlignmentCoverageMap from "../charts/AlignmentCoverageMap"
+import { FunctionalAnnotationChart } from "../charts/FunctionalAnnotationChart"
 import SequenceViewer from "../sequence/SequenceViewer"
-
 
 // Deterministic per-family color — must match enzymes.js
 function familyColor(familyId) {
@@ -35,13 +34,13 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
 
   const hitFamilyIds = useMemo(
     () => new Set(results.map(h => h.family).filter(f => f != null)),
-    [results],
+    [results]
   )
 
   const handleCopyLink = () => {
-    if(!copied) {
+    if (!copied) {
       navigator.clipboard?.writeText(
-        `${window.location.origin}/results?job=${sessionId}`,
+        `${window.location.origin}/results?job=${sessionId}`
       )
       setCopied(true)
     }
@@ -92,7 +91,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
     }
   }
   const sorted = Object.entries(familyCounts).sort(
-    (a, b) => b[1].count - a[1].count,
+    (a, b) => b[1].count - a[1].count
   )
   if (unknownCount > 0)
     sorted.push(["Unknown", { count: unknownCount, enzyme_id: null }])
@@ -159,7 +158,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
     ])
     downloadCSV(
       generateCSV(headers, rows),
-      `petadex-results-${sessionId || "search"}`,
+      `petadex-results-${sessionId || "search"}`
     )
   }
   const handleDownloadJSON = () => {
@@ -266,7 +265,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
               tabIndex={0}
               className="flex justify-between items-center text-sm font-semibold text-muted-foreground uppercase tracking-tighter cursor-pointer select-none"
               onClick={() => setFamilySummaryOpen(o => !o)}
-              onKeyDown={(e) => {
+              onKeyDown={e => {
                 if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault()
                   setFamilySummaryOpen(o => !o)
@@ -330,7 +329,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                         </Link>
                       )}
                     </div>
-                  ),
+                  )
                 )}
               </div>
             )}
@@ -340,7 +339,11 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
             {TABS.map(tab => (
               <button
                 key={tab.id}
-                className={`btn btn-ghost ${activeTab === tab.id ? "text-accent font-semibold border-b-accent" : ""}`}
+                className={`btn btn-ghost ${
+                  activeTab === tab.id
+                    ? "text-accent font-semibold border-b-accent"
+                    : ""
+                }`}
                 onClick={() => setActiveTab(tab.id)}
               >
                 {tab.label}
@@ -418,7 +421,9 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                         >
                           {label}
                           <span
-                            className={`ml-1 ${sortKey === key ? "opacity-100" : "opacity-30"} text-xs`}
+                            className={`ml-1 ${
+                              sortKey === key ? "opacity-100" : "opacity-30"
+                            } text-xs`}
                           >
                             {sortKey === key
                               ? sortDir === "asc"
@@ -439,7 +444,9 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                         <td className="py-2 px-2.5">{hit.rank}</td>
                         <td className="py-2 px-2.5">
                           <a
-                            href={`/sequence/${hit.accession}`}
+                            href={
+                              hit.sequence_href || `/sequence/${hit.accession}`
+                            }
                             target="_blank"
                             rel="noopener noreferrer"
                             className="hover:underline"
@@ -450,7 +457,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                                   : undefined,
                             }}
                           >
-                            {hit.accession}
+                            {hit.display_id || hit.accession}
                           </a>
                         </td>
                         <td className="py-2 px-2.5">{hit.name || "-"}</td>
@@ -484,7 +491,9 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                           <span
                             className="inline-block h-1.5 bg-success rounded-md mr-1 align-middle"
                             style={{
-                              width: `${Math.min(hit.identity ?? 0, 100) * 0.6}px`,
+                              width: `${
+                                Math.min(hit.identity ?? 0, 100) * 0.6
+                              }px`,
                             }}
                           />
                           {hit.identity?.toFixed(1) ?? "-"}%
@@ -492,7 +501,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                         <td className="py-2 px-2.5">
                           {hit.evalue === 0
                             ? "0"
-                            : (hit.evalue?.toExponential(1) ?? "-")}
+                            : hit.evalue?.toExponential(1) ?? "-"}
                         </td>
                         <td className="py-2 px-2.5">
                           {hit.query_coverage ?? "-"}%
@@ -516,7 +525,7 @@ const ResultsView = ({ results, metadata, sessionId, onNewSearch }) => {
                     role="button"
                     tabIndex={0}
                     onClick={() => setAtlasActive(true)}
-                    onKeyDown={(e) => {
+                    onKeyDown={e => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault()
                         setAtlasActive(true)
