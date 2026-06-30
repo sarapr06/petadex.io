@@ -1,6 +1,6 @@
 # PETadex API - Database Dependencies
 
-**Auto-generated**: 2026-06-28
+**Auto-generated**: 2026-06-30
 **Purpose**: Maps API endpoints to database tables/columns to identify breaking changes
 
 ---
@@ -40,6 +40,9 @@
 | `/api/gene-metadata/` | GET | gene_metadata |
 | `/api/gene-metadata/:gene` | GET | gene_metadata |
 | `/api/gene-metadata/by-accession/:accession` | GET | gene_metadata |
+| `/api/orf/:orfId/provenance` | GET | None |
+| `/api/orf/:orfId/domains` | GET | petadex_catalytic_domains, pazy_hmms |
+| `/api/orf/:orfId` | GET | None |
 | `/api/pdb/accession/:accession` | GET | pdb_accessions |
 | `/api/pdb/:pdb_id` | GET | pdb_accessions |
 | `/api/petadex-domains/by-accession/:accession` | GET | None |
@@ -861,6 +864,51 @@ SELECT
       ORDER BY gene ASC
 ```
 </details>
+
+---
+
+## Orf Routes
+
+Base: `/api/orf`
+
+### GET `/api/orf/:orfId/provenance`
+
+**Parameters**: `orfId`
+
+**Tables**: None
+
+---
+
+### GET `/api/orf/:orfId/domains`
+
+**Parameters**: `orfId`
+
+**Tables**: petadex_catalytic_domains, pazy_hmms
+
+**Columns**:
+- `d`: pazy_hmm_id, domain_start, domain_end, catalytic_residues, date_performed
+- `h`: domain, catalytic_match_states, pazy_hmm_id
+
+<details>
+<summary>SQL Query</summary>
+
+```sql
+SELECT d.pazy_hmm_id, d.domain_start, d.domain_end,
+              d.catalytic_residues, d.date_performed,
+              h.domain AS domain_name, h.catalytic_match_states
+       FROM petadex_catalytic_domains d
+       LEFT JOIN pazy_hmms h
+         ON regexp_replace(h.pazy_hmm_id,
+```
+</details>
+
+---
+
+### GET `/api/orf/:orfId`
+
+**Parameters**: `orfId`
+
+**Tables**: None
 
 ---
 
