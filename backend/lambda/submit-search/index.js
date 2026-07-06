@@ -11,21 +11,26 @@ import { randomUUID } from 'crypto';
 
 const lambdaClient = new LambdaClient({ region: process.env.AWS_REGION || 'us-east-1' });
 
-// Validate amino acid sequence (allows standard single-letter codes)
-const VALID_AA_REGEX = /^[ACDEFGHIKLMNPQRSTVWY\s\n\r*-]+$/i;
+// Valid amino acid characters: standard 20 + IUPAC ambiguity codes (mirrors common.py VALID_AA).
+// Stop codons (*) and gap chars (-) are stripped before this check.
+const VALID_AA_REGEX = /^[ACDEFGHIKLMNPQRSTVWYBJZXUO]+$/i;
 
 function validateSequence(sequence) {
   if (!sequence || typeof sequence !== 'string') {
     return { valid: false, error: 'Sequence is required' };
   }
 
-  // Remove whitespace and newlines for validation
-  const cleanSequence = sequence.replace(/[\s\n\r]/g, '').toUpperCase();
+  // Strip whitespace/newlines, then stop codons and gap characters silently.
+  const cleanSequence = sequence
+    .replace(/[\s\n\r]/g, '')
+    .replace(/[*-]/g, '')
+    .toUpperCase();
 
   if (cleanSequence.length === 0) {
     return { valid: false, error: 'Sequence cannot be empty' };
   }
 
+  // Length check on residues after stripping (stop codons can drop below minimum).
   if (cleanSequence.length < 10) {
     return { valid: false, error: 'Sequence must be at least 10 amino acids' };
   }

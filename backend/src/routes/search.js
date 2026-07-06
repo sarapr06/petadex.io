@@ -40,6 +40,7 @@ import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda';
 import { S3Client, GetObjectCommand, ListObjectsV2Command, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { pool } from '../db.js';
 import { getPublicReadS3Client, streamToString as publicStreamToString } from '../lib/s3Public.js';
+import { SEQUENCE_PATTERN, MAX_LEN, cleanSequenceForKey } from '../lib/sequenceValidation.js';
 
 const router = Router();
 
@@ -214,10 +215,15 @@ function transformResults(rawResults, queryLength) {
 }
 
 const searchSchema = Joi.object({
+  // Permissive pre-filter: accepts bare sequences or single-record FASTA,
+  // full IUPAC ambiguity codes, stop codons (*) and gaps (-).
+  // The Python Lambda (petadex-diamond-orchestrator / common.py) is the
+  // authoritative gate — it strips */- and enforces the residue-length bounds.
+  // Raw max is generous (12000) to allow for a header line + whitespace.
   sequence: Joi.string()
-    .pattern(/^>[^\n\r]+[\n\r]+[ACDEFGHIKLMNPQRSTVWY\s\n\r*-]+$/i)
-    .min(10).max(10000).required()
-    .messages({ 'string.pattern.base': 'Sequence must begin with a FASTA header line (e.g. >accession) followed by amino acid sequence.' }),
+    .pattern(SEQUENCE_PATTERN)
+    .max(12000).required()
+    .messages({ 'string.pattern.base': 'Sequence contains unrecognized characters. Use standard amino acid codes (single-letter).' }),
   max_results: Joi.number().integer().min(1).max(500).default(50),
 });
 
@@ -355,7 +361,10 @@ router.post('/', async (req, res, next) => {
     if (error) return sendError(res, 400, error.details[0].message);
 
     const { sequence, max_results } = value;
-    const cleanSequence = sequence.replace(/^>[^\n\r]*[\n\r]+/, '').replace(/[\s\n\r]/g, '').toUpperCase();
+    // cleanSequenceForKey mirrors Python's validate_sequence cleaning so that
+    // identical inputs produce the same session ID regardless of whether a FASTA
+    // header, stop codons, or gap chars were present in the raw paste.
+    const cleanSequence = cleanSequenceForKey(sequence);
     // Key on the CURRENT corpus + pipeline so a rebuilt DB or a search-pipeline
     // bump produces a fresh key (cache miss → re-run), instead of serving a stale
     // result from a prior corpus/pipeline under an unchanged key.

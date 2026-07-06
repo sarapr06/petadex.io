@@ -30,7 +30,7 @@ const SequenceSearch = () => {
     const params = new URLSearchParams(window.location.search)
     const prefill = params.get("prefill") || params.get("seq")
     if (prefill) {
-      setSequence(prefill.startsWith(">") ? prefill : `>${prefill}`)
+      setSequence(prefill.startsWith(">") ? prefill : `>query\n${prefill}`)
     }
   }, [])
 
@@ -110,7 +110,10 @@ const SequenceSearch = () => {
           value={sequence}
           onChange={e => {
             const val = e.target.value
-            setSequence(val.startsWith(">") ? val : `>${val}`)
+            // Ensure the textarea always has a header so Joi validation passes.
+            // Use ">query\n" (not bare ">") so the header line is non-empty and
+            // the sequence body stays on its own line.
+            setSequence(val.startsWith(">") ? val : `>query\n${val}`)
             setError(null)
           }}
           disabled={submitting}
