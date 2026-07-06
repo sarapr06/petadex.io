@@ -326,21 +326,66 @@ async function enrichWithFamilyData(accessions) {
   return map;
 }
 
+// A missing S3 object is a legitimate "not ready yet" — anything else (a real S3
+// error, a malformed body) must NOT be masked as "processing", or a corrupt
+// result spins the poller until the client timeout.
+function isNotFound(err) {
+  return err?.name === 'NoSuchKey'
+    || err?.name === 'NotFound'
+    || err?.$metadata?.httpStatusCode === 404;
+}
+
 // ─── Shared helper: resolve sessionId via index file ─────────────────────────
 // Lambda writes results/{sessionId}.index containing the job_id after search.
-// Returns completed result object or null if not ready yet.
+// Returns the completed result object, or null if the search hasn't finished
+// (index or result object not written yet). THROWS on a genuine failure — a real
+// S3 error or malformed result JSON — so the caller can surface `failed` rather
+// than let it masquerade as `processing`.
 async function resolveFromIndex(s3, sessionId) {
   const indexKey = `${RESULTS_PREFIX}/${sessionId}.index`;
+  let jobId;
   try {
     const idxResp = await s3.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: indexKey }));
-    const jobId = (await streamToString(idxResp.Body)).trim();
-    const s3Key = `${RESULTS_PREFIX}/${sessionId}/${jobId}.json`;
+    jobId = (await streamToString(idxResp.Body)).trim();
+  } catch (err) {
+    if (isNotFound(err)) return null;  // index not written yet — still processing
+    throw err;
+  }
+
+  const s3Key = `${RESULTS_PREFIX}/${sessionId}/${jobId}.json`;
+  let content;
+  try {
     const resp = await s3.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: s3Key }));
-    const content = await streamToString(resp.Body);
-    const data = JSON.parse(content);
-    return { jobId, data };
+    content = await streamToString(resp.Body);
+  } catch (err) {
+    if (isNotFound(err)) return null;  // index points at a not-yet-written result (rare write race)
+    throw err;
+  }
+
+  // A malformed result body is a real failure, not "not ready" — let it throw.
+  return { jobId, data: JSON.parse(content) };
+}
+
+// ─── Failure sentinel ────────────────────────────────────────────────────────
+// The orchestrator's Step Functions Catch writes results/{sessionId}.error on the
+// abort/throttle path (see the DIAMOND search plan). Reading it lets the poller
+// report `failed` in ~16s instead of spinning to the 3-min client timeout.
+// Returns the parsed sentinel ({ status, reason, ... }) or null if not present.
+async function resolveErrorSignal(s3, sessionId) {
+  const errorKey = `${RESULTS_PREFIX}/${sessionId}.error`;
+  let content;
+  try {
+    const resp = await s3.send(new GetObjectCommand({ Bucket: RESULTS_BUCKET, Key: errorKey }));
+    content = await streamToString(resp.Body);
+  } catch (err) {
+    if (isNotFound(err)) return null;  // no failure signal — job is still in flight
+    throw err;
+  }
+  try {
+    return JSON.parse(content);
   } catch {
-    return null;
+    // The sentinel exists but is unparseable — the search still failed, so honor it.
+    return { status: 'failed', reason: 'Search failed' };
   }
 }
 
@@ -378,7 +423,15 @@ router.post('/', async (req, res, next) => {
     const s3 = getS3Client();
 
     // ── Cache lookup via index file ───────────────────────────────────────────
-    const cached = await resolveFromIndex(s3, sessionId);
+    // resolveFromIndex now throws on genuine errors (real S3 error / malformed
+    // cached result). On the POST path a bad cache entry should just miss and
+    // re-run, so swallow the throw here rather than surface it.
+    let cached = null;
+    try {
+      cached = await resolveFromIndex(s3, sessionId);
+    } catch (cacheErr) {
+      console.warn(`Cache lookup failed for sessionId=${sessionId}, treating as miss:`, cacheErr.message);
+    }
     if (cached) {
       console.log(`Cache hit – sessionId=${sessionId} job=${cached.jobId}`);
       return res.json({
@@ -483,9 +536,40 @@ router.get('/results/:job_id', async (req, res, next) => {
 
     // MD5 sessionId or regen_example_* — check index file
     if (/^[a-f0-9]{32}$/.test(jobId) || /^regen_example_/.test(jobId)) {
-      const result = await resolveFromIndex(s3, jobId);
+      // Order matters: success (index) wins over a failure sentinel if both
+      // somehow exist; a genuine error reading the result surfaces as failed
+      // (not "processing"), closing the "malformed results JSON spins forever" case.
+      let result;
+      try {
+        result = await resolveFromIndex(s3, jobId);
+      } catch (idxErr) {
+        console.error(`resolveFromIndex failed for ${jobId}:`, idxErr);
+        return res.json({
+          status: 'failed',
+          session_id: jobId,
+          error: `Result unavailable: ${idxErr.message}`,
+        });
+      }
 
       if (!result) {
+        // No completed result yet. Before defaulting to `processing`, check for the
+        // orchestrator's failure sentinel — written on the throttle/abort path well
+        // before the client timeout.
+        let errSignal = null;
+        try {
+          errSignal = await resolveErrorSignal(s3, jobId);
+        } catch (sigErr) {
+          // A read error on the sentinel itself shouldn't fail the poll — fall
+          // through to `processing` and let the client-side timeout backstop.
+          console.error(`resolveErrorSignal failed for ${jobId} (non-fatal):`, sigErr);
+        }
+        if (errSignal) {
+          return res.json({
+            status: 'failed',
+            session_id: jobId,
+            error: errSignal.reason || errSignal.cause || 'Search failed',
+          });
+        }
         // Index not written yet — Lambda still running
         return res.json({ status: 'processing', session_id: jobId });
       }

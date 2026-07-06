@@ -27,9 +27,12 @@ const SEARCH_STAGES = [
   { id: "done", label: "Results ready", pct: 100 },
 ]
 
-// Cap polling at ~12 min — DIAMOND/Logan typically finishes in ~2 min;
-// past this we assume the orchestrator failed silently and surface an error.
-const POLL_TIMEOUT_SECONDS = 12 * 60
+// Cap polling at ~3 min. DIAMOND/Logan finishes in ~2 min, and the orchestrator
+// now writes a failure sentinel (→ status:"failed", surfaced by the poller) within
+// ~16s–10min on every real failure — so this backstop only has to catch the
+// dropped-async-event case where no sentinel is ever written. 3 min is strictly
+// looser than any true outcome, so false positives are near-zero.
+const POLL_TIMEOUT_SECONDS = 3 * 60
 
 function buildBugReportUrl(message, jobId) {
   const title = encodeURIComponent(`[Bug] Search error: ${message}`)
