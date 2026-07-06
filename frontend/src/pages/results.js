@@ -114,7 +114,7 @@ const LoadingScreen = ({ sessionId, sequence, elapsed }) => {
           DIAMOND is scanning ~307M sequences in the Logan corpus for similar enzymes
         </p>
         <p className="text-xs text-muted-foreground">
-          This typically takes ~2 minutes on the full corpus.
+          This typically takes 40 seconds on the full corpus.
         </p>
         <p className="text-xs text-muted-foreground font-mono">› {LOADING_PROMPTS[promptIdx]}</p>
       </div>
