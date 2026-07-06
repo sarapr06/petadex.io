@@ -41,7 +41,7 @@ const SearchPage = () => {
             >
               Logan
             </a>{" "}
-            corpus — ~307M protein sequences assembled from the SRA. The search identifies
+            corpus (~307M protein sequences assembled from the SRA). The search identifies
             proteins with similar sequences, which may share functional properties.
           </p>
 
