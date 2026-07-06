@@ -382,7 +382,13 @@ async function resolveErrorSignal(s3, sessionId) {
     throw err;
   }
   try {
-    return JSON.parse(content);
+    let parsed = JSON.parse(content);
+    // The orchestrator's native Step Functions s3:putObject writes the body via
+    // States.JsonToString, which double-encodes it — the stored body is a JSON
+    // *string*, not an object. Unwrap the extra layer so reason/cause survive.
+    // Tolerant of a future clean-JSON writer (then this branch just no-ops).
+    if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+    return parsed;
   } catch {
     // The sentinel exists but is unparseable — the search still failed, so honor it.
     return { status: 'failed', reason: 'Search failed' };
