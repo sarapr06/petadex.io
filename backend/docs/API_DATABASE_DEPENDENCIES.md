@@ -1,6 +1,6 @@
 # PETadex API - Database Dependencies
 
-**Auto-generated**: 2026-07-06
+**Auto-generated**: 2026-07-07
 **Purpose**: Maps API endpoints to database tables/columns to identify breaking changes
 
 ---
