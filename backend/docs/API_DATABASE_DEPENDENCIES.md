@@ -1,6 +1,6 @@
 # PETadex API - Database Dependencies
 
-**Auto-generated**: 2026-07-07
+**Auto-generated**: 2026-07-14
 **Purpose**: Maps API endpoints to database tables/columns to identify breaking changes
 
 ---
@@ -27,7 +27,7 @@
 | `/api/family/:familyId/members` | GET | enzyme_fastaa, enzyme_taxonomy |
 | `/api/family/:familyId/metadata` | GET | None |
 | `/api/family/:familyId/umap` | GET | None |
-| `/api/family/:familyId/tree-members` | GET | enzyme_fastaa, enzyme_taxonomy |
+| `/api/family/:familyId/tree-members` | GET | enzyme_fastaa, enzyme_taxonomy, blast_nr_metadata |
 | `/api/family/:familyId/tree` | GET | None |
 | `/api/fastaa/` | GET | fastaa, with_sra_and_biosample_loc_metadata |
 | `/api/fastaa/:accession` | GET | with_sra_and_biosample_loc_metadata, fastaa |
@@ -474,11 +474,12 @@ SELECT
 
 **Parameters**: `familyId`
 
-**Tables**: enzyme_fastaa, enzyme_taxonomy
+**Tables**: enzyme_fastaa, enzyme_taxonomy, blast_nr_metadata
 
 **Columns**:
 - `e`: enzyme_id, genbank_accession_id
 - `t`: family_pid, component, enzyme_id, family
+- `b`: organism, country, genbank_accession_id
 
 <details>
 <summary>SQL Query</summary>
@@ -488,9 +489,13 @@ SELECT
          e.enzyme_id,
          e.genbank_accession_id,
          t.family_pid,
-         t.component
+         t.component,
+         b.organism,
+         b.country
        FROM enzyme_fastaa e
        INNER JOIN enzyme_taxonomy t ON e.enzyme_id = t.enzyme_id
+       LEFT JOIN blast_nr_metadata b
+         ON b.genbank_accession_id = e.genbank_accession_id
        WHERE t.family = $1
        ORDER BY t.family_pid DESC NULLS FIRST, e.enzyme_id
 ```
