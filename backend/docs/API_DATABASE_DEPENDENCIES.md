@@ -481,6 +481,11 @@ SELECT
 - `t`: family_pid, component, enzyme_id, family
 - `b`: organism, country, genbank_accession_id
 
+**Notes**: Used by the family phylo tree search UI and navigation tools
+(path/neighbors/neighborhood/metadata coloring). `organism` and `country` are
+optional (LEFT JOIN) for tip color modes. See
+`frontend/docs/phylo-tree-navigation.md`.
+
 <details>
 <summary>SQL Query</summary>
 
