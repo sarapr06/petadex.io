@@ -1,6 +1,6 @@
 # PETadex API - Database Dependencies
 
-**Auto-generated**: 2026-07-14
+**Auto-generated**: 2026-07-20
 **Purpose**: Maps API endpoints to database tables/columns to identify breaking changes
 
 ---
@@ -480,11 +480,6 @@ SELECT
 - `e`: enzyme_id, genbank_accession_id
 - `t`: family_pid, component, enzyme_id, family
 - `b`: organism, country, genbank_accession_id
-
-**Notes**: Used by the family phylo tree search UI and navigation tools
-(path/neighbors/neighborhood/metadata coloring). `organism` and `country` are
-optional (LEFT JOIN) for tip color modes. See
-`frontend/docs/phylo-tree-navigation.md`.
 
 <details>
 <summary>SQL Query</summary>
