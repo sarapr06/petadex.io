@@ -22,6 +22,9 @@ const EMPTY_ANNOTATIONS = Object.freeze([]);
 
 const ProteinViewer = ({
   accession,
+  structureUrl = null,
+  format = null,
+  label = null,
   width = "100%",
   height = "100%",
   showControls = true,
@@ -101,7 +104,10 @@ const ProteinViewer = ({
   }, [hoverTip, pinnedAnnotation, bumpLayout, loading]);
 
   useEffect(() => {
-    if (!accession || typeof window === 'undefined') return;
+    if (typeof window === 'undefined') return;
+    const hasDirectUrl = Boolean(structureUrl);
+    const hasAccession = Boolean(accession);
+    if (!hasDirectUrl && !hasAccession) return;
 
     let plugin = null;
     let isMounted = true;
@@ -153,32 +159,43 @@ const ProteinViewer = ({
 
         pluginRef.current = plugin;
 
-        const pdbUrl = `${config.apiUrl}/pdb/accession/${accession}`;
-        const response = await fetch(pdbUrl);
+        let fileUrl = structureUrl;
+        let parseFormat = format === 'mmcif' || format === 'cif' ? 'mmcif' : 'pdb';
+        let structureLabel = label || accession || 'Structure';
 
-        if (!response.ok) {
-          throw new Error('No structure available');
+        if (!fileUrl) {
+          const pdbMetaUrl = `${config.apiUrl}/pdb/accession/${accession}`;
+          const response = await fetch(pdbMetaUrl);
+
+          if (!response.ok) {
+            throw new Error('No structure available');
+          }
+
+          const pdbInfo = await response.json();
+          if (!isMounted) return;
+          fileUrl = pdbInfo.pdb_url;
+          parseFormat = 'pdb';
+          structureLabel = `${accession} Structure`;
         }
 
-        const pdbInfo = await response.json();
-
-        if (!isMounted) return;
-
-        const pdbResponse = await fetch(pdbInfo.pdb_url);
-        if (!pdbResponse.ok) {
-          throw new Error(`Failed to load PDB file: ${pdbResponse.status}`);
+        const fileResponse = await fetch(fileUrl);
+        if (!fileResponse.ok) {
+          throw new Error(`Failed to load structure file: ${fileResponse.status}`);
         }
 
-        const pdbData = await pdbResponse.text();
+        const fileData = await fileResponse.text();
 
         if (!isMounted) return;
 
         const data = await plugin.builders.data.rawData({
-          data: pdbData,
-          label: `${accession} Structure`
+          data: fileData,
+          label: structureLabel,
         });
 
-        const trajectory = await plugin.builders.structure.parseTrajectory(data, 'pdb');
+        const trajectory = await plugin.builders.structure.parseTrajectory(
+          data,
+          parseFormat,
+        );
         const model = await plugin.builders.structure.createModel(trajectory);
         const structure = await plugin.builders.structure.createStructure(model);
 
@@ -298,6 +315,9 @@ const ProteinViewer = ({
     };
   }, [
     accession,
+    structureUrl,
+    format,
+    label,
     showControls,
     initialStyle,
     enableMeasurement,
