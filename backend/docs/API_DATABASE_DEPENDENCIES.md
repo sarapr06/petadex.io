@@ -1,6 +1,6 @@
 # PETadex API - Database Dependencies
 
-**Auto-generated**: 2026-07-20
+**Auto-generated**: 2026-07-21
 **Purpose**: Maps API endpoints to database tables/columns to identify breaking changes
 
 ---
@@ -45,16 +45,6 @@
 | `/api/orf/:orfId` | GET | None |
 | `/api/pdb/accession/:accession` | GET | pdb_accessions |
 | `/api/pdb/:pdb_id` | GET | pdb_accessions |
-| `/api/structure/orf/:orfId` | GET | orf_origins, pdb_accessions, block_90pid, pazy/nr catalytic_orfs |
-| `/api/structure/accession/:accession` | GET | pdb_accessions, block_90pid, pazy/nr catalytic_orfs |
-| `/api/sra/summary` | GET | sra_metadata |
-| `/api/sra/run/:acc` | GET | sra_metadata, logan_catalytic_orfs |
-| `/api/sra/run/:acc/orfs` | GET | logan_catalytic_orfs |
-| `/api/sra/biosample/:id` | GET | sra_metadata, logan_catalytic_orfs |
-| `/api/sra/biosample/:id/runs` | GET | sra_metadata |
-| `/api/sra/organism` | GET | sra_metadata |
-| `/api/sra/organism/:name` | GET | sra_metadata |
-| `/api/sra/organism/:name/biosamples` | GET | sra_metadata |
 | `/api/petadex-domains/by-accession/:accession` | GET | None |
 | `/api/petadex-domains/:orfId` | GET | None |
 | `/api/plate-data/comparison` | GET | accession_activity_view, gene_metadata |
@@ -71,6 +61,15 @@
 | `/api/search/phylo-tree/:family_id` | GET | None |
 | `/api/search/results/:job_id` | GET | None |
 | `/api/search/history` | GET | None |
+| `/api/sra/organism` | GET | None |
+| `/api/sra/organism/:name/biosamples` | GET | None |
+| `/api/sra/organism/:name` | GET | None |
+| `/api/sra/biosample/:id/runs` | GET | sra_metadata |
+| `/api/sra/biosample/:id` | GET | None |
+| `/api/sra/run/:acc/orfs` | GET | logan_catalytic_orfs |
+| `/api/sra/run/:acc` | GET | sra_metadata, logan_catalytic_orfs |
+| `/api/structure/orf/:orfId` | GET | orf_origins |
+| `/api/structure/accession/:accession` | GET | None |
 
 ---
 
@@ -969,28 +968,6 @@ SELECT pdb_id, accession, technique, relaxed, date_created, date_entered, alignm
 
 ---
 
-## Structure Routes
-
-Base: `/api/structure`
-
-Resolves experimental PDB (`pdb_accessions` → `petadex/pdb_structs/`) or predicted
-ESMFold2 mmCIF URLs under `petadex-protein-structures` (see
-`frontend/docs/protein-structures.md`). Does not list ~18M centroids.
-
-### GET `/api/structure/orf/:orfId`
-
-**Parameters**: `orfId`
-
-**Tables**: orf_origins, pdb_accessions, block_90pid, pazy_catalytic_orfs, nr_catalytic_orfs
-
-### GET `/api/structure/accession/:accession`
-
-**Parameters**: `accession`
-
-**Tables**: pdb_accessions, block_90pid, pazy_catalytic_orfs, nr_catalytic_orfs
-
----
-
 ## PetadexDomains Routes
 
 Base: `/api/petadex-domains`
@@ -1296,6 +1273,138 @@ Base: `/api/search`
 ---
 
 ### GET `/api/search/history`
+
+**Tables**: None
+
+---
+
+## Sra Routes
+
+Base: `/api/sra`
+
+### GET `/api/sra/organism`
+
+**Tables**: None
+
+---
+
+### GET `/api/sra/organism/:name/biosamples`
+
+**Parameters**: `name`
+
+**Tables**: None
+
+---
+
+### GET `/api/sra/organism/:name`
+
+**Parameters**: `name`
+
+**Tables**: None
+
+---
+
+### GET `/api/sra/biosample/:id/runs`
+
+**Parameters**: `id`
+
+**Tables**: sra_metadata
+
+<details>
+<summary>SQL Query</summary>
+
+```sql
+SELECT acc, assay_type, platform, instrument, organism, sra_study, bioproject,
+              mbytes, mbases, releasedate, geo_loc_name_country_calc AS country, biome
+       FROM sra_metadata
+       WHERE biosample = $1
+       ORDER BY releasedate DESC NULLS LAST
+       LIMIT $2 OFFSET $3
+```
+</details>
+
+---
+
+### GET `/api/sra/biosample/:id`
+
+**Parameters**: `id`
+
+**Tables**: None
+
+<details>
+<summary>SQL Query</summary>
+
+```sql
+SELECT
+         biosample,
+         MIN(organism) FILTER (WHERE organism IS NOT NULL AND organism <>
+```
+</details>
+
+---
+
+### GET `/api/sra/run/:acc/orfs`
+
+**Parameters**: `acc`
+
+**Tables**: logan_catalytic_orfs
+
+<details>
+<summary>SQL Query</summary>
+
+```sql
+SELECT orf_id, contig, orf_start, orf_end, orf_type
+       FROM logan_catalytic_orfs
+       WHERE library_id = $1
+       ORDER BY orf_id
+       LIMIT $2 OFFSET $3
+```
+</details>
+
+---
+
+### GET `/api/sra/run/:acc`
+
+**Parameters**: `acc`
+
+**Tables**: sra_metadata, logan_catalytic_orfs
+
+<details>
+<summary>SQL Query</summary>
+
+```sql
+SELECT ${RUN_COLS}
+       FROM sra_metadata
+       WHERE acc = $1
+       LIMIT 1
+```
+</details>
+
+---
+
+## Structure Routes
+
+Base: `/api/structure`
+
+### GET `/api/structure/orf/:orfId`
+
+**Parameters**: `orfId`
+
+**Tables**: orf_origins
+
+<details>
+<summary>SQL Query</summary>
+
+```sql
+SELECT 1 AS ok FROM orf_origins WHERE orf_id = $1 LIMIT 1
+```
+</details>
+
+---
+
+### GET `/api/structure/accession/:accession`
+
+**Parameters**: `accession`
 
 **Tables**: None
 
