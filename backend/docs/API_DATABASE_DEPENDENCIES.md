@@ -1,6 +1,6 @@
 # PETadex API - Database Dependencies
 
-**Auto-generated**: 2026-07-21
+**Auto-generated**: 2026-07-24
 **Purpose**: Maps API endpoints to database tables/columns to identify breaking changes
 
 ---
@@ -70,6 +70,7 @@
 | `/api/sra/run/:acc` | GET | sra_metadata, logan_catalytic_orfs |
 | `/api/structure/orf/:orfId` | GET | orf_origins |
 | `/api/structure/accession/:accession` | GET | None |
+| `/api/structure/metrics/:orfId` | GET | orf_origins |
 
 ---
 
@@ -1407,6 +1408,22 @@ SELECT 1 AS ok FROM orf_origins WHERE orf_id = $1 LIMIT 1
 **Parameters**: `accession`
 
 **Tables**: None
+
+---
+
+### GET `/api/structure/metrics/:orfId`
+
+**Parameters**: `orfId`
+
+**Tables**: orf_origins
+
+<details>
+<summary>SQL Query</summary>
+
+```sql
+SELECT 1 AS ok FROM orf_origins WHERE orf_id = $1 LIMIT 1
+```
+</details>
 
 ---
 
